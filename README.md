@@ -1,7 +1,7 @@
 # Blockchain
 Public Distributed Hashburst Blockchain
 
-Here’s a comprehensive framework for a **Hashburst Blockchain with Proof of History (PoH)** implemented in **C++**, **Python**, and **PHP**. This framework utilizes encryption with AES-256-CBC and implements the core functionality for managing blocks, users, wallets, and ledger consensus, while verifying integrity using SHA-512 and CRC32b.
+Here’s a comprehensive framework for a **Hashburst Blockchain with Proof of History (PoH)** implemented in **C++**, **Python**, **PHP** and **GO**. This framework utilizes encryption with AES-256-CBC and implements the core functionality for managing blocks, users, wallets, and ledger consensus, while verifying integrity using SHA-512 and CRC32b.
 
 ### 1. **PHP Implementation**
 
