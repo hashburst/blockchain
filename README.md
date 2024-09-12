@@ -179,5 +179,20 @@ In this version, C++ manages the blockchain logic, encryption, and PoH-based con
 
 ---
 
+Here’s a structured approach to implement a Hashburst Blockchain in three languages—Python, PHP, and Go—incorporating Proof of History and encryption techniques.
+
+### Schema and Structure of the Blockchain
+   
+Folders:
+/ledger: Stores all user data (wallets, blocks, transactions, etc.).
+/blocks: Contains the voting consensus blocks from Hashburst users.
+/users: Stores user-specific data, encrypted using their API key and password.
+/wallets: Encrypted lists of user wallets corresponding to various mainnet chains.
+
+Files:
+masterData.hbx: This is the master ledger that stores all the data blocks. It is encrypted using a fixed $pk and $iv.
+/users/{BlockIdSignature}: These files contain encrypted user data (blockSignature) based on the user’s API key and password.
+/wallets/{BlockIdSignature}: Corresponding to user wallets, they are encrypted with the same method as in the user block files.
+
 ### Final Thoughts:
 This framework provides a **secure and distributed blockchain** with **Proof of History (PoH)**, consensus mechanisms, and encryption for all transactions and blocks. Each language uses efficient cryptographic libraries to manage encryption (AES-256), hashing (SHA-512, CRC32b), and blockchain logic, ensuring both security and integrity for the Hashburst network.
