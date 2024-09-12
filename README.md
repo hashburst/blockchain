@@ -196,3 +196,40 @@ masterData.hbx: This is the master ledger that stores all the data blocks. It is
 
 ### Final Thoughts:
 This framework provides a **secure and distributed blockchain** with **Proof of History (PoH)**, consensus mechanisms, and encryption for all transactions and blocks. Each language uses efficient cryptographic libraries to manage encryption (AES-256), hashing (SHA-512, CRC32b), and blockchain logic, ensuring both security and integrity for the Hashburst network.
+
+### API Key and License Verification (Hashburst Blockchain)
+We have build code that verifies user API keys and referral codes using Hashburst’s API. For instance:
+- A PHP script checked API keys and referral codes stored in a JSON file and verified that the corresponding user exists in the Hashburst blockchain.
+- I implemented a function in Go to check API keys and perform network speed tests, with the API key being used to authenticate against the Hashburst platform.
+
+### Notable code references:
+- verifyWithHashburst(email, apikey, referralCode string) function (Go)
+- Logic to compare user data with /home/gfppflpp/public_html/cp/dealers.json for validation.
+- URL generation and API request to https://hashburst.io/nodes/<dealer>/mcm/<apikey>.
+
+### Network Speed Testing Integration
+- Implemented functions to test network speed using ping, ensuring that the miner machines on the Hashburst platform had sufficient bandwidth for optimal operation.
+- This integration was part of the mining setup to ensure that the user’s system could handle mining tasks with Hashburst nodes.
+- Notable code references: the testNetworkSpeed() function (Go) was designed to execute and parse network latency results.
+
+### Mining Software Configuration
+In Bash scripts provided, we have created configuration templates to set up mining nodes. These scripts use API keys to configure nodes with specific algorithms, endpoints, and wallet addresses in order to connect to the Hashburst network.
+
+- Notable code references: configurations of miners using variables such as <MINER>, <ALGO>, <ENDPOINT_POOL>, <PORT>, <ACCOUNT.SUBACCOUNT>, and <COIN> to enable the parallel mining processes across different coins and pools on Hashburst.
+
+### Cluster and Sub-Account Setup for Mining Nodes
+This framework has provided logic to generate configuration files for miner clusters (workers and sub-accounts) by dynamically generating scripts based on API keys. These scripts configured each miner in the cluster to work with specific pools and sub-accounts using the Hashburst infrastructure.
+
+- Notable code references: the generation of Bash script configurations for mining clusters based on the API keys and nodes under the Hashburst mining infrastructure.
+  
+### Hashburst Blockchain in AI Models (PyTorch)
+Hashburst use Reinforcement Learning (RL) in PyTorch to optimize the mining performance based on Hashburst’s blockchain data. The RL model aimed to dynamically adjust mining parameters such as pool selection, node resource allocation, and coin mining strategies based on real-time feedback from the network.
+
+- Notable code references: implementing RL models using PyTorch for dynamic configuration of nodes and miners to optimize the throughput based on the performance feedback from the Hashburst network.
+
+### Go Code for Hashburst Miner Release Automation
+Go code to automatically download and run the latest version of the Hashburst miner from the GitHub release page, further automating the integration with the Hashburst blockchain for user registration and mining setup.
+
+- Notable code references: downloadMiner() and startMiner() functions in Go to manage mining operations automatically based on the latest Hashburst miner release.
+  
+Here you can find a whole framework, otherwise a complete and functional code, for Hashburst Blockchain across different languages (Go, PHP, Bash) and integrated mining and verification operations based on your requirements for the Hashburst platform. Each piece of code directly interacts with Hashburst APIs, mining nodes, or blockchain-related operations, ensuring a fully integrated solution.
