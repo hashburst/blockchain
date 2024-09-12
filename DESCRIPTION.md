@@ -263,20 +263,4 @@ The Go version will include additional P2P networking and validation, enabling d
 
 This framework has been extended with P2P capabilities, smart contracts, and voting/consensus system for all nodes in the main network (ecosystem).
 
-[^x]: Hashburst can also run on protocols other than TCP/IP such as, for example, the TEP protocol. The patents and can be seen at the following links on the WIPO website:
-- [US20210243031](https://patentscope.wipo.int/search/en/detail.jsf?docId=US332615987&_cid=P20-M0ZG2C-76315-1)
-- [IN202017051650](https://patentscope.wipo.int/search/en/detail.jsf?docId=IN318462466&_cid=P20-M0ZG2C-76315-1)
-- [IT201800005763](https://patentscope.wipo.int/search/en/detail.jsf?docId=IT294324396&_cid=P20-M0ZG2C-76315-1)
-- [EP3804376](https://patentscope.wipo.int/search/en/detail.jsf?docId=EP321940846&_cid=P20-M0ZG2C-76315-1)
-- [WO2019229612](https://patentscope.wipo.int/search/en/detail.jsf?docId=WO2019229612&_cid=P20-M0ZG2C-76315-1)
-- [US20240028421](https://patentscope.wipo.int/search/en/detail.jsf?docId=US420408951&_cid=P20-M0ZG2C-76315-1)
-- [US20230239155](https://patentscope.wipo.int/search/en/detail.jsf?docId=US403068095&_cid=P20-M0ZG2C-76315-1)
-- [US20230231836](https://patentscope.wipo.int/search/en/detail.jsf?docId=US402828261&_cid=P20-M0ZG2C-76315-1)
-- [EP4311159](https://patentscope.wipo.int/search/en/detail.jsf?docId=EP420424266&_cid=P20-M0ZG2C-76315-1)
-- [IT202200015489](https://patentscope.wipo.int/search/en/detail.jsf?docId=IT436939565&_cid=P20-M0ZG2C-76315-1)
-- [IT202000014509](https://patentscope.wipo.int/search/en/detail.jsf?docId=IT397727902&_cid=P20-M0ZG2C-76315-2)
-- [EP4169233](https://patentscope.wipo.int/search/en/detail.jsf?docId=EP396253009&_cid=P20-M0ZG2C-76315-2)
-- [IT202000014518](https://patentscope.wipo.int/search/en/detail.jsf?docId=IT397727906&_cid=P20-M0ZG2C-76315-2)
-- [EP4169234](https://patentscope.wipo.int/search/en/detail.jsf?docId=EP396253010&_cid=P20-M0ZG2C-76315-2)
-- [WO2021255630](https://patentscope.wipo.int/search/en/detail.jsf?docId=WO2021255630&_cid=P20-M0ZG2C-76315-2)
-- [WO2021255633](https://patentscope.wipo.int/search/en/detail.jsf?docId=WO2021255633&_cid=P20-M0ZG2C-76315-2)
+[^x]: Hashburst can also run on protocols other than TCP/IP such as, for example, the TEP protocol. The patents and can be seen at the following links on the WIPO website: - [US20210243031](https://patentscope.wipo.int/search/en/detail.jsf?docId=US332615987&_cid=P20-M0ZG2C-76315-1); - [IN202017051650](https://patentscope.wipo.int/search/en/detail.jsf?docId=IN318462466&_cid=P20-M0ZG2C-76315-1); - [IT201800005763](https://patentscope.wipo.int/search/en/detail.jsf?docId=IT294324396&_cid=P20-M0ZG2C-76315-1); - [EP3804376](https://patentscope.wipo.int/search/en/detail.jsf?docId=EP321940846&_cid=P20-M0ZG2C-76315-1); - [WO2019229612](https://patentscope.wipo.int/search/en/detail.jsf?docId=WO2019229612&_cid=P20-M0ZG2C-76315-1); - [US20240028421](https://patentscope.wipo.int/search/en/detail.jsf?docId=US420408951&_cid=P20-M0ZG2C-76315-1); - [US20230239155](https://patentscope.wipo.int/search/en/detail.jsf?docId=US403068095&_cid=P20-M0ZG2C-76315-1); - [US20230231836](https://patentscope.wipo.int/search/en/detail.jsf?docId=US402828261&_cid=P20-M0ZG2C-76315-1); - [EP4311159](https://patentscope.wipo.int/search/en/detail.jsf?docId=EP420424266&_cid=P20-M0ZG2C-76315-1); - [IT202200015489](https://patentscope.wipo.int/search/en/detail.jsf?docId=IT436939565&_cid=P20-M0ZG2C-76315-1); - [IT202000014509](https://patentscope.wipo.int/search/en/detail.jsf?docId=IT397727902&_cid=P20-M0ZG2C-76315-2); - [EP4169233](https://patentscope.wipo.int/search/en/detail.jsf?docId=EP396253009&_cid=P20-M0ZG2C-76315-2); - [IT202000014518](https://patentscope.wipo.int/search/en/detail.jsf?docId=IT397727906&_cid=P20-M0ZG2C-76315-2); - [EP4169234](https://patentscope.wipo.int/search/en/detail.jsf?docId=EP396253010&_cid=P20-M0ZG2C-76315-2); - [WO2021255630](https://patentscope.wipo.int/search/en/detail.jsf?docId=WO2021255630&_cid=P20-M0ZG2C-76315-2); - [WO2021255633](https://patentscope.wipo.int/search/en/detail.jsf?docId=WO2021255633&_cid=P20-M0ZG2C-76315-2)
