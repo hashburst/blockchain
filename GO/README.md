@@ -39,10 +39,25 @@ This can be done using Go's net package or leveraging a web framework like Gin f
 Extend the Proof of History (PoH) blockchain library written in Go by adding transaction management, mining with Proof of Work (PoW), and wallet creation with cryptography. This will make our blockchain more realistic and closer to what everyone'd expect in a blockchain ecosystem.
 
 ### Transaction Management
+
 Introducing a structure to handle wallet transactions. Each transaction includes the sender, receiver, and amount.
 
 ### Mining and Rewards
+
 Introducing a Proof of Work (PoW) mechanism where miners need to find a hash that satisfies a difficulty target. This process rewards miners for solving blocks.
 
 ### Wallets and Cryptography
+
 Add wallet generation using public and private keys. Transactions must be signed by the sender using their private key, and the network verifies the signature with the sender’s public key.
+
+- Transaction Management: introduced a Transaction struct and added support for signing and verifying transactions.
+- Mining and Rewards: added a Proof of Work mechanism that requires solving a hash puzzle, rewarding miners for their work.
+- Wallets and Cryptography: wallets are created using ECDSA (Elliptic Curve Digital Signature Algorithm) with signing and verification of transactions.
+  
+This extended blockchain can now handle the "Go" implementation for the "Proof of History" (PoH) blockchain has now been extended to include Transaction Management, Mining and Rewards, and Wallets with Cryptography as discussed in the previous messages. The blockchain now supports wallet transfers, digital signatures, mining with a Proof of Work (PoW) consensus, and wallet creation using elliptic curve cryptography.
+
+This extended code introduces several key functionalities:
+
+- Transaction Management: transactions are signed by the sender and verified using public/private key cryptography.
+- Mining and Rewards: miners must solve a cryptographic puzzle to add blocks to the chain, and are rewarded for their efforts.
+- Wallets and Cryptography: wallets are created using elliptic curve cryptography, and transactions between wallets are signed and verified securely.
