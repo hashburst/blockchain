@@ -132,79 +132,7 @@ An example of token minting via API using **Ethers.js**:
                       console.log(`Minted ${value} tokens to ${to}`);
                   }
 
-
-### 6. **Integration with TRC, ERC, and BEP Standards**
-
-The implemented contracts are designed to follow **ERC-20/721 standards** closely, ensuring compatibility with **BEP-20/721** and **TRC-20/721**.
-To provide a clearer understanding of how the smart contracts implemented in Solidity (for HBT-20 and HBT-721) can be integrated across multiple blockchain ecosystems (specifically **Ethereum (ERC-20/721)**, **Binance Smart Chain (BEP-20/721)**, and **Tron (TRC-20/721)**), here's a deeper look at the technical processes involved:
-
-- **1.For BEP tokens**: the tokens can be deployed on the **Binance Smart Chain** using similar interfaces.
-  
-  #### BEP-20/721 Token Deployment on Binance Smart Chain (BSC)**
-  
-  The Binance Smart Chain is fully EVM (Ethereum Virtual Machine) compatible, so any smart contract written for ERC-20 and ERC-721 can be deployed to BSC with little to no modification.
-  
-  ##### **Steps for Deployment on BSC:**
-  
-  - **Smart Contract Compatibility**: since BSC is compatible with Ethereum, the Solidity code for **HBT-20** and **HBT-721** (fungible and non-fungible tokens) does not require changes.
-    
-  - **Deployment Using Remix or Truffle**:
-    - Use **Remix** or **Truffle** to deploy the contract by connecting to BSC’s RPC endpoint.
-    - Example RPC Endpoint: `https://bsc-dataseed.binance.org/`
-    
-  - **Network Configuration for MetaMask**:
-    - Add BSC to your **MetaMask** wallet by configuring a custom RPC, ensuring smooth interaction with the Binance Smart Chain.
-  
-  - **Gas Fees**: Transactions on BSC use **BNB** as the native currency for gas fees, so ensure that your deployment account holds sufficient BNB.
-  
-
-                  bash
-                  
-                  truffle migrate --network binance
-
-
-
-- **2.For TRC tokens**: You’ll need to use the **TronLink** SDK for deploying TRC-20/721 tokens, ensuring compatibility across multiple chains.
-  
-  #### TRC-20/721 Token Deployment on the Tron Blockchain**
-  
-  For **TRC-20** (fungible tokens) and **TRC-721** (non-fungible tokens), Tron’s architecture is different from Ethereum, but Tron offers its own tools for deploying smart contracts and interacting with the blockchain. The **TronLink Web** and **TronWeb** libraries facilitate easy deployment and interaction with Tron smart contracts.
-  
-  ##### **Steps for TRC-20/721 Token Deployment:**
-  
-  - **Rewrite Contracts for Tron**: even though Tron smart contracts are also written in Solidity, the **Solidity version** and certain **features** (like the `msg` global variable) are handled differently.
-    - Use **Solidity version 0.4.25** for Tron smart contracts.
-    - Replace `msg.sender` and `msg.value` with Tron-specific syntax.
-  
-  - **TronLink Web Wallet**: TronLink allows users to interact with Tron-based dApps, similar to how MetaMask works for Ethereum. Use this tool to sign transactions and deploy smart contracts.
-  
-  - **TronWeb**: This is a JavaScript API for interacting with the Tron blockchain programmatically. You can use **TronWeb** to deploy your TRC-20 or TRC-721 contracts directly from your code or dApp.
-  
-    Example deployment using **TronWeb**:
-  
-    
-                  javascript
-                  
-                  const TronWeb = require('tronweb');
-                
-                  const tronWeb = new TronWeb({
-                      fullHost: 'https://api.trongrid.io',
-                      privateKey: 'YOUR_PRIVATE_KEY'
-                  });
-                
-                  const contract = await tronWeb.contract().new({
-                      abi: contractABI,  // ABI of the contract
-                      bytecode: contractBytecode  // Bytecode of the contract
-                  });
-                
-                  console.log('Contract Address:', contract.address);
-    
-  
-  - **Tron-Specific Tools**:
-    - **TronGrid**: a tool similar to Ethereum's Infura, which allows access to the Tron blockchain through APIs without running a full node.
-    - **TronStation**: a tool to estimate gas costs and monitor network performance, similar to Ethereum's Gas Station.
-  
-  #### **API Integration for Token Minting and Distribution**
+#### **API Integration for Token Minting and Distribution**
   
   After deploying the smart contracts (HBT-20 and HBT-721) across Ethereum, Binance Smart Chain, and Tron, you can build APIs to facilitate token minting and distribution to third-party platforms like exchanges and digital banks.
   
@@ -226,7 +154,7 @@ To provide a clearer understanding of how the smart contracts implemented in Sol
                    }
      
   
-  3. **TronWeb Integration for Tron**: Use **TronWeb** to expose API endpoints for third-party systems to mint and transfer TRC-20 or TRC-721 tokens. Example:
+  2. **TronWeb Integration for Tron**: use **TronWeb** to expose API endpoints for third-party systems to mint and transfer TRC-20 or TRC-721 tokens. Example:
      
      
                    javascript
@@ -237,7 +165,11 @@ To provide a clearer understanding of how the smart contracts implemented in Sol
                    }
      
   
-  5. **Exposing APIs for Third-Party Systems**: APIs can be exposed over HTTP/REST for third-party systems to interact with tokens. This allows exchanges, digital banks, or explorers to integrate with the Hashburst ecosystem to track and trade tokens. To build a robust API system that allows third-party systems like exchanges, digital banks, and explorers to interact with the Hashburst blockchain, this system exposes API endpoints over **HTTP/REST**. These APIs will enable integration with external platforms, allowing them to track, mint, and trade fungible (HBT-20) and non-fungible tokens (HBT-721). Below is a detailed plan on how to design and implement such an API system.
+  3. **Exposing APIs for Third-Party Systems**: APIs can be exposed over HTTP/REST for third-party systems to interact with tokens. This allows exchanges, digital banks, or explorers to integrate with the Hashburst ecosystem to track and trade tokens.
+     
+  4. **API for Token Interaction**: to build a robust API system that allows third-party systems like exchanges, digital banks, and explorers to interact with the Hashburst blockchain, this system exposes API endpoints over **HTTP/REST**. These APIs will enable integration with external platforms, allowing them to track, mint, and trade fungible (HBT-20) and non-fungible tokens (HBT-721).
+     
+  5. **API System Design**: below is a detailed plan on how to design and implement such an API system.
 
     #### **5.a. API Endpoint Structure**
     
@@ -449,14 +381,86 @@ To provide a clearer understanding of how the smart contracts implemented in Sol
   
     The API exposed at `https://hashburst.io/blockchain/v2/api/contracts` will provide third-party systems with access to essential smart contract functionalities like minting, transferring tokens, and fetching balance and contract details. This ensures smooth integration between the Hashburst blockchain and external platforms (exchanges, banks, explorers), enabling token management and secure interaction across the ecosystem.
   
-  #### **Cross-Chain Compatibility and Interoperability**
+### 6. **Integration with TRC, ERC, and BEP Standards**
+
+The implemented contracts are designed to follow **ERC-20/721 standards** closely, ensuring compatibility with **BEP-20/721** and **TRC-20/721**.
+To provide a clearer understanding of how the smart contracts implemented in Solidity (for HBT-20 and HBT-721) can be integrated across multiple blockchain ecosystems (specifically **Ethereum (ERC-20/721)**, **Binance Smart Chain (BEP-20/721)**, and **Tron (TRC-20/721)**), here's a deeper look at the technical processes involved:
+
+- **1.For BEP tokens**: the tokens can be deployed on the **Binance Smart Chain** using similar interfaces.
   
-  To ensure full interoperability:
+  #### BEP-20/721 Token Deployment on Binance Smart Chain (BSC)**
   
-  - **Cross-Chain Bridges**: deploy cross-chain bridges to facilitate asset transfers between networks like Ethereum, BSC, and Tron.
-  - **Interoperability Libraries**: use solutions like **RenVM** or **Cosmos** to enable cross-chain token swaps.
+  The Binance Smart Chain is fully EVM (Ethereum Virtual Machine) compatible, so any smart contract written for ERC-20 and ERC-721 can be deployed to BSC with little to no modification.
   
-  By using **Web3.js** for Ethereum/BSC and **TronWeb** for Tron, your smart contracts (HBT-20 and HBT-721) will be compatible across these ecosystems, allowing the minting and distribution of tokens across major blockchain standards.
+  ##### **Steps for Deployment on BSC:**
+  
+  - **Smart Contract Compatibility**: since BSC is compatible with Ethereum, the Solidity code for **HBT-20** and **HBT-721** (fungible and non-fungible tokens) does not require changes.
+    
+  - **Deployment Using Remix or Truffle**:
+    - Use **Remix** or **Truffle** to deploy the contract by connecting to BSC’s RPC endpoint.
+    - Example RPC Endpoint: `https://bsc-dataseed.binance.org/`
+    
+  - **Network Configuration for MetaMask**:
+    - Add BSC to your **MetaMask** wallet by configuring a custom RPC, ensuring smooth interaction with the Binance Smart Chain.
+  
+  - **Gas Fees**: Transactions on BSC use **BNB** as the native currency for gas fees, so ensure that your deployment account holds sufficient BNB.
+  
+
+                  bash
+                  
+                  truffle migrate --network binance
+
+
+
+- **2.For TRC tokens**: You’ll need to use the **TronLink** SDK for deploying TRC-20/721 tokens, ensuring compatibility across multiple chains.
+  
+  #### TRC-20/721 Token Deployment on the Tron Blockchain**
+  
+  For **TRC-20** (fungible tokens) and **TRC-721** (non-fungible tokens), Tron’s architecture is different from Ethereum, but Tron offers its own tools for deploying smart contracts and interacting with the blockchain. The **TronLink Web** and **TronWeb** libraries facilitate easy deployment and interaction with Tron smart contracts.
+  
+  ##### **Steps for TRC-20/721 Token Deployment:**
+  
+  - **Rewrite Contracts for Tron**: even though Tron smart contracts are also written in Solidity, the **Solidity version** and certain **features** (like the `msg` global variable) are handled differently.
+    - Use **Solidity version 0.4.25** for Tron smart contracts.
+    - Replace `msg.sender` and `msg.value` with Tron-specific syntax.
+  
+  - **TronLink Web Wallet**: TronLink allows users to interact with Tron-based dApps, similar to how MetaMask works for Ethereum. Use this tool to sign transactions and deploy smart contracts.
+  
+  - **TronWeb**: This is a JavaScript API for interacting with the Tron blockchain programmatically. You can use **TronWeb** to deploy your TRC-20 or TRC-721 contracts directly from your code or dApp.
+  
+    Example deployment using **TronWeb**:
+  
+    
+                  javascript
+                  
+                  const TronWeb = require('tronweb');
+                
+                  const tronWeb = new TronWeb({
+                      fullHost: 'https://api.trongrid.io',
+                      privateKey: 'YOUR_PRIVATE_KEY'
+                  });
+                
+                  const contract = await tronWeb.contract().new({
+                      abi: contractABI,  // ABI of the contract
+                      bytecode: contractBytecode  // Bytecode of the contract
+                  });
+                
+                  console.log('Contract Address:', contract.address);
+    
+  
+  - **Tron-Specific Tools**:
+    - **TronGrid**: a tool similar to Ethereum's Infura, which allows access to the Tron blockchain through APIs without running a full node.
+    - **TronStation**: a tool to estimate gas costs and monitor network performance, similar to Ethereum's Gas Station.
+
+    #### **Cross-Chain Compatibility and Interoperability**
+      
+      To ensure full interoperability:
+      
+      - **Cross-Chain Bridges**: deploy cross-chain bridges to facilitate asset transfers between networks like Ethereum, BSC, and Tron.
+      - **Interoperability Libraries**: use solutions like **RenVM** or **Cosmos** to enable cross-chain token swaps.
+      
+      By using **Web3.js** for Ethereum/BSC and **TronWeb** for Tron, your smart contracts (HBT-20 and HBT-721) will be compatible across these ecosystems, allowing the minting and distribution of tokens across major blockchain standards.
+    
 
 ### 7. **Deployment and Interaction via APIs**
 
