@@ -8,4 +8,4 @@ Per tali ragioni, visto che gli stream e gli update sono in numero via via cresc
 Ne consegue che sono sufficienti anche pochi errori grossolani per utente per "inceppare" il meccanismo di distribuzione delle premialità causando dei ritardi o perfino la radiazione (ban) dei nodi e dei cluster dalle mining-pool.
 Ne consegue che coerenza dei dati, stabilità di hashrate e opportuna densità dei nodi nei cluster comportano una continuità della distribuzione delle reward e quindi regolarità dei payout.
 
-[^x] N.B.: a prescindere se questa sia decisa dalla AI o da una NI, "biological" o "human intelligence".
+[^x]: a prescindere se questa sia decisa dalla AI o da una NI, "biological" o "human intelligence".
