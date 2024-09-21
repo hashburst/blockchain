@@ -171,44 +171,44 @@ An example of token minting via API using **Ethers.js**:
      
   5. **API System Design**: below is a detailed plan on how to design and implement such an API system.
 
-    #### **5.a. API Endpoint Structure**
+  #### **5.a. API Endpoint Structure**
     
-    Base URL for the API, such as:
-    
-    
-                      https://hashburst.io/blockchain/v2/api/contracts
+  Base URL for the API, such as:
     
     
-    The API will expose several endpoints for different functionalities:
-    
-    - **Mint Tokens**: Allows third-party systems to mint tokens.
-    - **Transfer Tokens**: Facilitates transferring tokens between addresses.
-    - **Check Balance**: Queries the balance of a particular wallet.
-    - **Get Contract Information**: Fetches the smart contract details and transaction history.
-    
-    API structure:
+                  https://hashburst.io/blockchain/v2/api/contracts
     
     
-                      plaintext
+  The API will expose several endpoints for different functionalities:
+    
+  - **Mint Tokens**: Allows third-party systems to mint tokens.
+  - **Transfer Tokens**: Facilitates transferring tokens between addresses.
+  - **Check Balance**: Queries the balance of a particular wallet.
+  - **Get Contract Information**: Fetches the smart contract details and transaction history.
+    
+  API structure:
+    
+    
+                  plaintext
                       
-                      POST /contracts/mint          # Mint new tokens
-                      POST /contracts/transfer      # Transfer tokens
-                      GET  /contracts/balance       # Get token balance
-                      GET  /contracts/info          # Get smart contract info
+                  POST /contracts/mint          # Mint new tokens
+                  POST /contracts/transfer      # Transfer tokens
+                  GET  /contracts/balance       # Get token balance
+                  GET  /contracts/info          # Get smart contract info
     
     
-    #### **5.b. Token Minting API**
+  #### **5.b. Token Minting API**
     
-    This API endpoint will allow authorized third-party systems (exchanges, digital banks, etc.) to mint fungible tokens (HBT-20) or non-fungible tokens (HBT-721).
+  This API endpoint will allow authorized third-party systems (exchanges, digital banks, etc.) to mint fungible tokens (HBT-20) or non-fungible tokens (HBT-721).
     
-    - **Endpoint**: `POST /contracts/mint`
-    - **Parameters**:
-      - `contract_address`: The address of the smart contract (HBT-20 or HBT-721).
-      - `to_address`: The recipient wallet address.
-      - `amount` (for HBT-20): The amount of tokens to mint.
-      - `token_metadata` (for HBT-721): Metadata for the NFT.
+  - **Endpoint**: `POST /contracts/mint`
+  - **Parameters**:
+    - `contract_address`: The address of the smart contract (HBT-20 or HBT-721).
+    - `to_address`: The recipient wallet address.
+    - `amount` (for HBT-20): The amount of tokens to mint.
+    - `token_metadata` (for HBT-721): Metadata for the NFT.
       
-    Sample of JSON request body for minting HBT-20 tokens:
+  Sample of JSON request body for minting HBT-20 tokens:
     
                       json
                       
@@ -218,7 +218,7 @@ An example of token minting via API using **Ethers.js**:
                         "amount": 1000
                       }
     
-    Sample of request body for minting HBT-721 tokens:
+  Sample of request body for minting HBT-721 tokens:
     
     
                       json
@@ -233,21 +233,21 @@ An example of token minting via API using **Ethers.js**:
                         }
                       }
     
-    The API will handle minting by interacting with the smart contract, ensuring the token is generated on the blockchain.
+  The API will handle minting by interacting with the smart contract, ensuring the token is generated on the blockchain.
     
-    #### **5.c. Token Transfer API**
+  #### **5.c. Token Transfer API**
     
-    Allows third-party platforms to transfer tokens between users.
+  Allows third-party platforms to transfer tokens between users.
     
-    - **Endpoint**: `POST /contracts/transfer`
-    - **Parameters**:
-      - `contract_address`: The address of the token smart contract.
-      - `from_address`: The wallet initiating the transfer.
-      - `to_address`: The recipient wallet address.
-      - `amount` (for HBT-20): The number of tokens to transfer.
-      - `token_id` (for HBT-721): The ID of the NFT to transfer.
+  - **Endpoint**: `POST /contracts/transfer`
+  - **Parameters**:
+    - `contract_address`: The address of the token smart contract.
+    - `from_address`: The wallet initiating the transfer.
+    - `to_address`: The recipient wallet address.
+    - `amount` (for HBT-20): The number of tokens to transfer.
+    - `token_id` (for HBT-721): The ID of the NFT to transfer.
       
-    Sample of request body for transferring HBT-20 tokens:
+  Sample of request body for transferring HBT-20 tokens:
     
                       json
                       
@@ -258,7 +258,7 @@ An example of token minting via API using **Ethers.js**:
                         "amount": 500
                       }
     
-    For HBT-721 tokens:
+  For HBT-721 tokens:
     
                       json
                       
@@ -269,20 +269,20 @@ An example of token minting via API using **Ethers.js**:
                         "token_id": 123
                       }
     
-    #### **5.d. Checking Token Balance**
+  #### **5.d. Checking Token Balance**
     
-    This endpoint allows third-party platforms to check the token balance of a given wallet for either fungible or non-fungible tokens.
+  This endpoint allows third-party platforms to check the token balance of a given wallet for either fungible or non-fungible tokens.
     
-    - **Endpoint**: `GET /contracts/balance`
-    - **Parameters**:
-      - `contract_address`: The address of the token contract.
-      - `wallet_address`: The address of the wallet to check.
+  - **Endpoint**: `GET /contracts/balance`
+  - **Parameters**:
+    - `contract_address`: The address of the token contract.
+    - `wallet_address`: The address of the wallet to check.
     
-    Sample of request:
+  Sample of request:
     
-                      GET /contracts/balance?contract_address=0xYourContractAddress&wallet_address=0xWalletAddress
+                    GET /contracts/balance?contract_address=0xYourContractAddress&wallet_address=0xWalletAddress
     
-    Sample of JSON response for HBT-20:
+  Sample of JSON response for HBT-20:
     
                       json
                       
@@ -290,7 +290,7 @@ An example of token minting via API using **Ethers.js**:
                         "balance": 1000
                       }
     
-    For HBT-721:
+  For HBT-721:
     
                       json
                       
@@ -306,19 +306,19 @@ An example of token minting via API using **Ethers.js**:
                         ]
                       }
     
-    #### **5.e. Fetching Smart Contract Information**
+  #### **5.e. Fetching Smart Contract Information**
     
-    To allow third-party systems to verify and track contracts, this endpoint will fetch details of a smart contract and provide transaction history.
+  To allow third-party systems to verify and track contracts, this endpoint will fetch details of a smart contract and provide transaction history.
     
-    - **Endpoint**: `GET /contracts/info`
-    - **Parameters**:
-      - `contract_address`: The address of the token contract.
+  - **Endpoint**: `GET /contracts/info`
+  - **Parameters**:
+    - `contract_address`: The address of the token contract.
     
-    Sample of request:
+  Sample of request:
     
-                      GET /contracts/info?contract_address=0xYourContractAddress
+                    GET /contracts/info?contract_address=0xYourContractAddress
     
-    Sample of response:
+  Sample of response:
     
                       json
                       
@@ -344,18 +344,18 @@ An example of token minting via API using **Ethers.js**:
                         ]
                       }
     
-    #### **5.f. Security and Authorization**
+  #### **5.f. Security and Authorization**
     
-    To ensure only authorized third-party systems can access the API, implement authentication using **API keys** or **OAuth2**. Additionally, ensure:
-    - **Encryption**: use HTTPS to secure communication.
-    - **Rate Limiting**: protect against abuse by implementing rate limits.
-    - **Role-Based Access Control**: differentiate between roles, such as exchanges, digital banks and explorers.
+  To ensure only authorized third-party systems can access the API, implement authentication using **API keys** or **OAuth2**. Additionally, ensure:
+  - **Encryption**: use HTTPS to secure communication.
+  - **Rate Limiting**: protect against abuse by implementing rate limits.
+  - **Role-Based Access Control**: differentiate between roles, such as exchanges, digital banks and explorers.
     
-    #### **5.g. API Deployment**
+  #### **5.g. API Deployment**
     
-    To host and expose the API, use platforms like **Node.js** or **Python Flask** with **Express** or **FastAPI** for backend development.
+  To host and expose the API, use platforms like **Node.js** or **Python Flask** with **Express** or **FastAPI** for backend development.
     
-    Sample of API deployment using **Express** (Node.js):
+  Sample of API deployment using **Express** (Node.js):
     
                       javascript
                       
@@ -373,13 +373,13 @@ An example of token minting via API using **Ethers.js**:
                         console.log('API running on http://localhost:3000');
                       });
     
-    For production deployment:
-    - Use cloud services like **AWS**, **Google Cloud**, or **Azure**.
-    - Use **Docker** to containerize the API for easy scaling and deployment.
+  For production deployment:
+  - Use cloud services like **AWS**, **Google Cloud**, or **Azure**.
+  - Use **Docker** to containerize the API for easy scaling and deployment.
     
-    ### **Summary**
+  ### **Summary**
   
-    The API exposed at `https://hashburst.io/blockchain/v2/api/contracts` will provide third-party systems with access to essential smart contract functionalities like minting, transferring tokens, and fetching balance and contract details. This ensures smooth integration between the Hashburst blockchain and external platforms (exchanges, banks, explorers), enabling token management and secure interaction across the ecosystem.
+  The API exposed at `https://hashburst.io/blockchain/v2/api/contracts` will provide third-party systems with access to essential smart contract functionalities like minting, transferring tokens, and fetching balance and contract details. This ensures smooth integration between the Hashburst blockchain and external platforms (exchanges, banks, explorers), enabling token management and secure interaction across the ecosystem.
   
 ### 6. **Integration with TRC, ERC, and BEP Standards**
 
