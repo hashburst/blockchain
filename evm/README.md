@@ -3,7 +3,7 @@ This will enable issuing assets like utility tokens, security tokens, and asset 
 
 ### 1. **Smart Contract Standards (HBT-20 and HBT-721)**
 
-We’ll build two contract standards:
+Build two contract standards:
 
 - **HBT-20**: A fungible token standard compatible with ERC-20, TRC-20, and BEP-20, enabling basic token features like transfer, balance query, and approval.
 - **HBT-721**: A non-fungible token (NFT) standard compatible with ERC-721, TRC-721, and BEP-721, facilitating unique asset creation (NFTs).
