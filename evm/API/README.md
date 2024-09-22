@@ -1,3 +1,5 @@
+### Hashburst PHP-based API System
+
 This PHP-based API system facilitates the automatic withdrawal of mined cryptocurrency from pools to the wallets of Hashburst users, while ensuring that dealer and reseller roles receive their appropriate share.
 
 ### **Core Functionality Recap**
