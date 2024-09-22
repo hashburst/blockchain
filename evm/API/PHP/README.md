@@ -223,7 +223,55 @@ Questo endpoint gestisce la **distribuzione automatica** dei proventi dalle Pool
   - Dealer Wallet: "DealerWallet" è il portafoglio del "dealer" il quale è un'entità finanziatrice o affiliata che riceve una percentuale fissa dei guadagni lordi minati dalle Pool.
   - Reseller Wallet: "ResellerWallet" è il portafoglio del reseller il quale è un partner che ha diritto a una percentuale sui guadagni lordi derivanti dal mining, tipicamente inferiore a quella del dealer.
 
-Attenzione: questi wallet non ricevono token che rappresentano il contratto, ma pagamenti diretti dalle Pool in criptovalute (come BTC, DOGE, ETC, XMR, ecc.) in base alle loro accepted shares o diritti contrattuali (per dealer e reseller).
+  Attenzione: questi wallet non ricevono token che rappresentano il contratto, ma pagamenti diretti dalle Pool in criptovalute (come BTC, DOGE, ETC, XMR, ecc.) in base alle loro accepted shares o diritti contrattuali (per dealer e reseller).
+
+  **Riepilogo: come vengono remunerati questi Wallet?**
+  
+  Gli utenti ricevono pagamenti nelle criptovalute minate (ad esempio DOGE, BTC, ecc.) proporzionalmente alle accepted shares accumulate. Il dealer e il reseller ricevono una percentuale del guadagno lordo (prima che venga distribuito agli utenti), tipicamente pagato nella stessa criptovaluta che è stata minata (o eventualmente in una specifica valuta concordata). In pratica, il contratto intelligente (smart contract) funziona come intermediario tra la Pool di Mining e i Wallet degli utenti, gestendo la distribuzione automatica delle ricompense.
+
+  **Corrispondenza tra Hashburst Wallet, BlockId-Signature e lista dei Wallet delle Criptovalute specifiche estratte**
+  
+Ogni wallet in Hashburst è associato a una lista di indirizzi specifici per ogni criptovaluta "minata" (ad esempio BTC, DOGE, ETC, XMR, ecc.). Queste informazioni sono archiviate fisicamente in file associati agli utenti, denominati con il loro "BlockId-Signature" (ad esempio, "f**2*e20").
+
+Ecco un esempio di come ogni utente può rintracciare in qualsiasi nodo distribuito della blockchain il file nel percorso "/blockchain/ledger/wallets" che contiene i suoi indirizzi per diverse criptovalute:
+                
+                    Path: /blockchain/ledger/wallets/f**2*e20
+
+                    Plaintext
+
+                    DOGE: DHxy9PV7f7xo8eUD3j*************oLy
+                    ETC: 0x82f138f37506092927b******************aaf
+                    BTC: 158kWeRYQjiPX759E**************pHX
+                    XMR: 429sqZ7wwuderVmqKbyZHi9LNWjCm9kpVNSUVsVFcJaFdd*********************************************nCrF
+
+  **Processo di abbinamento**
+  
+- **Identificazione dell'utente**: il sistema identifica l'utente in base al suo "BlockId-Signature", che rappresenta una chiave unica nel file system della blockchain. L'interoperabilità tra le varie chain, data dall'interfacciamento via API, consente di inviare un flusso ("Stream") di questi dati verso le Pool le quali, grazie agli API Key, ai codici identificativi degli apparati e alle Signature, riconoscono l'utente come sub-account del cluster-miner principale e per ognuno avvia automaticamente la registrazione di procedure di "auto-withdrawal" con gli importi assegnati (già convalidati per il mining-wallet che rappresenta l'account generale di cui i sub-account/worker fanno parte) avviando una coda interna ("queue") dei payout. Questa parte precede la fase di inserimento della transazione nella mempool dei nodi in attesa di entrare in un nuovo blocco e la transazione definitiva in blockchain.
+  N.B.: partendo dal mining-wallet della Pool di Mining e andando direttamente al wallet del sub-account, ogni transazione è inclusa in un blocco che contiene la provenienza, l'origine da mining, ovvero la transazione coinbase che include la ricompensa del blocco.
+
+- **Associazione dei wallet**: ogni utente ha un file che contiene i suoi indirizzi wallet per ogni criptovaluta. Quando la Pool genera un pagamento, il sistema abbina i guadagni a uno specifico indirizzo di criptovaluta (ad esempio, invia DOGE al wallet DOGE dell'utente, BTC al wallet BTC, e così via).
+
+- **Smart Contract e pagamenti**: lo smart contract utilizza queste informazioni per consentire alla Mining-Pool di eseguire direttamente le transazioni verso gli indirizzi specifici, assicurando che ogni criptovaluta sia trasferita al wallet giusto conservando l'origine ovverosia la provenienza da una transazione coinbase.
+
+**Passaggio delle Informazioni tramite il Token e lo Smart Contract**:
+
+Le informazioni sui wallet specifici e gli indirizzi delle criptovalute sono fondamentali per l'esecuzione automatica dei pagamenti. Ecco come queste informazioni possono essere gestite tramite Smart Contract:
+
+- **Memorizzazione dei Wallet nel Contratto**: quando un utente si iscrive o viene aggiunto al sistema, i suoi indirizzi wallet per diverse criptovalute vengono associati al suo "BlockId-Signature" e memorizzati nel contratto intelligente o in un sistema di gestione dei dati fuori catena (ad esempio, IPFS o un database decentralizzato).
+
+- **Tokenizzazione delle Ricompense**: ogni share di mining può essere rappresentata da un token virtuale o direttamente dal credito in criptovaluta in funzione delle condizioni d'ambiente e degli scenari in cui l'attività estrattiva dei cluster si svolge. Il **principio fondamentale** è che gli utenti **non** ricevono un token che rappresenta il contratto, ma il contratto gestisce il flusso ("Stream") informativo che consente alle Mining-Pool di mettere in coda di convalida ed esecuzione le transazioni dei fondi minati direttamente destinati ai loro indirizzi wallet in qualità di sub-account (ovvero di worker del cluster-miner) riconosciuti e anonimi (protetti dalla blockchain Hashburst).
+
+- **Esecuzione del Pagamento**: il contratto intelligente riceve i dettagli dei wallet dal flusso ("Stream") associato al "BlockId-Signature" dell'utente e instrada il pagamento ("payout") alla criptovaluta corretta (ovvero controllo di coerenza tra "coin", "address"/"wallet", "mainnet"/2network" e "chain") inviando all'API delle Mining-Pool i dati aggiornati per generare le code di "auto-withdraw" necessari alla distribuzione delle "reward".
+
+**Corollario**
+
+**User Wallets**: sono indirizzi che ricevono pagamenti in criptovalute basate sulle Pool in cui gli utenti stanno minando. Ogni wallet è specifico per una criptovaluta (ad esempio: DOGE, BTC, BCH, ETC, ecc.).
+
+**Dealer e Reseller Wallets**: sono destinatari di una parte fissa dei guadagni lordi derivanti dal mining, pagati in una criptovaluta specifica (come BTC).
+
+**Smart Contract**: gestisce la distribuzione automatica dei fondi, prelevando le informazioni contenute nei "BlockId-Signature" degli utenti per consentire alla Pool di indirizzare correttamente i pagamenti ai rispettivi wallet in base alla criptovaluta minata.
+
+In questo modo, l'infrastruttura è in grado di eseguire distribuzioni automatiche delle ricompense, assicurando che ogni wallet riceva il pagamento nella criptovaluta corretta associata alle Pool di Mining.
 
 ### **Sicurezza e Autenticazione**
 
