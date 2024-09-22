@@ -215,6 +215,16 @@ Questo endpoint gestisce la **distribuzione automatica** dei proventi dalle Pool
 - Il **dealer** riceve, ad esempio, il 5% del lordo, il **reseller** il 2% (queste quote sono puramente d'esempio e non corrispondono a quelle in essere).
 - Il restante 93% viene distribuito agli utenti proporzionalmente in base alle **accepted shares**.
 
+  #### Tipologia di Wallet e Standard
+  
+  I placeholder dei wallet sono esempi di indirizzi blockchain utilizzati per distribuire ricompense derivanti dall’attività di mining o tokenizzazione all'interno dell'ecosistema Hashburst:
+
+  - User Wallets: la lista ["UserWallet1", "UserWallet2", "UserWallet3"] rappresenta i wallet personali degli utenti che partecipano al mining. Gli utenti ricevono pagamenti basati sulle loro accepted shares delle criptovalute minate nelle pool (ad esempio, DOGE, BTC, ETC, XMR).
+  - Dealer Wallet: "DealerWallet" è il portafoglio del "dealer" il quale è un'entità finanziatrice o affiliata che riceve una percentuale fissa dei guadagni lordi minati dalle Pool.
+  - Reseller Wallet: "ResellerWallet" è il portafoglio del reseller il quale è un partner che ha diritto a una percentuale sui guadagni lordi derivanti dal mining, tipicamente inferiore a quella del dealer.
+
+Attenzione: questi wallet non ricevono token che rappresentano il contratto, ma pagamenti diretti dalle Pool in criptovalute (come BTC, DOGE, ETC, XMR, ecc.) in base alle loro accepted shares o diritti contrattuali (per dealer e reseller).
+
 ### **Sicurezza e Autenticazione**
 
 - **Autenticazione**: utilizzazione di **API Keys** per consentire l'accesso solo a sistemi autorizzati.
