@@ -38,7 +38,7 @@ Questo file contiene gli indirizzi di ogni criptovaluta minata dall'utente, ad e
 
 - Smart Contract Multi-Wallet: lo smart contract deve essere progettato per interagire con più blockchain (Ethereum per ERC-20/721, e altri protocolli per criptovalute come BTC, DOGE, XMR, ecc.). Lo smart contract può gestire il flusso dei pagamenti utilizzando API di pagamento multi-blockchain o tramite integrazioni con nodi specifici per ciascuna criptovaluta.
 
-**3. Standard dei Wallet Nello Smart Contract**
+**3. Standard dei Wallet nello Smart Contract**
 
 - Wallet ERC-20/721: per Ethereum e Ethereum Classic (ETC), il formato dell'indirizzo è standard ERC e inizia con 0x, ad esempio 0x82f138f3750609292************************.
 
