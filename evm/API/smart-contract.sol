@@ -81,5 +81,9 @@ contract HashburstPoolDistributor {
         // Il backend (PHP con Guzzle) cattura l'evento e invia il pagamento tramite l'API di BlockCypher
     }
 
-    receive() external payable {}
+    // Funzione per ricevere Ether nel contratto
+    receive() external payable {
+        // Emissione di un evento per tracciare il deposito
+        emit Received(msg.sender, msg.value);
+    }
 }
