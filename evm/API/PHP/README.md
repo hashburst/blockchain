@@ -164,6 +164,36 @@ Prima di tutto, per gestire le API in PHP, per la gestione delle richieste API, 
                           exit;
                       }
 
+### **Opzioni di Nomenclatura e Percorso API RESTful**
+
+1. iFront Controller: se scegli di utilizzare index.php, puoi strutturare gli endpoint in questo modo:
+
+                    Percorso API: /contracts/mint
+   
+                    File PHP: /contracts/index.php
+   
+In questo caso, il web server Apache può essere configurato tramite il file ".htaccess" o direttamente nella configurazione del virtual host specifico del sito per nascondere il file "index.php", facendo apparire l'URL come "/contracts/mint", ecc. Il file ".htaccess" o la configurazione di Apache reindirizza tutte le richieste che non puntano a un file o una directory esistenti verso index.php.
+
+Esempio .htaccess per nascondere index.php:
+
+                    apache
+                    
+                    RewriteEngine On
+                    RewriteCond %{REQUEST_FILENAME} !-f
+                    RewriteCond %{REQUEST_FILENAME} !-d
+                    RewriteRule ^ index.php [QSA,L]
+
+Con questa configurazione, la struttura degli URL sarà:
+
+- POST /contracts/mint
+- POST /contracts/transfer
+- GET /contracts/balance
+- GET /contracts/info
+- POST /contracts/auto-withdraw
+
+Il file index.php gestirà tutte queste richieste e le instraderà in base al metodo HTTP e al percorso richiesto.
+Per creare un'API RESTful con URL puliti, tipo "/contracts/mint", "/contracts/transfer", e così via, è possibile utilizzare .htaccess per rendere più leggibili gli URL e nascondere il nome del file front controller (index.php) oppure modificare la configurazione specifica del vierual host nel web server Apache per maggir controllo sulla gestione del routing ed efficienza prestazionale in quanto letta una sola volta e non ad ogni richiesta.
+
 ####  Integrare i Wallet Multi-Crypto con lo Smart Contract
 
 Nel contesto di Hashburst, ogni utente ha uno o più wallet associati a diverse criptovalute che sono archiviate nei file corrispondenti al loro "BlockId-Signature" (ad esempio "f**2*e20"). Questo file contiene gli indirizzi di ogni criptovaluta minata dall'utente, ad esempio:
