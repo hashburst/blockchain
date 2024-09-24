@@ -76,7 +76,7 @@ This will allow you to deploy contracts, send transactions, and query smart cont
    Use the **`evm-start.php`** script to initiate the EVM-based blockchain.
    This script interacts with the Ethereum blockchain via the **JSON-RPC API** to retrieve block data, deploy smart contracts, or send transactions.
 
-### Conclusion:
+### Documentation:
 This setup lets everybody interact with an Ethereum-like blockchain directly from PHP using **web3.php** and JSON-RPC. 
 For more details on how EVM works, check out resources like **Trust Developers** and **Hedera documentation**:
 
