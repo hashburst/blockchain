@@ -164,7 +164,7 @@ Prima di tutto, per gestire le API in PHP, per la gestione delle richieste API, 
                           exit;
                       }
 
-### **Opzioni di Nomenclatura e Percorso API RESTful**
+### **Opzioni di Nomenclatura e percorso dell'API RESTful**
 
 1. iFront Controller: se scegli di utilizzare index.php, puoi strutturare gli endpoint in questo modo:
 
