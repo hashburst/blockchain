@@ -44,7 +44,7 @@ Questo file contiene gli indirizzi di ogni criptovaluta minata dall'utente, ad e
 
 - Bitcoin (BTC), Dogecoin (DOGE), Litecoin (LTC), Monero (XMR): queste valute usano i propri formati unici di indirizzo. Il contratto intelligente, o il sistema che gestisce i pagamenti automatici, deve sapere come instradare le transazioni ai rispettivi wallet basati sul loro standard. Non esistono contratti intelligenti nativi su Bitcoin o Dogecoin, quindi gli indirizzi devono essere gestiti off-chain tramite un'infrastruttura che esegue transazioni.
 
-**Distribuzione Automatica per Multi-Crypto**
+**4. Distribuzione Automatica per Multi-Crypto**
 
 Per eseguire pagamenti verso wallet di diverse criptovalute come parte di un'operazione di mining, visto che lo smart contract non può nativamente inviare BTC, DOGE o altri ALT-Coin, è necessario affidarsi a integrazioni off-chain oppure a un sistema di invio delle transazioni attraverso i nodi blockchain appropriati.
 
