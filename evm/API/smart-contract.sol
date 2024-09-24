@@ -21,6 +21,7 @@ contract HashburstPoolDistributor {
 
     // Eventi
     event FundsDistributed(address user, uint256 amount, string cryptoAddress);
+    event PaymentRequested(string cryptoAddress, uint256 amount, string cryptoType);
     event DealerPaid(address dealer, uint256 amount);
     event ResellerPaid(address reseller, uint256 amount);
 
@@ -73,11 +74,11 @@ contract HashburstPoolDistributor {
         }
     }
 
-    // Funzione per inviare pagamenti off-chain tramite API esterne come BlockCypher
-    function sendCryptoOffChain(string memory _cryptoAddress, uint256 _amount) private pure {
-        // Implementazione off-chain tramite API esterna, chiamata su backend
-        // Per esempio: BlockCypher per BTC, LTC, DOGE, DASH
-        // Il backend (PHP o Node.js) gestisce la chiamata API vera e propria
+    // Funzione per inviare pagamenti off-chain tramite API esterne (come BlockCypher)
+    function sendCryptoOffChain(string memory _cryptoAddress, uint256 _amount, string memory _cryptoType) private {
+        // Lancia un evento che il backend può ascoltare per inviare il pagamento
+        emit PaymentRequested(_cryptoAddress, _amount, _cryptoType);
+        // Il backend (PHP con Guzzle) cattura l'evento e invia il pagamento tramite l'API di BlockCypher
     }
 
     receive() external payable {}
