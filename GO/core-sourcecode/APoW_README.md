@@ -12,7 +12,7 @@ This combination of dynamic difficulty adjustment, efficient hashing, and stake-
 
 Here’s how to implement this in **Go** as the project is written in **GoLang**.
 
-#### 1. **Track Block Mining Time**:
+#### a. **Track Block Mining Time**:
 
 The first step is to calculate the average time it takes to mine a block. Based on this, we adjust the mining difficulty dynamically.
 
@@ -59,7 +59,7 @@ The first step is to calculate the average time it takes to mine a block. Based 
                         return currentDifficulty
                     }
 
-#### 2. **Integrate the Difficulty Adjustment with Mining Logic**:
+#### b. **Integrate the Difficulty Adjustment with Mining Logic**:
 
 In the main blockchain mining loop, you’ll call `AdjustDifficulty()` each time a new block is mined.
 
@@ -84,7 +84,7 @@ In the main blockchain mining loop, you’ll call `AdjustDifficulty()` each time
 
 ### Step 2: **Energy-Efficient Hashing**
 
-#### 1. **Switch to an Energy-Efficient Algorithm (SHA-3/Blake2)**:
+#### a. **Switch to an Energy-Efficient Algorithm (SHA-3/Blake2)**:
 
 To optimize for better energy performance per watt, the traditional **SHA-256** can be replaced with more energy-efficient hashing algorithms like **SHA-3** or **Blake2**.
 
@@ -102,7 +102,7 @@ To optimize for better energy performance per watt, the traditional **SHA-256** 
                         return hash[:]
                     }
 
-#### 2. **Integrate Blake2 into the Mining Process**:
+#### b. **Integrate Blake2 into the Mining Process**:
 
 Modify the block mining function to use **Blake2** instead of SHA-256:
 
