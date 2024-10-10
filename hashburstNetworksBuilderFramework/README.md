@@ -35,36 +35,36 @@ This package contains a complete code implementation of the libraries for each f
 
 # Usage Example
 
-if __name__ == "__main__":
-    # Mining example
-    miner = HashburstMining(difficulty=4)
-    mined_block = miner.mine_block("Sample Block Data")
-    print(mined_block)
-
-    # Minting example
-    minting = HashburstMinting()
-    total_supply = minting.mint_tokens(500)
-    print(f"Total supply after minting: {total_supply}")
-
-    # Contract Deployment example
-    evm = HashburstEVM()
-    print(evm.deploy_contract("TokenContract", "0x60606040..."))
-    print(evm.call_contract("TokenContract", "transfer", "Alice", "Bob", 50))
-
-    # Messaging example
-    messaging = ReticulumMessaging()
-    threading.Thread(target=messaging.start_server).start()
-
-    # Payment Gateway example
-    gateway = PaymentGateway()
-    transaction = gateway.create_transaction("Alice", "Bob", 100)
-    print(f"Transaction: {transaction}")
-
-    # Altcoin Mining example
-    alt_miner = AltcoinMining("Litecoin")
-    alt_miner.mine_coin()
-
-    # Cloud Cluster example
-    cluster = CloudCluster(cluster_size=5)
-    nodes = cluster.setup_cluster()
-    cluster.orchestrate_p2p_mining("PPLNS Mining Task")
+                                                    if __name__ == "__main__":
+                                                        # Mining example
+                                                        miner = HashburstMining(difficulty=4)
+                                                        mined_block = miner.mine_block("Sample Block Data")
+                                                        print(mined_block)
+                                                    
+                                                        # Minting example
+                                                        minting = HashburstMinting()
+                                                        total_supply = minting.mint_tokens(500)
+                                                        print(f"Total supply after minting: {total_supply}")
+                                                    
+                                                        # Contract Deployment example
+                                                        evm = HashburstEVM()
+                                                        print(evm.deploy_contract("TokenContract", "0x60606040..."))
+                                                        print(evm.call_contract("TokenContract", "transfer", "Alice", "Bob", 50))
+                                                    
+                                                        # Messaging example
+                                                        messaging = ReticulumMessaging()
+                                                        threading.Thread(target=messaging.start_server).start()
+                                                    
+                                                        # Payment Gateway example
+                                                        gateway = PaymentGateway()
+                                                        transaction = gateway.create_transaction("Alice", "Bob", 100)
+                                                        print(f"Transaction: {transaction}")
+                                                    
+                                                        # Altcoin Mining example
+                                                        alt_miner = AltcoinMining("Litecoin")
+                                                        alt_miner.mine_coin()
+                                                    
+                                                        # Cloud Cluster example
+                                                        cluster = CloudCluster(cluster_size=5)
+                                                        nodes = cluster.setup_cluster()
+                                                        cluster.orchestrate_p2p_mining("PPLNS Mining Task")
