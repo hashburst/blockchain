@@ -31,7 +31,7 @@ Each feature is implemented through libraries which communicate internally to fu
                                                          |-- __init__.py
                                                          |-- cluster.py
 
-These files contains a complete code implementation of the libraries for each functionality, including an example of a peer-to-peer cloud cluster orchestrating nodes for mining.
+This package contains a complete code implementation of the libraries for each functionality, including an example of a peer-to-peer cloud cluster orchestrating nodes for mining.
 
 # Usage Example
 
