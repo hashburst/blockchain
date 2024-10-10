@@ -10,26 +10,26 @@ The package will be structured in a modular way, where each module corresponds t
 Each feature is implemented through libraries which communicate internally to fulfill the framework’s purpose.
 
 # Directory Structure:
-                                                              hashburst_networks_builder/
-                                                              |-- __init__.py
-                                                              |-- blockchain/
-                                                                   |-- __init__.py
-                                                                   |-- mining.py
-                                                                   |-- minting.py
-                                                                   |-- evm.py
-                                                               |-- communications/
-                                                                   |-- __init__.py
-                                                                   |-- messaging.py
-                                                                   |-- transaction_handler.py
-                                                               |-- payment_gateway/
-                                                                   |-- __init__.py
-                                                                   |-- gateway.py
-                                                               |-- asset_generation/
-                                                                   |-- __init__.py
-                                                                   |-- altcoin_mining.py
-                                                               |-- cloud_computing/
-                                                                   |-- __init__.py
-                                                                   |-- cluster.py
+                                                    hashburst_networks_builder/
+                                                    |-- __init__.py
+                                                    |-- blockchain/
+                                                         |-- __init__.py
+                                                         |-- mining.py
+                                                         |-- minting.py
+                                                         |-- evm.py
+                                                     |-- communications/
+                                                         |-- __init__.py
+                                                         |-- messaging.py
+                                                         |-- transaction_handler.py
+                                                     |-- payment_gateway/
+                                                         |-- __init__.py
+                                                         |-- gateway.py
+                                                     |-- asset_generation/
+                                                         |-- __init__.py
+                                                         |-- altcoin_mining.py
+                                                     |-- cloud_computing/
+                                                         |-- __init__.py
+                                                         |-- cluster.py
 
 These files contains a complete code implementation of the libraries for each functionality, including an example of a peer-to-peer cloud cluster orchestrating nodes for mining.
 
