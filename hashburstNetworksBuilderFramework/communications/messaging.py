@@ -1,4 +1,4 @@
-# File: ./communications/messaging.py
+# File: hashburstNetworksBuilderFramework/communications/messaging.py
 import socket
 import threading
 
