@@ -39,7 +39,6 @@ func (bc *Blockchain) AddBlock(mempool *Mempool) {
     }
 }
 
-
 // ValidateBlock checks if the block is valid
 func (bc *Blockchain) ValidateBlock(newBlock *Block) bool {
 	// Check the previous hash
