@@ -2,7 +2,7 @@
 import socket
 import threading
 
-class ReticulumMessaging:
+class NetworkMessaging:
     def __init__(self, host='127.0.0.1', port=65432):
         self.host = host
         self.port = port
