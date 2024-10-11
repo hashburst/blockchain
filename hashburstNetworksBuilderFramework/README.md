@@ -10,7 +10,7 @@ The package will be structured in a modular way, where each module corresponds t
 Each feature is implemented through libraries which communicate internally to fulfill the framework’s purpose.
 
 # Directory Structure:
-                                                    hashburst_networks_builder/
+                                                    hashburstNetworksBuilderFramework/
                                                     |-- __init__.py
                                                     |-- blockchain/
                                                          |-- __init__.py
