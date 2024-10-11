@@ -61,3 +61,19 @@ This extended code introduces several key functionalities:
 - Transaction Management: transactions are signed by the sender and verified using public/private key cryptography.
 - Mining and Rewards: miners must solve a cryptographic puzzle to add blocks to the chain, and are rewarded for their efforts.
 - Wallets and Cryptography: wallets are created using elliptic curve cryptography, and transactions between wallets are signed and verified securely.
+
+### Using a P2P Library (Go)
+
+Using a P2P library is the most efficient way to implement synchronization between nodes: libp2p allows you to create a P2P network between nodes in Go. Here's how to integrate it:
+
+- Install libp2p. To use libp2p in Go, first install the library via go get:
+
+            go get github.com/libp2p/go-libp2p
+
+### Mempool Synchronization.
+
+To ensure the consistency of the Mempool among nodes:
+
+- Nodes can send their complete transaction list (the Mempool) to peers that request it.
+- The synchronization protocol in which nodes periodically ask other nodes for the transaction list.
+- If any transaction is not in the local Mempool, it is added.
