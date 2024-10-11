@@ -52,7 +52,7 @@ This package contains a complete code implementation of the libraries for each f
                                   print(evm.call_contract("TokenContract", "transfer", "Alice", "Bob", 50))
                               
                                   # Messaging example
-                                  messaging = ReticulumMessaging()
+                                  messaging = NetworkMessaging()
                                   threading.Thread(target=messaging.start_server).start()
                               
                                   # Payment Gateway example
