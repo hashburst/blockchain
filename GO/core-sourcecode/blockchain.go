@@ -5,7 +5,17 @@ import (
     "math/big"
     "fmt"
     "golang.org/x/crypto/blake2b"
+    // Import Mempool in the package blockchain
+    "path/to/mempool"  // Update the path of mempool.go
 )
+/*import (
+    "time"
+    "math/big"
+    "fmt"
+    "golang.org/x/crypto/blake2b"
+)
+*/
+var mempool = mempool.NewMempool()
 
 // Set the target block time in seconds (e.g., 10 minutes)
 const TargetBlockTime = 600 
@@ -39,7 +49,7 @@ func AdjustDifficulty(lastBlockTimestamp time.Time, blockHeight int) *big.Int {
     }
     return currentDifficulty
 }
-
+/*
 func MineBlock(block *Block) {
     for {
         // Check if the hash of the block satisfies the current difficulty
@@ -54,6 +64,29 @@ func MineBlock(block *Block) {
 
     // Adjust difficulty after mining each block
     block.Difficulty = AdjustDifficulty(block.Timestamp, block.Height)
+}
+*/
+func MineBlock(block *Block) {
+    transactions := mempool.GetTransactions() // Get all transactions from Mempool
+    block.Transactions = transactions          // Add transactions to new block
+
+    for {
+        // Check if the hash of the block satisfies the current difficulty
+        if IsValidHash(block.Hash(), currentDifficulty) {
+            fmt.Println("Block mined: ", block.Hash())
+            break
+        }
+        // Increment nonce and try again
+        block.Nonce++
+    }
+
+    // Adjust difficulty after mining each block
+    block.Difficulty = AdjustDifficulty(block.Timestamp, block.Height)
+
+    // Remove all transactions from Mempool after the block has mined
+    for _, tx := range transactions {
+        mempool.RemoveTransaction(tx.ID)
+    }
 }
 
 // Use Blake2 hashing function for more energy-efficient mining
@@ -96,10 +129,27 @@ func DistributeRewards(miner string, blockReward *big.Int) {
     // Distribute the other 50% to stakers
     RewardStakers(new(big.Int).Div(blockReward, big.NewInt(2)))
 }
-
+/*
 func MineBlockWithPoS(miner string, block *Block, blockReward *big.Int) {
     // Perform mining using PoW
     MineBlock(block)
+
+    // Distribute rewards to miner and stakers using PoW/PoS hybrid model
+    DistributeRewards(miner, blockReward)
+}
+*/
+func MineBlockWithPoS(miner string, block *Block, blockReward *big.Int) {
+    // Get transactions from Mempool before to start mining
+    transactions := mempool.GetTransactions()
+    block.Transactions = transactions
+
+    // Perform mining using PoW
+    MineBlock(block)
+
+    // Remove transactions in the mined block from Mempool
+    for _, tx := range transactions {
+        mempool.RemoveTransaction(tx.ID)
+    }
 
     // Distribute rewards to miner and stakers using PoW/PoS hybrid model
     DistributeRewards(miner, blockReward)
