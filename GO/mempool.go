@@ -25,3 +25,28 @@ func NewMempool() *Mempool {
         transactions: make(map[string]Transaction),
     }
 }
+
+// AddTransaction aggiunge una nuova transazione alla Mempool
+func (m *Mempool) AddTransaction(tx Transaction) {
+    m.mutex.Lock()
+    defer m.mutex.Unlock()
+    m.transactions[tx.ID] = tx
+}
+
+// RemoveTransaction rimuove una transazione dalla Mempool
+func (m *Mempool) RemoveTransaction(txID string) {
+    m.mutex.Lock()
+    defer m.mutex.Unlock()
+    delete(m.transactions, txID)
+}
+
+// GetTransactions restituisce tutte le transazioni nella Mempool
+func (m *Mempool) GetTransactions() []Transaction {
+    m.mutex.Lock()
+    defer m.mutex.Unlock()
+    txs := []Transaction{}
+    for _, tx := range m.transactions {
+        txs = append(txs, tx)
+    }
+    return txs
+}
