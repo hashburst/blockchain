@@ -1,4 +1,4 @@
-# File: ./blockchain/minting.py
+# File: hashburstNetworksBuilderFramework/blockchain/minting.py
 class HashburstMinting:
     def __init__(self, initial_supply=1000000):
         self.supply = initial_supply
