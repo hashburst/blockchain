@@ -154,3 +154,16 @@ func MineBlockWithPoS(miner string, block *Block, blockReward *big.Int) {
     // Distribute rewards to miner and stakers using PoW/PoS hybrid model
     DistributeRewards(miner, blockReward)
 }
+
+func AddTransactionToMempool(tx *Transaction) {
+    mempool.AddTransaction(*tx)  // Add transaction to the Mempool
+}
+
+func AddTransactionToMempool(tx *Transaction, network *P2PNetwork) {
+    mempool.AddTransaction(*tx)
+    network.BroadcastTransaction(*tx)  // Broadcast of the new transaction to other nodes
+}
+
+func (m *Mempool) ReceiveTransaction(tx Transaction) {
+    m.AddTransaction(tx) // Add the received transaction
+}
