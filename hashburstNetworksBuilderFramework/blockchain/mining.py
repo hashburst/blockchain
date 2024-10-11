@@ -1,4 +1,4 @@
-# File: /blockchain/mining.py
+# File: ./blockchain/mining.py
 import hashlib
 import random
 import time
