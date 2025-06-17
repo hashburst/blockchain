@@ -1,4 +1,4 @@
-###**Developing HashburstCore**
+### **Developing HashburstCore**
 
 **HashburstCore** has been built like a full-node client in **Golang** that integrates with the EVM, supports the optimized PoW (APoW), and provides the essential blockchain operations (mining, transactions, and wallet management). 
 Here's an outline of the steps to develop the **HashburstCore** project.
