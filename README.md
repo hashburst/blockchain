@@ -204,8 +204,8 @@ We have build code that verifies user API keys and referral codes using Hashburs
 
 ### Notable code references:
 - verifyWithHashburst(email, apikey, referralCode string) function (Go)
-- Logic to compare user data with /home/gfppflpp/public_html/cp/dealers.json for validation.
-- URL generation and API request to https://hashburst.io/nodes/<dealer>/mcm/<apikey>.
+- Logic to compare user data with /home/public_path/dealers.json for validation.
+- URL generation and API request to https://hashburst.io/nodes/dealerId/mcm/apikey.
 
 ### Network Speed Testing Integration
 - Implemented functions to test network speed using ping, ensuring that the miner machines on the Hashburst platform had sufficient bandwidth for optimal operation.
