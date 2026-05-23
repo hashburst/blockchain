@@ -1,0 +1,13 @@
+server:
+  address: ":8080"
+  api_key: "dd2e3804ac7d3532d2c53d3b3067fc4d1004d435"
+  timeout_seconds: 30
+  idle_timeout_seconds: 60
+
+blockchain:
+  difficulty: 4
+  genesis_data: "Genesis block data"
+
+poh:
+  interval_ms: 1000
+  verify_window: 10
