@@ -1,235 +1,368 @@
-# Blockchain
-Public Distributed Hashburst Blockchain
+# HashBurst Blockchain
 
-Here’s a comprehensive framework for a **Hashburst Blockchain with Proof of History (PoH)** implemented in **C++**, **Python**, **PHP** and **GO**. This framework utilizes encryption with AES-256-CBC and implements the core functionality for managing blocks, users, wallets, and ledger consensus, while verifying integrity using SHA-512 and CRC32b.
+Public Distributed HashBurst Blockchain.
 
-### 1. **PHP Implementation**
+HashBurst is a distributed blockchain framework based on Proof of History (PoH), with implementations and integration components written in C++, Python, PHP, Go and Bash.
 
-#### Blockchain Core (PHP)
-This PHP code creates a blockchain with PoH, encrypts/decrypts blocks, manages users, wallets, and ledger consensus using AES-256 encryption, and verifies data integrity through SHA-512 and CRC32b hashing.
+The project includes blockchain data management, node integration, wallet and ledger handling, cryptographic verification, mining infrastructure integration and network automation.
 
-                      <?php
-                      $algo = array();
-                      $algo['hash_sha'] = "sha512";
-                      $algo['hash_crc'] = "crc32b";
-                      
-                      $pk = 'your_special_alphanumeric_key';
-                      $iv = 'your_special_alphanumeric_iv';
-                      
-                      function encrypt_decrypt($string, $secret_key, $secret_iv, $action)
-                      {
-                          $encrypt_method = "AES-256-CBC";
-                          $key = hash('sha512', $secret_key);
-                          $iv = substr(hash('sha512', $secret_iv), 0, 16);
-                          if ($action == 'encrypt') {
-                              $output = openssl_encrypt($string, $encrypt_method, $key, 0, $iv);
-                              $output = base64_encode($output);
-                          } else if ($action == 'decrypt') {
-                              $output = openssl_decrypt(base64_decode($string), $encrypt_method, $key, 0, $iv);
-                          }
-                          return $output;
-                      }
-                      
-                      function generateProofOfHistory($data)
-                      {
-                          $timestamp = time();
-                          $combinedData = $data . $timestamp;
-                          $proof = hash('sha512', $combinedData);
-                          return ['data' => $data, 'timestamp' => $timestamp, 'proof' => $proof];
-                      }
-                      
-                      function createBlock($data, $userData)
-                      {
-                          global $pk, $iv;
-                          $DataJson = json_encode($data);
-                          $signature = encrypt_decrypt($DataJson, $userData['api_key'], $userData['password'], 'encrypt');
-                          $blockSignature = hash('crc32b', $signature);
-                          return ['blockSignature' => $blockSignature, 'data' => $DataJson];
-                      }
-                      
-                      $usersData = glob('ledger/users/*');
-                      $masterData = [];
-                      foreach ($usersData as $item) {
-                          if (is_file($item) && basename($item) != "masterData.hbx") {
-                              $userData = json_decode(file_get_contents($item), true);
-                              $userBlock = createBlock($userData, $userData);
-                              $masterData[] = $userBlock;
-                          }
-                      }
-                      $masterDataEncrypted = encrypt_decrypt(json_encode($masterData), $pk, $iv, 'encrypt');
-                      file_put_contents('ledger/masterData.hbx', $masterDataEncrypted);
-                      ?>
+## Official Node Installer
 
-#### Folder Structure:
-- **ledger/users/**: Contains user blocks.
-- **ledger/masterData.hbx**: Encrypted chain of blocks.
-- **ledger/wallets/**: Contains encrypted wallet data of users.
+Production deployment of HashBurst blockchain and sovereign storage nodes is handled by the official HashBurst Node Installer:
 
-### 2. **Python Implementation**
+[HashBurst Node Installer](https://github.com/hashburst/node-installer)
 
-#### Blockchain Core (Python)
-This Python version builds the blockchain, uses AES encryption for block management, and integrates PoH for validation.
+Current stable release: **v2.1.2**
 
-                      import hashlib
-                      import json
-                      import time
-                      from Crypto.Cipher import AES
-                      import base64
-                      
-                      def encrypt_decrypt(string, secret_key, secret_iv, action):
-                          encrypt_method = 'AES-256-CBC'
-                          key = hashlib.sha512(secret_key.encode()).digest()
-                          iv = hashlib.sha512(secret_iv.encode()).digest()[:16]
-                          cipher = AES.new(key, AES.MODE_CBC, iv)
-                          
-                          if action == 'encrypt':
-                              pad = lambda s: s + (16 - len(s) % 16) * chr(16 - len(s) % 16)
-                              encrypted = cipher.encrypt(pad(string).encode())
-                              return base64.b64encode(encrypted).decode()
-                          else:
-                              unpad = lambda s: s[:-ord(s[len(s)-1:])]
-                              decrypted = base64.b64decode(string.encode())
-                              return unpad(cipher.decrypt(decrypted).decode())
-                      
-                      def generate_proof_of_history(data):
-                          timestamp = str(time.time())
-                          combined_data = data + timestamp
-                          proof = hashlib.sha512(combined_data.encode()).hexdigest()
-                          return {'data': data, 'timestamp': timestamp, 'proof': proof}
-                      
-                      def create_block(data, user_data):
-                          data_json = json.dumps(data)
-                          signature = encrypt_decrypt(data_json, user_data['api_key'], user_data['password'], 'encrypt')
-                          block_signature = hashlib.new('crc32b', signature.encode()).hexdigest()
-                          return {'blockSignature': block_signature, 'data': data_json}
-                      
-                      users = [...]  # Load users from the ledger
-                      master_data = []
-                      for user in users:
-                          block = create_block(user, user)
-                          master_data.append(block)
-                      
-                      master_data_encrypted = encrypt_decrypt(json.dumps(master_data), 'your_pk', 'your_iv', 'encrypt')
-                      with open('ledger/masterData.hbx', 'w') as f:
-                          f.write(master_data_encrypted)
+Release packages and release notes:
 
-### 3. **C++ Implementation**
+[HashBurst Node Installer Releases](https://github.com/hashburst/node-installer/releases)
 
-#### Blockchain Core (C++)
-In this version, C++ manages the blockchain logic, encryption, and PoH-based consensus using OpenSSL.
+The installer provides deployment support for HashBurst blockchain nodes, HB-Files sovereign storage, private IPFS integration, storage aggregation and the current HashBurst node service architecture.
 
-                      #include <openssl/evp.h>
-                      #include <openssl/sha.h>
-                      #include <openssl/aes.h>
-                      #include <iostream>
-                      #include <fstream>
-                      #include <vector>
-                      #include <ctime>
-                      #include <json/json.h>
-                      
-                      std::string sha512(const std::string& data) {
-                          unsigned char hash[SHA512_DIGEST_LENGTH];
-                          SHA512((unsigned char*)data.c_str(), data.size(), hash);
-                          std::string result(hash, hash + SHA512_DIGEST_LENGTH);
-                          return result;
-                      }
-                      
-                      std::string encrypt_decrypt(const std::string& data, const std::string& key, const std::string& iv, bool encrypt) {
-                          EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-                          unsigned char outbuf[1024];
-                          int outlen;
-                      
-                          std::string result;
-                          if (encrypt) {
-                              EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, (unsigned char*)key.c_str(), (unsigned char*)iv.c_str());
-                              EVP_EncryptUpdate(ctx, outbuf, &outlen, (unsigned char*)data.c_str(), data.size());
-                              result.assign((char*)outbuf, outlen);
-                          } else {
-                              EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, (unsigned char*)key.c_str(), (unsigned char*)iv.c_str());
-                              EVP_DecryptUpdate(ctx, outbuf, &outlen, (unsigned char*)data.c_str(), data.size());
-                              result.assign((char*)outbuf, outlen);
-                          }
-                          
-                          EVP_CIPHER_CTX_free(ctx);
-                          return result;
-                      }
-                      
-                      std::string generateProofOfHistory(const std::string& data) {
-                          std::time_t timestamp = std::time(0);
-                          std::string combined = data + std::to_string(timestamp);
-                          return sha512(combined);
-                      }
-                      
-                      int main() {
-                          std::vector<std::string> users = {"user1", "user2"};  // Load from file or ledger
-                          Json::Value masterData(Json::arrayValue);
-                          
-                          for (const auto& user : users) {
-                              std::string encrypted_data = encrypt_decrypt(user, "your_pk", "your_iv", true);
-                              Json::Value block;
-                              block["data"] = encrypted_data;
-                              block["proof"] = generateProofOfHistory(user);
-                              masterData.append(block);
-                          }
-                      
-                          std::ofstream file("ledger/masterData.hbx");
-                          file << masterData.toStyledString();
-                          file.close();
-                      }
+## Architecture
 
----
+The HashBurst framework combines several components:
 
-Here’s a structured approach to implement a Hashburst Blockchain in three languages—Python, PHP, and Go—incorporating Proof of History and encryption techniques.
+* Proof of History based blockchain processing
+* Distributed ledger management
+* User and wallet data management
+* SHA-512 hashing
+* CRC32b integrity verification
+* AES-256-CBC based encryption components
+* Blockchain API integration
+* Mining node integration
+* Cluster and sub-account management
+* Network performance monitoring
+* Reinforcement Learning based mining optimization
+* Automated miner deployment and release management
 
-### Schema and Structure of the Blockchain
-   
-Folders:
-/ledger: Stores all user data (wallets, blocks, transactions, etc.).
-/blocks: Contains the voting consensus blocks from Hashburst users.
-/users: Stores user-specific data, encrypted using their API key and password.
-/wallets: Encrypted lists of user wallets corresponding to various mainnet chains.
+## Proof of History
 
-Files:
-masterData.hbx: This is the master ledger that stores all the data blocks. It is encrypted using a fixed $pk and $iv.
-/users/{BlockIdSignature}: These files contain encrypted user data (blockSignature) based on the user’s API key and password.
-/wallets/{BlockIdSignature}: Corresponding to user wallets, they are encrypted with the same method as in the user block files.
+Proof of History provides a cryptographic representation of the sequence and timing of blockchain events.
 
-### Final Thoughts:
-This framework provides a **secure and distributed blockchain** with **Proof of History (PoH)**, consensus mechanisms, and encryption for all transactions and blocks. Each language uses efficient cryptographic libraries to manage encryption (AES-256), hashing (SHA-512, CRC32b), and blockchain logic, ensuring both security and integrity for the Hashburst network.
+A simplified HashBurst PoH operation combines transaction or block data with a timestamp and produces a cryptographic hash:
 
-### API Key and License Verification (Hashburst Blockchain)
-We have build code that verifies user API keys and referral codes using Hashburst’s API. For instance:
-- A PHP script checked API keys and referral codes stored in a JSON file and verified that the corresponding user exists in the Hashburst blockchain.
-- I implemented a function in Go to check API keys and perform network speed tests, with the API key being used to authenticate against the Hashburst platform.
+```text
+proof = SHA512(data + timestamp)
+```
 
-### Notable code references:
-- verifyWithHashburst(email, apikey, referralCode string) function (Go)
-- Logic to compare user data with /home/public_path/dealers.json for validation.
-- URL generation and API request to https://hashburst.io/nodes/dealer_id/mcm/apikey.
+The resulting proof can be associated with the corresponding block or transaction for chronological verification.
 
-### Network Speed Testing Integration
-- Implemented functions to test network speed using ping, ensuring that the miner machines on the Hashburst platform had sufficient bandwidth for optimal operation.
-- This integration was part of the mining setup to ensure that the user’s system could handle mining tasks with Hashburst nodes.
-- Notable code references: the testNetworkSpeed() function (Go) was designed to execute and parse network latency results.
+## Ledger Structure
 
-### Mining Software Configuration
-In Bash scripts provided, we have created configuration templates to set up mining nodes. These scripts use API keys to configure nodes with specific algorithms, endpoints, and wallet addresses in order to connect to the Hashburst network.
+The blockchain framework uses a filesystem-oriented ledger structure for persistent blockchain data.
 
-- Notable code references: configurations of miners using variables such as <MINER>, <ALGO>, <ENDPOINT_POOL>, <PORT>, <ACCOUNT.SUBACCOUNT>, and <COIN> to enable the parallel mining processes across different coins and pools on Hashburst.
+Typical paths include:
 
-### Cluster and Sub-Account Setup for Mining Nodes
-This framework has provided logic to generate configuration files for miner clusters (workers and sub-accounts) by dynamically generating scripts based on API keys. These scripts configured each miner in the cluster to work with specific pools and sub-accounts using the Hashburst infrastructure.
+```text
+ledger/
+|-- users/
+|-- wallets/
+`-- masterData.hbx
+```
 
-- Notable code references: the generation of Bash script configurations for mining clusters based on the API keys and nodes under the Hashburst mining infrastructure.
-  
-### Hashburst Blockchain in AI Models (PyTorch)
-Hashburst use Reinforcement Learning (RL) in PyTorch to optimize the mining performance based on Hashburst’s blockchain data. The RL model aimed to dynamically adjust mining parameters such as pool selection, node resource allocation, and coin mining strategies based on real-time feedback from the network.
+### User Data
 
-- Notable code references: implementing RL models using PyTorch for dynamic configuration of nodes and miners to optimize the throughput based on the performance feedback from the Hashburst network.
+```text
+ledger/users/
+```
 
-### Go Code for Hashburst Miner Release Automation
-Go code to automatically download and run the latest version of the Hashburst miner from the GitHub release page, further automating the integration with the Hashburst blockchain for user registration and mining setup.
+Contains user-specific blockchain records.
 
-- Notable code references: downloadMiner() and startMiner() functions in Go to manage mining operations automatically based on the latest Hashburst miner release.
-  
-Here you can find a whole framework, otherwise a complete and functional code, for Hashburst Blockchain across different languages (Go, PHP, Bash) and integrated mining and verification operations based on your requirements for the Hashburst platform. Each piece of code directly interacts with Hashburst APIs, mining nodes, or blockchain-related operations, ensuring a fully integrated solution.
+User records can be encrypted using credentials associated with the account or API authorization mechanism.
+
+### Wallet Data
+
+```text
+ledger/wallets/
+```
+
+Contains wallet information associated with blockchain users and supported networks.
+
+### Master Ledger
+
+```text
+ledger/masterData.hbx
+```
+
+Contains the aggregated blockchain ledger data.
+
+The framework includes mechanisms for encrypting ledger information and validating data integrity through cryptographic hashes.
+
+## PHP Implementation
+
+The PHP implementation provides components for:
+
+* blockchain record creation
+* Proof of History generation
+* AES-256-CBC encryption and decryption
+* SHA-512 hashing
+* CRC32b integrity verification
+* user ledger processing
+* wallet management
+* master ledger generation
+
+A simplified Proof of History implementation is:
+
+```php
+function generateProofOfHistory($data)
+{
+    $timestamp = time();
+    $combinedData = $data . $timestamp;
+    $proof = hash('sha512', $combinedData);
+
+    return [
+        'data' => $data,
+        'timestamp' => $timestamp,
+        'proof' => $proof
+    ];
+}
+```
+
+Block data can then be serialized, protected through the configured cryptographic mechanism and stored in the HashBurst ledger.
+
+## Python Implementation
+
+The Python implementation provides equivalent blockchain processing components and cryptographic operations.
+
+A simplified Proof of History implementation is:
+
+```python
+import hashlib
+import time
+
+def generate_proof_of_history(data):
+    timestamp = str(time.time())
+    combined_data = data + timestamp
+    proof = hashlib.sha512(combined_data.encode()).hexdigest()
+
+    return {
+        "data": data,
+        "timestamp": timestamp,
+        "proof": proof
+    }
+```
+
+Python components can be used for blockchain processing, automation, analytics and integration with optimization models.
+
+## C++ Implementation
+
+The C++ implementation provides lower-level blockchain and cryptographic processing using OpenSSL-based components.
+
+A simplified SHA-512 operation is:
+
+```cpp
+#include <openssl/sha.h>
+#include <string>
+
+std::string sha512(const std::string& data)
+{
+    unsigned char hash[SHA512_DIGEST_LENGTH];
+
+    SHA512(
+        reinterpret_cast<const unsigned char*>(data.c_str()),
+        data.size(),
+        hash
+    );
+
+    return std::string(
+        reinterpret_cast<char*>(hash),
+        SHA512_DIGEST_LENGTH
+    );
+}
+```
+
+The C++ components can be used for performance-sensitive blockchain processing and cryptographic operations.
+
+## Go Components
+
+Go is used for HashBurst node, mining and infrastructure automation.
+
+Components include:
+
+* API authentication
+* HashBurst API communication
+* miner deployment
+* miner lifecycle management
+* network testing
+* node registration
+* cluster configuration
+* release automation
+
+Relevant functions in HashBurst components include operations such as:
+
+```text
+verifyWithHashburst(...)
+downloadMiner(...)
+startMiner(...)
+testNetworkSpeed(...)
+```
+
+## API Authentication
+
+HashBurst infrastructure includes API-based authentication and node verification.
+
+Authentication workflows can use:
+
+```text
+email
+API key
+referral code
+node identity
+```
+
+API credentials are used to associate infrastructure components with registered HashBurst users and nodes.
+
+Sensitive credentials must not be committed to the repository.
+
+## Network Performance Testing
+
+HashBurst node and mining components include network testing functionality.
+
+Network checks can be used to measure:
+
+* connectivity
+* latency
+* endpoint availability
+* network suitability for mining or node operations
+
+These checks allow node software to validate connectivity before starting dependent services.
+
+## Mining Infrastructure
+
+HashBurst includes integration components for mining infrastructure.
+
+Configuration parameters can include:
+
+```text
+MINER
+ALGO
+ENDPOINT_POOL
+PORT
+ACCOUNT.SUBACCOUNT
+COIN
+```
+
+These parameters can be used to generate miner configurations and associate workers with specific pools, accounts and mining strategies.
+
+Mining infrastructure is separate from the HashBurst sovereign storage network.
+
+## Mining Cluster and Sub-Account Management
+
+HashBurst supports generation of configuration data for miner clusters composed of workers and sub-accounts.
+
+Cluster configuration can associate individual nodes with:
+
+* API credentials
+* pools
+* mining algorithms
+* wallets
+* sub-accounts
+* worker identities
+* network endpoints
+
+This provides a consistent configuration mechanism for distributed mining infrastructure.
+
+## Reinforcement Learning for Mining Optimization
+
+HashBurst research and development includes the use of Reinforcement Learning models implemented with PyTorch for mining optimization.
+
+Optimization targets can include:
+
+* pool selection
+* node resource allocation
+* mining strategy selection
+* throughput analysis
+* performance feedback
+* dynamic configuration
+
+The optimization layer operates on performance information produced by the HashBurst infrastructure.
+
+## Miner Release Automation
+
+Go components can automate miner deployment using releases published through GitHub.
+
+The automation workflow can:
+
+1. determine the required miner release;
+2. download the miner package;
+3. prepare its configuration;
+4. associate the node with HashBurst credentials;
+5. start the mining process;
+6. monitor the process and network connectivity.
+
+This functionality supports repeatable miner deployment across HashBurst nodes.
+
+## Node Deployment
+
+For production HashBurst node deployment, use the official installer rather than manually reconstructing services from individual repository examples:
+
+https://github.com/hashburst/node-installer
+
+The current stable deployment line is:
+
+```text
+v2.1.2
+```
+
+The installer includes the current service definitions, node binaries, HB-Files components, IPFS integration, storage aggregation and release validation tests.
+
+## Network Ports
+
+Current HashBurst node infrastructure separates mining and storage aggregation services.
+
+```text
+8091   Storage node public summary
+8093   Mining aggregator
+8094   Storage network aggregator
+18094  Temporary storage aggregator validation port
+```
+
+Port `8093` is reserved for mining aggregation and must not be reused by the storage aggregator.
+
+## Sovereign Storage
+
+The current HashBurst node architecture includes HB-Files sovereign storage backed by private IPFS infrastructure.
+
+Storage nodes can operate with different roles and capacity classifications.
+
+Typical roles include:
+
+```text
+primary
+secondary
+edge
+```
+
+Capacity classes include:
+
+```text
+committable
+best-effort
+unknown
+```
+
+Edge capacity must not be treated as guaranteed sellable capacity.
+
+Offline nodes without a valid configured role or capacity class are classified as `unknown` rather than implicitly becoming `committable`.
+
+For the authoritative implementation and deployment configuration, refer to:
+
+[HashBurst Node Installer](https://github.com/hashburst/node-installer)
+
+## Repository Scope
+
+This repository contains HashBurst blockchain framework components and implementation references.
+
+Production deployment configuration is maintained separately in the official Node Installer repository so that blockchain source development and infrastructure deployment remain independently versioned.
+
+## Related Repository
+
+Official HashBurst Node Installer:
+
+https://github.com/hashburst/node-installer
+
+Stable releases:
+
+https://github.com/hashburst/node-installer/releases
