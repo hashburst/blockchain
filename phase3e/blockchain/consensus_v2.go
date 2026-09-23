@@ -116,13 +116,11 @@ func (bc *Blockchain) ReproposeConsensusValue(proposerID string, round uint64, v
 	if err := validQC.Verify(set); err != nil {
 		return nil, fmt.Errorf("valid-value prevote certificate: %w", err)
 	}
-	if validQC.Round != validRound || !strings.EqualFold(validQC.BlockHash, valid.Hash) {
+	if validQC.ChainID != bc.v2Config.ChainID || validQC.Height != uint64(nextHeight) || validQC.Round != validRound || !strings.EqualFold(validQC.BlockHash, valid.Hash) {
 		return nil, fmt.Errorf("valid-value certificate does not certify block/round")
 	}
-	priorAuthor, ok := set.Proposer(uint64(nextHeight), validRound)
-	if !ok || !strings.EqualFold(priorAuthor.ID, valid.AuthorValidatorID) {
-		return nil, fmt.Errorf("valid block author is not proposer of certified valid round")
-	}
+	// The QC certifies immutable content, including its original author. A
+	// later QC can come from a round whose proposer is NOT that author.
 	b := cloneBlockForConsensus(valid)
 	originalHash := b.Hash
 	b.ProposerID = expected.ID
@@ -290,13 +288,11 @@ func (bc *Blockchain) validateConsensusProposal(b *Block, set consensus.Validato
 		if err := qc.Verify(set); err != nil {
 			return fmt.Errorf("reproposal prevote certificate: %w", err)
 		}
-		if qc.Round != uint64(b.ValidRound) || !strings.EqualFold(qc.BlockHash, b.Hash) {
+		if qc.ChainID != bc.v2Config.ChainID || qc.Height != uint64(b.Index) || qc.Round != uint64(b.ValidRound) || !strings.EqualFold(qc.BlockHash, b.Hash) {
 			return fmt.Errorf("reproposal certificate does not certify block/valid round")
 		}
-		priorProposer, ok := set.Proposer(uint64(b.Index), uint64(b.ValidRound))
-		if !ok || !strings.EqualFold(priorProposer.ID, author.ID) {
-			return fmt.Errorf("block author %s is not proposer of valid round %d", author.ID, b.ValidRound)
-		}
+		// A quorum certified this exact content hash. The original author
+		// remains hash-bound and owns the reward across all subsequent views.
 	}
 	if err := validateRewardRecipient(b, author.RewardAddress); err != nil {
 		return err

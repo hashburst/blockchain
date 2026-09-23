@@ -22,7 +22,16 @@ import (
 	libcrypto "github.com/libp2p/go-libp2p/core/crypto"
 )
 
+type consensusRunner interface {
+	Start() error
+	Run(context.Context) error
+	Running() bool
+	TryStatus() (blockchain.ConsensusReactorStatus, bool)
+}
+
 type runtime struct {
+	controlMu  sync.Mutex // Serialize control requests through full Run shutdown.
+	consDone   chan struct{}
 	mu         sync.Mutex
 	manifest   phase3e.Manifest
 	self       phase3e.NodePublic
@@ -30,7 +39,7 @@ type runtime struct {
 	mp         *blockchain.Mempool
 	p2p        *blockchain.P2PNode
 	syncer     *blockchain.Syncer
-	reactor    *blockchain.ConsensusReactor
+	reactor    consensusRunner
 	consNet    *blockchain.Libp2pConsensusNetwork
 	consCtx    context.Context
 	consCancel context.CancelFunc
@@ -183,6 +192,8 @@ func (rt *runtime) startConsensus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return
 	}
+	rt.controlMu.Lock()
+	defer rt.controlMu.Unlock()
 	rt.mu.Lock()
 	if rt.started {
 		rt.mu.Unlock()
@@ -194,11 +205,14 @@ func (rt *runtime) startConsensus(w http.ResponseWriter, r *http.Request) {
 	// allowed the round-0 proposer to broadcast while peers reported "started"
 	// even though their ConsensusReactor was not running yet.
 	if err := rt.reactor.Start(); err != nil {
+		log.Printf("control/start failed node=%d: %v", rt.self.Index, err)
 		rt.mu.Unlock()
 		http.Error(w, fmt.Sprintf("consensus start: %v", err), http.StatusConflict)
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	rt.consDone = done
 	rt.consCtx, rt.consCancel, rt.started = ctx, cancel, true
 	rt.mu.Unlock()
 	go func() {
@@ -208,6 +222,7 @@ func (rt *runtime) startConsensus(w http.ResponseWriter, r *http.Request) {
 		rt.mu.Lock()
 		rt.started = false
 		rt.consCancel = nil
+		close(done)
 		rt.mu.Unlock()
 	}()
 	writeJSON(w, map[string]interface{}{"started": true})
@@ -223,11 +238,17 @@ func (rt *runtime) stopConsensus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rt *runtime) stopConsensusInternal() {
+	rt.controlMu.Lock()
+	defer rt.controlMu.Unlock()
 	rt.mu.Lock()
 	cancel := rt.consCancel
+	done := rt.consDone
 	rt.mu.Unlock()
 	if cancel != nil {
 		cancel()
+	}
+	if done != nil {
+		<-done
 	}
 }
 

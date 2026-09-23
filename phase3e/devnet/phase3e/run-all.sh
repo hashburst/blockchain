@@ -23,10 +23,18 @@ cleanup_nodes() {
   fi
 }
 cleanup_all() {
+  local rc=$?
+  trap - EXIT INT TERM
+  if [ "$rc" -ne 0 ]; then
+    bash "$ROOT/devnet/phase3e/collect-diagnostics.sh" "$OUT" "$MODE" "$NODES" || true
+  fi
   cleanup_nodes
   if [ "$MODE" = netns ]; then NODES="$NODES" "$ROOT/devnet/phase3e/netns.sh" cleanup || true; fi
+  exit "$rc"
 }
-trap cleanup_all EXIT INT TERM
+trap cleanup_all EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 if [ "$MODE" = netns ]; then NODES="$NODES" "$ROOT/devnet/phase3e/netns.sh" setup; fi
 
 node_field() { jq -r ".nodes[$1].$2" "$MANIFEST"; }
@@ -54,12 +62,19 @@ wait_consensus_state() {
   return 1
 }
 start_consensus_node() {
-  i="$1"; label="${2:-start}"
-  if ! j="$(curl -fsS --max-time 5 -X POST "$(start_url "$i")" 2>/dev/null)"; then
-    echo "ERROR: $label node $i /control/start failed" >&2
+  local i="$1" label="${2:-start}" j code rc=0 prefix
+  mkdir -p "$OUT/control"
+  prefix="$OUT/control/node$i-start-$(date -u +%s%N)"
+  code="$(curl -sS --max-time 5 -X POST -D "$prefix.headers" -o "$prefix.body" -w '%{http_code}' "$(start_url "$i")" 2> "$prefix.stderr")" || rc=$?
+  printf 'node=%s label=%s curl_exit=%s http=%s\n' "$i" "$label" "$rc" "$code" > "$prefix.result"
+  if [ "$rc" -ne 0 ] || [ "$code" != 200 ]; then
+    echo "ERROR: $label node $i /control/start failed curl=$rc HTTP=$code" >&2
+    cat "$prefix.result" "$prefix.stderr" >&2
+    [ ! -f "$prefix.body" ] || cat "$prefix.body" >&2
     tail -80 "$LOGS/node$i.log" >&2 || true
     return 1
   fi
+  j="$(cat "$prefix.body")"
   if ! printf '%s' "$j" | jq -e '.started == true' >/dev/null 2>&1; then
     echo "ERROR: $label node $i invalid /control/start response: $j" >&2
     return 1
@@ -155,7 +170,7 @@ wait_finalized_delta() {
         h="$(printf '%s' "$j" | jq -r '.finalized_height')"; [ "$h" -lt "$min" ] && min="$h"; alive=$((alive+1))
       fi
     done
-    [ "$alive" -gt 0 ] && [ "$min" -ge "$target" ] && { echo "$min"; return 0; }
+    [ "$alive" -eq "$NODES" ] && [ "$min" -ge "$target" ] && { echo "$min"; return 0; }
     sleep 0.2
   done
   return 1

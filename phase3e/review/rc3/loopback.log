@@ -1,0 +1,22 @@
+PHASE3E_PREFLIGHT_OK mode=loopback nodes=4 go=go1.25.7 out=/workspace/scratch/5fb50216532b/phase3e-review/devnet/phase3e/run-rc3-local
+ok  	hashburst/consensus	0.024s
+ok  	hashburst/protocolv2	0.013s
+ok  	hashburst/hvm	0.018s
+ok  	hashburst/blockchain	1.618s
+PHASE3E_BUILD_OK
+2026/09/23 10:07:38 No blockchain data found — creating genesis block
+2026/09/23 10:07:38 Genesis (deterministic): 1f7761e81921358af25c403e13e19ffe7b8f0c588a03cc8b9f96ede3dead35e9
+2026/09/23 10:07:38 Block #1 v1 | hash: 0d100aabef4c... | txs v1=2 v2=0 | PoW: 16 | PoH: 2708364453883576877
+2026/09/23 10:07:38 Block #2 v1 | hash: 0a78d96fa77c... | txs v1=2 v2=0 | PoW: 15 | PoH: 5364784244131561006
+2026/09/23 10:07:38 Block #3 v1 | hash: 03675ed936de... | txs v1=2 v2=0 | PoW: 15 | PoH: -3295006849400681777
+2026/09/23 10:07:38 Block #4 v1 | hash: 052f0b881a8e... | txs v1=2 v2=0 | PoW: 7 | PoH: 8472025121774518828
+2026/09/23 10:07:38 Block #5 v1 | hash: 04c3370ebc30... | txs v1=1 v2=0 | PoW: 2 | PoH: 3497686463851309620
+2026/09/23 10:07:38 Block #6 v2 | hash: 06ede1715beb... | txs v1=1 v2=4 | PoW: 0 | PoH: -5916173207121303956
+2026/09/23 10:07:38 Block #7 v2 | hash: 01e6c8f82418... | txs v1=1 v2=0 | PoW: 16 | PoH: 1298469111205831046
+PHASE3E_FIXTURE_OK out=/workspace/scratch/5fb50216532b/phase3e-review/devnet/phase3e/run-rc3-local nodes=4 bootstrap_height=7 consensus_height=8
+PHASE3E_CONSENSUS_START_BARRIER_OK proposer_node=0 bootstrap=7
+PHASE3E_CONSENSUS_STARTED proposer_node=0 bootstrap=7
+PHASE3E_FINALITY_OK finalized=13
+PHASE3E_MPR_CANARY_OK contract=0x739bE92e9A59C053f7940832ff5093dDBc398dAA sent=0x499d6c08d3d5550194959f2450df4e497168f7be008b377ad0029e4b57c759a0 cancelled=0xd58282c4f66a0a3fcae4e3a396bb8fad5850eaacdbd0270dcfdf619febbbd875 user_ref=0xb8dedcc42734fe8239148935501bcd29eb4c159f2795e9e3ea64b81c5cc4fe1d wallet_ref=0x12f69c11c74fb45f813488366e7335790d1a54e9744adc31c29e4e6f57310fd0
+PHASE3E_MPR_FINALIZED finalized=78
+PHASE3E_RUN_OK mode=loopback nodes=4 out=/workspace/scratch/5fb50216532b/phase3e-review/devnet/phase3e/run-rc3-local

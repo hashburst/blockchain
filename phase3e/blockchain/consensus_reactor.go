@@ -125,7 +125,19 @@ func (r *ConsensusReactor) Start() error {
 	}
 	r.running = true
 	r.runningState.Store(true)
-	if err := r.startHeightLocked(height); err != nil {
+	var err error
+	if r.height != 0 && r.height == height {
+		// Administrative resume retains locks, certified values and received
+		// votes. Enter a fresh view through the normal journaled transition.
+		if r.round >= r.cfg.MaxRound {
+			err = fmt.Errorf("cannot resume consensus: exhausted max round %d", r.cfg.MaxRound)
+		} else {
+			err = r.requestRoundChangeLocked(r.round + 1)
+		}
+	} else {
+		err = r.startHeightLocked(height)
+	}
+	if err != nil {
 		r.running = false
 		r.runningState.Store(false)
 		r.deadline = time.Time{}
