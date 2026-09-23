@@ -18,6 +18,7 @@ import (
 	"io"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"hashburst/consensus"
@@ -58,6 +59,9 @@ type ConsensusNetworkStatus struct {
 	SeenMessages    int    `json:"seen_messages"`
 	OutboundQueued  int    `json:"outbound_queued"`
 	MaxMessageBytes int    `json:"max_message_bytes"`
+	DeliveryPending int    `json:"delivery_pending"`
+	DeliveryDropped uint64 `json:"delivery_dropped"`
+	OutboundDropped uint64 `json:"outbound_dropped"`
 }
 
 type consensusOutboundFrame struct {
@@ -73,10 +77,12 @@ type Libp2pConsensusNetwork struct {
 	reactor *ConsensusReactor
 	cfg     consensus.NetworkConfig
 
-	mu        sync.Mutex
-	seen      map[string]struct{}
-	seenOrder []string
-	outbound  chan consensusOutboundFrame
+	mu              sync.Mutex
+	seen            map[string]struct{}
+	seenOrder       []string
+	outbound        chan consensusOutboundFrame
+	delivery        *consensusDelivery
+	outboundDropped atomic.Uint64
 }
 
 func NewLibp2pConsensusNetwork(h host.Host, reactor *ConsensusReactor, cfg consensus.NetworkConfig) (*Libp2pConsensusNetwork, error) {
@@ -93,6 +99,7 @@ func NewLibp2pConsensusNetwork(h host.Host, reactor *ConsensusReactor, cfg conse
 		host: h, reactor: reactor, cfg: cfg, seen: make(map[string]struct{}),
 		outbound: make(chan consensusOutboundFrame, consensusOutboundQueueLimit),
 	}
+	n.delivery = &consensusDelivery{send: n.sendPayloadToPeer}
 	go n.outboundLoop()
 	h.SetStreamHandler(ConsensusProtocolID, n.handleStream)
 	reactor.SetTransport(n)
@@ -108,7 +115,11 @@ func (n *Libp2pConsensusNetwork) Status() ConsensusNetworkStatus {
 	if n.host != nil && n.host.Network() != nil {
 		peers = len(n.host.Network().Peers())
 	}
-	return ConsensusNetworkStatus{Protocol: string(ConsensusProtocolID), ConnectedPeers: peers, SeenMessages: seen, OutboundQueued: len(n.outbound), MaxMessageBytes: n.cfg.MaxMessageBytes}
+	status := ConsensusNetworkStatus{Protocol: string(ConsensusProtocolID), ConnectedPeers: peers, SeenMessages: seen, OutboundQueued: len(n.outbound), MaxMessageBytes: n.cfg.MaxMessageBytes, OutboundDropped: n.outboundDropped.Load()}
+	if n.delivery != nil {
+		status.DeliveryPending, status.DeliveryDropped = n.delivery.status()
+	}
+	return status
 }
 
 func consensusMessageID(payload []byte) string {
@@ -149,10 +160,15 @@ func (n *Libp2pConsensusNetwork) writePayload(w io.Writer, payload []byte) error
 	}
 	var hdr [4]byte
 	binary.BigEndian.PutUint32(hdr[:], uint32(len(payload)))
-	if _, err := w.Write(hdr[:]); err != nil {
+	if count, err := w.Write(hdr[:]); err != nil {
 		return err
+	} else if count != len(hdr) {
+		return io.ErrShortWrite
 	}
-	_, err := w.Write(payload)
+	count, err := w.Write(payload)
+	if err == nil && count != len(payload) {
+		return io.ErrShortWrite
+	}
 	return err
 }
 
@@ -174,10 +190,16 @@ func (n *Libp2pConsensusNetwork) readPayload(r io.Reader) ([]byte, error) {
 
 func (n *Libp2pConsensusNetwork) handleStream(s network.Stream) {
 	defer s.Close()
-	payload, err := n.readPayload(s)
-	if err != nil {
+	if err := s.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		_ = s.Reset()
 		return
 	}
+	payload, err := n.readPayload(s)
+	if err != nil {
+		_ = s.Reset()
+		return
+	}
+	_ = s.SetReadDeadline(time.Time{})
 	id := consensusMessageID(payload)
 	if !n.markSeen(id) {
 		return
@@ -238,8 +260,8 @@ func (n *Libp2pConsensusNetwork) sendPayloadToPeer(id peer.ID, payload []byte) {
 	defer cancel()
 	s, err := n.host.NewStream(ctx, id, ConsensusProtocolID)
 	if err == nil {
-		err = n.writePayload(s, payload)
-		_ = s.Close()
+		deadline, _ := ctx.Deadline()
+		err = n.sendOnStream(s, payload, deadline)
 	}
 	if err != nil {
 		log.Printf("consensus: relay to %s failed: %v", id, err)
@@ -247,18 +269,36 @@ func (n *Libp2pConsensusNetwork) sendPayloadToPeer(id peer.ID, payload []byte) {
 }
 
 func (n *Libp2pConsensusNetwork) relayPayload(payload []byte, except peer.ID) {
-	var wg sync.WaitGroup
 	for _, id := range n.host.Network().Peers() {
 		if id == except {
 			continue
 		}
-		wg.Add(1)
-		go func(id peer.ID) {
-			defer wg.Done()
-			n.sendPayloadToPeer(id, payload)
-		}(id)
+		if err := n.delivery.enqueue(id, payload); err != nil {
+			log.Printf("consensus: %v", err)
+		}
 	}
-	wg.Wait()
+}
+
+type consensusWriteStream interface {
+	io.WriteCloser
+	SetWriteDeadline(time.Time) error
+	Reset() error
+}
+
+func (n *Libp2pConsensusNetwork) sendOnStream(s consensusWriteStream, payload []byte, deadline time.Time) error {
+	if err := s.SetWriteDeadline(deadline); err != nil {
+		_ = s.Reset()
+		return err
+	}
+	if err := n.writePayload(s, payload); err != nil {
+		_ = s.Reset()
+		return err
+	}
+	if err := s.Close(); err != nil {
+		_ = s.Reset()
+		return err
+	}
+	return nil
 }
 
 func (n *Libp2pConsensusNetwork) outboundLoop() {
@@ -272,11 +312,9 @@ func (n *Libp2pConsensusNetwork) queueRelay(payload []byte, except peer.ID) {
 	select {
 	case n.outbound <- frame:
 	default:
-		// Queue saturation must not block the reactor or silently drop an
-		// authenticated consensus frame. Fall back to a detached relay; this path
-		// should be exceptional and is visible in logs.
-		log.Printf("consensus: outbound queue saturated at %d frames; detached relay", cap(n.outbound))
-		go n.relayPayload(frame.payload, frame.except)
+		// Explicit bounded loss under overload, never unbounded detached workers.
+		n.outboundDropped.Add(1)
+		log.Printf("consensus: outbound queue saturated at %d frames; frame dropped", cap(n.outbound))
 	}
 }
 
