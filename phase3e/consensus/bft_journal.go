@@ -19,6 +19,7 @@ type BFTSignJournal struct {
 	mu      sync.Mutex
 	path    string
 	entries map[string]BFTSignRecord
+	failure error
 }
 
 type BFTSignRecord struct {
@@ -112,6 +113,9 @@ func (j *BFTSignJournal) Record(rec BFTSignRecord) error {
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	if j.failure != nil {
+		return j.failure
+	}
 	key := bftJournalKey(rec)
 	if previous, ok := j.entries[key]; ok {
 		if sameBFTSignRecord(previous, rec) {
@@ -119,6 +123,15 @@ func (j *BFTSignJournal) Record(rec BFTSignRecord) error {
 		}
 		return fmt.Errorf("double-sign protection: conflicting %s already recorded at chain=%d height=%d round=%d validator=%s", rec.Step, rec.ChainID, rec.Height, rec.Round, rec.ValidatorID)
 	}
+	if err := j.appendRecord(rec); err != nil {
+		j.failure = fmt.Errorf("BFT journal persistence failed; restart required: %w", err)
+		return j.failure
+	}
+	j.entries[key] = rec
+	return nil
+}
+
+func (j *BFTSignJournal) appendRecord(rec BFTSignRecord) error {
 	if err := os.MkdirAll(filepath.Dir(j.path), 0700); err != nil {
 		return fmt.Errorf("create BFT journal directory: %w", err)
 	}
@@ -141,7 +154,6 @@ func (j *BFTSignJournal) Record(rec BFTSignRecord) error {
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("close BFT journal: %w", err)
 	}
-	j.entries[key] = rec
 	return nil
 }
 
@@ -151,5 +163,5 @@ func (j *BFTSignJournal) Healthy() error {
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	return nil
+	return j.failure
 }

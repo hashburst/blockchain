@@ -89,6 +89,7 @@ type indexEntry struct {
 }
 
 type ChainStorage struct {
+	durable bool // Strict persistent runtime: sync data before publishing its index.
 	dir     string
 	datPath string
 	idxPath string
@@ -145,6 +146,11 @@ func (s *ChainStorage) saveBlockLocked(b *Block) error {
 		return fmt.Errorf("write data: %w", err)
 	}
 
+	if s.durable {
+		if err := f.Sync(); err != nil {
+			return err
+		}
+	}
 	return s.appendIndex(indexEntry{
 		BlockNum: uint64(b.Index),
 		Offset:   offset,
@@ -184,6 +190,9 @@ func (s *ChainStorage) appendIndex(e indexEntry) error {
 	binary.BigEndian.PutUint64(buf[8:16], uint64(e.Offset))
 	binary.BigEndian.PutUint32(buf[16:20], e.Size)
 	_, err = f.Write(buf)
+	if err == nil && s.durable {
+		err = f.Sync()
+	}
 	return err
 }
 
