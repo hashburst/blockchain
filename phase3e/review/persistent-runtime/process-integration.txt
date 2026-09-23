@@ -1,0 +1,5 @@
+=== RUN   TestFourPersistentValidatorProcesses
+    process_test.go:208: PERSISTENT_TESTNET_FOUR_PROCESS_FINALITY_AND_OBSERVER_RESTART_OK
+--- PASS: TestFourPersistentValidatorProcesses (7.08s)
+PASS
+ok  	hashburst/internal/testnet	7.082s

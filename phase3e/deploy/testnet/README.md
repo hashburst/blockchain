@@ -1,0 +1,106 @@
+# Runtime testnet persistente — integrazione, non attivazione pubblica
+
+Entry point: `cmd/hashburst-testnet`. Usa il modulo Go `phase3e/` e Go 1.25.7.
+Non richiama fixture, non crea genesis, non avvia mining legacy, non installa servizi.
+I default del runtime legacy e i chain ID pubblici non sono modificati.
+
+## Preparazione del binario
+
+Dalla directory `phase3e/` del commit revisionato:
+
+```bash
+export GOTOOLCHAIN=local
+go test ./... -count=1
+go test -race ./internal/testnet ./blockchain ./consensus -count=1
+HB_TESTNET_INTEGRATION=1 go test ./internal/testnet -run TestFourPersistentValidatorProcesses -count=1 -v
+go build -trimpath -o /tmp/hashburst-testnet ./cmd/hashburst-testnet
+sha256sum /tmp/hashburst-testnet
+```
+
+Il test d'integrazione genera una fixture esclusivamente in una directory temporanea,
+avvia quattro processi validatori, attende finalità, ferma un nodo e lo riavvia come
+observer con la stessa identità e lo stesso disco. Richiede nuova finalità dopo il
+riavvio e verifica che il journal dell'observer non sia cambiato. Le chiavi sono
+create solo dalla fixture temporanea di test e non sono chiavi di deploy.
+Non eseguire questi test sulla directory di stato di un servizio.
+
+## Configurazione e provisioning esplicito
+
+`node.example.json` è deliberatamente NON avviabile: chain ID 0, hash vuoti e
+bootnodes vuoti devono essere sostituiti con parametri di una testnet approvata.
+Non assegna gli ID HVM Testnet/Mainnet. I timeout `protocol.consensus_network`
+sono durate Go espresse come interi in nanosecondi nel JSON, non millisecondi.
+Le fee e le soglie della configurazione esempio non sono parametri economici approvati.
+
+Serve uno snapshot testnet coerente, preparato separatamente, con `blockchain.dat`
+e `blockchain.idx`, genesis e checkpoint attesi, validator set e parametri di
+protocollo esatti. La preparazione/distribuzione dello snapshot non è automatizzata
+qui: non copiare il database della rete pubblica per trasformarlo in testnet.
+La configurazione completa viene fornita come file, senza override d'ambiente.
+Il parser rifiuta proprietà sconosciute e JSON aggiuntivo.
+
+Per ogni nodo configurare:
+- directory assoluta canonica di stato separata, per esempio `/var/lib/hashburst-hvm-testnet`;
+- `node_id`, `peer_id`, chiave P2P in file base64 libp2p (permessi 0600);
+- `role`: `observer` o `validator`;
+- per validator: `validator_id` registrato e chiave consenso esadecimale privata in file 0600;
+- per observer: `consensus_key_file` vuoto; mantenere `validator_id` se è la stessa identità precedentemente validatrice;
+- genesis, checkpoint altezza/hash e configurazione di consenso condivisa;
+- RPC loopback con porta dedicata e P2P su indirizzo/porta espliciti, bootnodes con peer ID.
+
+Chiavi in chiaro su file privati sono supportate in questa integrazione interna;
+keystore cifrato/KMS richiede integrazione successiva. Non inserirle nel repository.
+Il lock è locale alla directory: non autorizza a duplicare una chiave su altri host.
+
+Su snapshot ancora fermo esattamente al checkpoint configurato:
+
+```bash
+/opt/hashburst-hvm-testnet/hashburst-testnet --config /etc/hashburst-hvm-testnet/node.json --provision
+/opt/hashburst-hvm-testnet/hashburst-testnet --config /etc/hashburst-hvm-testnet/node.json --check
+```
+
+`--provision` verifica catena e identità, inizializza solo i journal assenti e scrive
+il pin con creazione esclusiva e fsync. Non scrive blocchi o genesis e rifiuta un
+pin già presente. Un errore a metà provisioning lascia eventuali file creati per
+ispezione: nessuna cancellazione automatica.
+`--check` verifica senza avviare rete o firme; apre/crea il solo file di lock.
+Tutti gli avvii successivi richiedono pin e journal presenti. Configurazione,
+checkpoint, genesis, identità P2P, node ID e validator ID sono vincolati dal pin;
+porte/bootnodes e passaggio validator→observer restano configurabili.
+
+La unità systemd inclusa è un template, non è stata installata. Richiede utente
+`hashburst-hvm-testnet`, binario e configurazione già preparati e snapshot con
+ownership adeguata. Nessun script abilita automaticamente il servizio.
+
+## Persistenza e arresto
+
+L'apertura rigorosa controlla indice/file, hash, configurazione, verifica catena,
+replay degli state root e journal. File mancanti/corrotti causano errore: nessuna
+ripartenza da genesis. Per questa apertura soltanto, le scritture dei blocchi
+eseguono fsync sul file dati prima di fsync dell'indice. Un crash tra i due lascia
+uno stato incompleto che viene rifiutato: non c'è riparazione automatica del WAL.
+SIGTERM/SIGINT cancella i loop, chiude listener/host e attende il reactor prima
+di rilasciare il lock. Arresto forzato rimane soggetto ai controlli al riavvio.
+
+Se il journal del validatore contiene firme ad altezza non ancora finalizzata,
+lo startup rifiuta il ruolo validator. Non cancella record, non incrementa round
+alla cieca e non ricostruisce lock/QC da informazioni insufficienti.
+Si può riavviare la stessa identità come observer (senza chiave consenso),
+sincronizzare oltre le altezze firmate, fermarla e rivalutare `--check` in ruolo
+validator. Se tutta la rete è ferma e nessuno può finalizzare, questa procedura
+non risolve lo stallo: serve recupero lock/QC separato e revisionato. Non è quindi
+un certificato di ripartenza automatica dell'intero validator set.
+
+## HTTP e limiti di rilascio
+
+Solo `/health` GET e `/rpc`, su loopback. `/control/start` e `/control/stop` assenti.
+`/health` espone rete, chain ID, digest, altezza, finalità e stato reactor/trasporto.
+HTTP 200 significa processo raggiungibile, non prova di quorum o finalità recente.
+Il digest identifica i parametri locali; non è un handshake che impedisce a un
+peer configurato diversamente di connettersi. Validazione dei messaggi e della
+catena continua ad applicarsi. L'ingress deve confrontare rete/configurazione e
+finalità prima di instradare traffico pubblico.
+RPC con limite corpo e timeout; nessuna nuova promessa EVM, MetaMask o WebSocket.
+Prima del deploy pubblico restano gli ID distinti, runtime recovery completo,
+provisioning condiviso, prove multi-host e ingress TLS autorizzato. La suite netns
+RC3 precedente valida il vecchio harness, non sostituisce queste nuove prove.

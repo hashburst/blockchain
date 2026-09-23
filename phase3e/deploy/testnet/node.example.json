@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "network": "testnet",
+  "node_id": "replace-node-id",
+  "role": "observer",
+  "data_dir": "/var/lib/hashburst-hvm-testnet",
+  "rpc_listen": "127.0.0.1:18009",
+  "p2p_listen_ip": "127.0.0.1",
+  "p2p_port": 31307,
+  "peer_id": "",
+  "p2p_key_file": "/etc/hashburst-hvm-testnet/p2p.key",
+  "validator_id": "",
+  "consensus_key_file": "",
+  "genesis_hash": "",
+  "checkpoint_height": 0,
+  "checkpoint_hash": "",
+  "bootnodes": [],
+  "protocol": {
+    "chain_id": 0,
+    "activation_height": 0,
+    "fee_policy": {
+      "base_tx_units": 100,
+      "fee_rate_units_per_million": 1000
+    },
+    "fee_collector": "0x000000000000000000000000000000000000fee0",
+    "max_tx_data_bytes": 1048576,
+    "legacy_pow_difficulty": 1,
+    "poh_ticks_per_block": 4000,
+    "consensus_activation_height": 0,
+    "validator": {
+      "min_bond_units": 1000000000,
+      "activation_delay_blocks": 1,
+      "unbonding_blocks": 8,
+      "jail_blocks": 100,
+      "double_vote_slash_bps": 500
+    },
+    "consensus_network": {
+      "proposal_timeout": 3000000000,
+      "prevote_timeout": 2000000000,
+      "precommit_timeout": 2000000000,
+      "round_timeout_delta": 500000000,
+      "max_round": 64,
+      "max_future_height": 4,
+      "max_message_bytes": 4194304
+    },
+    "require_node_registration_v2": true,
+    "slash_collector": "0x00000000000000000000000000000000000051a5"
+  }
+}
