@@ -1,0 +1,6 @@
+=== RUN   TestFourPersistentValidatorProcesses
+    process_test.go:208: PERSISTENT_TESTNET_FOUR_PROCESS_FINALITY_AND_OBSERVER_RESTART_OK
+    process_test.go:271: PERSISTENT_TESTNET_SIGKILL_VALIDATOR_RECOVERY_AND_PRECOMMIT_OK
+--- PASS: TestFourPersistentValidatorProcesses (3.62s)
+PASS
+ok  	hashburst/internal/testnet	3.629s

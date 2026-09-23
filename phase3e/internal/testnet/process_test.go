@@ -206,4 +206,67 @@ func TestFourPersistentValidatorProcesses(t *testing.T) {
 		t.Fatal("observer modified signing journal")
 	}
 	t.Log("PERSISTENT_TESTNET_FOUR_PROCESS_FINALITY_AND_OBSERVER_RESTART_OK")
+	// Return the same identity to validator mode, then exercise an actual SIGKILL.
+	configs[3].Role = "validator"
+	configs[3].ConsensusKeyFile = filepath.Join(out, "node3", "consensus.key")
+	b, _ = json.Marshal(configs[3])
+	if err := os.WriteFile(paths[3], b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	start(3)
+	wait(baseline.Finalized + 8)
+	if err := commands[3].Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	if err := commands[3].Wait(); err == nil {
+		t.Fatal("expected forced process termination")
+	}
+	commands[3] = nil
+	before, err = os.ReadFile(journal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lastHeight uint64
+	for _, line := range bytes.Split(before, []byte("\n")) {
+		if len(line) == 0 {
+			continue
+		}
+		var rec struct{ Height uint64 }
+		if err = json.Unmarshal(line, &rec); err != nil {
+			t.Fatalf("journal crash: %v", err)
+		}
+		if rec.Height > lastHeight {
+			lastHeight = rec.Height
+		}
+	}
+	start(3)
+	wait(int(lastHeight) + 4)
+	stop(3)
+	after, err = os.ReadFile(journal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(after, before) || len(after) == len(before) {
+		t.Fatal("validator did not preserve and extend signing journal")
+	}
+	var resumed bool
+	for _, line := range bytes.Split(after[len(before):], []byte("\n")) {
+		if len(line) == 0 {
+			continue
+		}
+		var rec struct {
+			Height uint64
+			Step   string
+		}
+		if err = json.Unmarshal(line, &rec); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Height > lastHeight && rec.Step == "PRECOMMIT" {
+			resumed = true
+		}
+	}
+	if !resumed {
+		t.Fatal("no new validator precommit after process crash")
+	}
+	t.Log("PERSISTENT_TESTNET_SIGKILL_VALIDATOR_RECOVERY_AND_PRECOMMIT_OK")
 }
