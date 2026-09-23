@@ -1,5 +1,8 @@
 # Persistent testnet runtime verification
 
+Historical evidence for commit `b2e3fa29f9bf957fb01a9fec4d0cc08315793a38`; its SHA256SUMS refer to that revision.
+The subsequent validator-recovery change has separate evidence in `../validator-recovery/`.
+
 Tests executed locally on 2026-09-23 with Go 1.25.7. Not VPS or public-network results.
 
 - Full suite: PASS (process integration opt-in is skipped in this ordinary run).

@@ -61,9 +61,10 @@ func OpenExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 	return bc, nil
 }
 
-// CheckValidatorRestart refuses signing without recovered locks at a pending height.
+// CheckValidatorRestart validates persisted locks/QCs without starting or signing.
 func (bc *Blockchain) CheckValidatorRestart(validatorID string) error {
-	return bc.bftJournal.CheckRestartHeight(bc.v2Config.ChainID, uint64(bc.Height()+1), validatorID)
+	_, err := bc.readRecovery(validatorID)
+	return err
 }
 
 // Verify complete index/data agreement before the gob loader allocates frames.

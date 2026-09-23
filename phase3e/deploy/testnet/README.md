@@ -20,7 +20,9 @@ sha256sum /tmp/hashburst-testnet
 Il test d'integrazione genera una fixture esclusivamente in una directory temporanea,
 avvia quattro processi validatori, attende finalità, ferma un nodo e lo riavvia come
 observer con la stessa identità e lo stesso disco. Richiede nuova finalità dopo il
-riavvio e verifica che il journal dell'observer non sia cambiato. Le chiavi sono
+riavvio e verifica che il journal dell'observer non sia cambiato. Poi riabilita il
+ruolo validator, termina il processo con SIGKILL e verifica nuovi precommit dopo
+il riavvio sullo stesso disco. Le chiavi sono
 create solo dalla fixture temporanea di test e non sono chiavi di deploy.
 Non eseguire questi test sulla directory di stato di un servizio.
 
@@ -82,14 +84,33 @@ uno stato incompleto che viene rifiutato: non c'è riparazione automatica del WA
 SIGTERM/SIGINT cancella i loop, chiude listener/host e attende il reactor prima
 di rilasciare il lock. Arresto forzato rimane soggetto ai controlli al riavvio.
 
-Se il journal del validatore contiene firme ad altezza non ancora finalizzata,
-lo startup rifiuta il ruolo validator. Non cancella record, non incrementa round
-alla cieca e non ricostruisce lock/QC da informazioni insufficienti.
-Si può riavviare la stessa identità come observer (senza chiave consenso),
-sincronizzare oltre le altezze firmate, fermarla e rivalutare `--check` in ruolo
-validator. Se tutta la rete è ferma e nessuno può finalizzare, questa procedura
-non risolve lo stallo: serve recupero lock/QC separato e revisionato. Non è quindi
-un certificato di ripartenza automatica dell'intero validator set.
+Il runtime persistente scrive `consensus-recovery.json` prima delle firme: altezza,
+round riservato, lock, valore valido, blocchi e certificati prevote. La scrittura usa
+file temporaneo privato, fsync, rename atomico e fsync della directory. Il journal
+resta append-only. Al riavvio controlla identità/configurazione, parent hash, checksum,
+certificati, blocchi rieseguiti e coerenza con tutte le firme ancora pendenti.
+Riprende con i lock recuperati e un round-change firmato verso un round nuovo.
+Nessun salto di round autorizza a dimenticare un lock.
+
+Snapshot mancante con firme pendenti, corrotto, precedente a un precommit, incoerente
+con la catena o round esauriti bloccano il validatore. Errori di scrittura del recovery
+state o del journal fermano le firme fino a riavvio e verifica. Il checksum rileva
+corruzione accidentale: non autentica un disco compromesso. Servono storage affidabile
+che rispetti fsync, custodia delle chiavi e una sola istanza per identità.
+Non ripristinare snapshot, catena e journal da backup di epoche diverse; non cancellare
+mai un journal per consentire la ripartenza.
+
+Un journal creato dalla versione precedente senza recovery snapshot non contiene
+abbastanza informazioni per ricostruire i lock a un'altezza pendente. In quel caso
+rimane la procedura observer: stessa identità, nessuna chiave consenso, sincronizzazione
+oltre tutte le altezze firmate, stop, `--check` come validator. Richiede che il resto
+del quorum possa finalizzare; non inventa uno stato per sbloccare una rete interamente
+ferma su dati precedenti. File catena/indice incompleti richiedono ancora riparazione
+operativa separata: il runtime li rifiuta e non tronca dati automaticamente.
+
+Le prove specifiche e i comandi riproducibili sono in
+`review/validator-recovery/README.md`. Includono lock/QC, riavvio completo a quattro
+validatori e SIGKILL di un processo con successiva ripresa delle firme.
 
 ## HTTP e limiti di rilascio
 
@@ -101,6 +122,6 @@ peer configurato diversamente di connettersi. Validazione dei messaggi e della
 catena continua ad applicarsi. L'ingress deve confrontare rete/configurazione e
 finalità prima di instradare traffico pubblico.
 RPC con limite corpo e timeout; nessuna nuova promessa EVM, MetaMask o WebSocket.
-Prima del deploy pubblico restano gli ID distinti, runtime recovery completo,
+Prima del deploy pubblico restano gli ID distinti, revisione del recovery,
 provisioning condiviso, prove multi-host e ingress TLS autorizzato. La suite netns
 RC3 precedente valida il vecchio harness, non sostituisce queste nuove prove.
