@@ -1,0 +1,4 @@
+/.phase3e-cache/
+/devnet/phase3e/bin/
+/devnet/phase3e/run-*/
+*.log
