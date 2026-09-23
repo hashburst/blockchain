@@ -57,13 +57,16 @@ type ConsensusReactor struct {
 	round  uint64
 	step   consensus.BFTStep
 
-	lockedRound int64
-	lockedHash  string
-	lockedBlock *Block
-	validRound  int64
-	validHash   string
-	validBlock  *Block
-	validQC     *consensus.PrevoteCertificate
+	lockedQC      *consensus.PrevoteCertificate
+	recoveryErr   error
+	reservedRound uint64
+	lockedRound   int64
+	lockedHash    string
+	lockedBlock   *Block
+	validRound    int64
+	validHash     string
+	validBlock    *Block
+	validQC       *consensus.PrevoteCertificate
 
 	proposals      map[uint64]ConsensusProposal
 	blocksByHash   map[string]*Block
@@ -122,6 +125,14 @@ func (r *ConsensusReactor) Start() error {
 	height := uint64(r.bc.Height() + 1)
 	if !r.bc.v2Config.ConsensusEnabledAt(int(height)) {
 		return fmt.Errorf("consensus network protocol disabled at height %d", height)
+	}
+	if r.height == 0 {
+		if err := r.restoreRecoveryLocked(); err != nil {
+			return err
+		}
+	}
+	if r.recoveryErr != nil {
+		return r.recoveryErr
 	}
 	r.running = true
 	r.runningState.Store(true)
@@ -183,8 +194,12 @@ func (r *ConsensusReactor) Run(ctx context.Context) error {
 			return ctx.Err()
 		case now := <-ticker.C:
 			r.mu.Lock()
+			fatal := r.recoveryErr
 			due := r.running && !r.deadline.IsZero() && !now.Before(r.deadline)
 			r.mu.Unlock()
+			if fatal != nil {
+				return fatal
+			}
 			if due {
 				_ = r.HandleTimeout()
 			}
@@ -244,6 +259,8 @@ func (r *ConsensusReactor) PendingEvidence() []consensus.BFTDoubleSignEvidence {
 
 func (r *ConsensusReactor) startHeightLocked(height uint64) error {
 	r.height = height
+	r.reservedRound = 0
+	r.lockedQC = nil
 	r.round = 0
 	r.step = consensus.StepProposal
 	r.lockedRound, r.validRound = -1, -1
@@ -310,9 +327,12 @@ func (r *ConsensusReactor) enterRoundLocked(round uint64) error {
 		return err
 	}
 
+	if err := r.persistRecoveryLocked(round); err != nil {
+		return err
+	}
 	header, err := r.bc.SignConsensusProposalHeader(block, validatorID, r.signer)
 	if err != nil {
-		return err
+		return r.signingErrorLocked(err)
 	}
 	proposal := ConsensusProposal{Header: header, Block: block}
 	r.proposals[round] = proposal
@@ -413,9 +433,12 @@ func (r *ConsensusReactor) signAndBroadcastPrevoteLocked(blockHash string) error
 			return nil
 		}
 	}
+	if err := r.persistRecoveryLocked(r.round); err != nil {
+		return err
+	}
 	pv, err := r.bc.SignConsensusPrevote(r.height, r.round, blockHash, set.Root(), r.validatorID, r.signer)
 	if err != nil {
-		return err
+		return r.signingErrorLocked(err)
 	}
 	if err := r.acceptPrevoteLocked(pv); err != nil {
 		return err
@@ -515,14 +538,19 @@ func (r *ConsensusReactor) applyPrevoteQCLocked(qc consensus.PrevoteCertificate)
 		// having independently validated the full proposal block.
 		if int64(qc.Round) >= r.validRound {
 			r.validRound, r.validHash, r.validQC = int64(qc.Round), qc.BlockHash, clonePrevoteQC(&qc)
+			r.validBlock = nil
 		}
-		return nil
+		return r.persistRecoveryLocked(r.round)
 	}
 	if int64(qc.Round) >= r.validRound {
 		r.validRound, r.validHash, r.validBlock, r.validQC = int64(qc.Round), qc.BlockHash, cloneBlockForConsensus(proposal.Block), clonePrevoteQC(&qc)
 	}
 	if int64(qc.Round) >= r.lockedRound {
 		r.lockedRound, r.lockedHash, r.lockedBlock = int64(qc.Round), qc.BlockHash, cloneBlockForConsensus(proposal.Block)
+		r.lockedQC = clonePrevoteQC(&qc)
+	}
+	if err := r.persistRecoveryLocked(r.round); err != nil {
+		return err
 	}
 	if qc.Round != r.round {
 		return nil
@@ -570,9 +598,12 @@ func (r *ConsensusReactor) signAndBroadcastPrecommitLocked(block *Block) error {
 			return nil
 		}
 	}
+	if err := r.persistRecoveryLocked(r.round); err != nil {
+		return err
+	}
 	vote, err := r.bc.SignConsensusPrecommit(block, r.validatorID, r.signer)
 	if err != nil {
-		return err
+		return r.signingErrorLocked(err)
 	}
 	if err := r.acceptPrecommitLocked(vote); err != nil {
 		return err
@@ -748,9 +779,12 @@ func (r *ConsensusReactor) requestRoundChangeLocked(nextRound uint64) error {
 	if r.signer != nil {
 		set := r.bc.CurrentValidatorSet(r.height)
 		if _, _, ok := set.Find(r.validatorID); ok {
+			if err := r.persistRecoveryLocked(nextRound); err != nil {
+				return err
+			}
 			rc, err := r.bc.SignConsensusRoundChange(r.height, nextRound, r.validatorID, r.signer)
 			if err != nil {
-				return err
+				return r.signingErrorLocked(err)
 			}
 			if r.roundChanges[nextRound] == nil {
 				r.roundChanges[nextRound] = make(map[string]consensus.RoundChange)

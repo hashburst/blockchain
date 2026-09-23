@@ -1,0 +1,3 @@
+ok  	hashburst/internal/testnet	1.104s
+ok  	hashburst/blockchain	9.489s
+ok  	hashburst/consensus	1.344s
