@@ -1,0 +1,57 @@
+=== RUN   TestBootstrapProvisionAndCheck
+2026/09/23 16:59:46 No blockchain data found — creating genesis block
+2026/09/23 16:59:46 Genesis (deterministic): 1f7761e81921358af25c403e13e19ffe7b8f0c588a03cc8b9f96ede3dead35e9
+2026/09/23 16:59:46 Block #1 v1 | hash: 0138b3e39dcd... | txs v1=2 v2=0 | PoW: 3 | PoH: 2708364453883576877
+2026/09/23 16:59:46 Block #2 v1 | hash: 002954f87abc... | txs v1=2 v2=0 | PoW: 4 | PoH: 5364784244131561006
+2026/09/23 16:59:46 Block #3 v1 | hash: 0f886c9276ce... | txs v1=2 v2=0 | PoW: 27 | PoH: -3295006849400681777
+2026/09/23 16:59:46 Block #4 v1 | hash: 0acbe57ea5da... | txs v1=2 v2=0 | PoW: 12 | PoH: 8472025121774518828
+2026/09/23 16:59:46 Block #5 v1 | hash: 02780013a5a6... | txs v1=1 v2=0 | PoW: 4 | PoH: 3497686463851309620
+2026/09/23 16:59:46 Block #6 v2 | hash: 052f9cbb1720... | txs v1=1 v2=4 | PoW: 3 | PoH: -5916173207121303956
+2026/09/23 16:59:46 Block #7 v2 | hash: 07d9036e2d06... | txs v1=1 v2=0 | PoW: 20 | PoH: 1298469111205831046
+--- PASS: TestBootstrapProvisionAndCheck (0.14s)
+=== RUN   TestRejectInvalidBootstrap
+--- PASS: TestRejectInvalidBootstrap (0.01s)
+=== RUN   TestIdentityNeverOverwrites
+--- PASS: TestIdentityNeverOverwrites (0.00s)
+=== RUN   TestBootstrapFiveAndSixIdentities
+=== RUN   TestBootstrapFiveAndSixIdentities/5
+2026/09/23 16:59:46 No blockchain data found — creating genesis block
+2026/09/23 16:59:46 Genesis (deterministic): 1f7761e81921358af25c403e13e19ffe7b8f0c588a03cc8b9f96ede3dead35e9
+2026/09/23 16:59:46 Block #1 v1 | hash: 0033b9cbb2c0... | txs v1=2 v2=0 | PoW: 23 | PoH: 2708364453883576877
+2026/09/23 16:59:46 Block #2 v1 | hash: 0e50887be666... | txs v1=2 v2=0 | PoW: 0 | PoH: 5364784244131561006
+2026/09/23 16:59:46 Block #3 v1 | hash: 047b62186e01... | txs v1=2 v2=0 | PoW: 9 | PoH: -3295006849400681777
+2026/09/23 16:59:46 Block #4 v1 | hash: 051d09a0c924... | txs v1=2 v2=0 | PoW: 17 | PoH: 8472025121774518828
+2026/09/23 16:59:46 Block #5 v1 | hash: 0e8282894156... | txs v1=2 v2=0 | PoW: 27 | PoH: 3497686463851309620
+2026/09/23 16:59:46 Block #6 v1 | hash: 06dde25a01c2... | txs v1=1 v2=0 | PoW: 13 | PoH: -5916173207121303956
+2026/09/23 16:59:46 Block #7 v2 | hash: 0e7c1cb9fa24... | txs v1=1 v2=5 | PoW: 27 | PoH: 1298469111205831046
+2026/09/23 16:59:46 Block #8 v2 | hash: 014d5e880d4d... | txs v1=1 v2=0 | PoW: 13 | PoH: 6760055606311377842
+=== RUN   TestBootstrapFiveAndSixIdentities/6
+2026/09/23 16:59:46 No blockchain data found — creating genesis block
+2026/09/23 16:59:46 Genesis (deterministic): 1f7761e81921358af25c403e13e19ffe7b8f0c588a03cc8b9f96ede3dead35e9
+2026/09/23 16:59:46 Block #1 v1 | hash: 078387a0ced1... | txs v1=2 v2=0 | PoW: 12 | PoH: 2708364453883576877
+2026/09/23 16:59:46 Block #2 v1 | hash: 039fe4a13801... | txs v1=2 v2=0 | PoW: 9 | PoH: 5364784244131561006
+2026/09/23 16:59:46 Block #3 v1 | hash: 0a60d654d5a6... | txs v1=2 v2=0 | PoW: 29 | PoH: -3295006849400681777
+2026/09/23 16:59:46 Block #4 v1 | hash: 04b9c50ecc92... | txs v1=2 v2=0 | PoW: 10 | PoH: 8472025121774518828
+2026/09/23 16:59:46 Block #5 v1 | hash: 0e6e4f3420f6... | txs v1=2 v2=0 | PoW: 2 | PoH: 3497686463851309620
+2026/09/23 16:59:46 Block #6 v1 | hash: 0670bd353b04... | txs v1=2 v2=0 | PoW: 13 | PoH: -5916173207121303956
+2026/09/23 16:59:46 Block #7 v1 | hash: 0aa321c0ea8d... | txs v1=1 v2=0 | PoW: 10 | PoH: 1298469111205831046
+2026/09/23 16:59:46 Block #8 v2 | hash: 0762d8444acb... | txs v1=1 v2=6 | PoW: 13 | PoH: 6760055606311377842
+2026/09/23 16:59:46 Block #9 v2 | hash: 004db7d0a8f8... | txs v1=1 v2=0 | PoW: 47 | PoH: 7523314036801447465
+--- PASS: TestBootstrapFiveAndSixIdentities (0.07s)
+    --- PASS: TestBootstrapFiveAndSixIdentities/5 (0.03s)
+    --- PASS: TestBootstrapFiveAndSixIdentities/6 (0.04s)
+=== RUN   TestBootstrapFourProcessesRestart
+2026/09/23 16:59:47 No blockchain data found — creating genesis block
+2026/09/23 16:59:47 Genesis (deterministic): 1f7761e81921358af25c403e13e19ffe7b8f0c588a03cc8b9f96ede3dead35e9
+2026/09/23 16:59:47 Block #1 v1 | hash: 043f889f6bf6... | txs v1=2 v2=0 | PoW: 2 | PoH: 2708364453883576877
+2026/09/23 16:59:47 Block #2 v1 | hash: 0f5c2942f9de... | txs v1=2 v2=0 | PoW: 13 | PoH: 5364784244131561006
+2026/09/23 16:59:47 Block #3 v1 | hash: 00542a657901... | txs v1=2 v2=0 | PoW: 42 | PoH: -3295006849400681777
+2026/09/23 16:59:47 Block #4 v1 | hash: 081009de46ae... | txs v1=2 v2=0 | PoW: 8 | PoH: 8472025121774518828
+2026/09/23 16:59:47 Block #5 v1 | hash: 0cd4c8ba8272... | txs v1=1 v2=0 | PoW: 0 | PoH: 3497686463851309620
+2026/09/23 16:59:47 Block #6 v2 | hash: 07d693836496... | txs v1=1 v2=4 | PoW: 27 | PoH: -5916173207121303956
+2026/09/23 16:59:47 Block #7 v2 | hash: 02d250b3a264... | txs v1=1 v2=0 | PoW: 11 | PoH: 1298469111205831046
+    process_test.go:161: BOOTSTRAP_FOUR_PROCESS_FINALITY_AND_RESTART_OK chain=987654321 (test-only ID)
+--- PASS: TestBootstrapFourProcessesRestart (6.38s)
+PASS
+ok  	hashburst/internal/bootstrap	6.601s
+?   	hashburst/cmd/hashburst-testnet-bootstrap	[no test files]
