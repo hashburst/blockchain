@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "decided_on": "2026-09-25",
+  "legacy": {"chain_id": 1337, "hex": "0x539", "policy": "unchanged"},
+  "hvm_mainnet": {"chain_id": 4735489, "hex": "0x484201", "status": "project_assigned_not_activated"},
+  "hvm_testnet": {"chain_id": 4735490, "hex": "0x484202", "status": "project_assigned_not_activated"},
+  "registry_check": {
+    "repository": "https://github.com/ethereum-lists/chains",
+    "commit": "4deb40dafb2675f0d120a79b30b20b90f363bb63",
+    "records_checked": 2771,
+    "matching_chain_ids": [],
+    "registration_status": "not_registered",
+    "scope": "No matching IDs in the checked registry snapshot. This is not a global reservation or a guarantee against unlisted networks."
+  }
+}
