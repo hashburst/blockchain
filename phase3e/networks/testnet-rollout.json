@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "network": "testnet",
+  "chain_id": 4735490,
+  "runtime_commit": "06d7c3bd2cff59b2e95b25ed09fe8509dd6de01a",
+  "bootstrap_commit": "ec964dabdc2f68bbca614b160779da5c00963d93",
+  "coordinator": {"host": "hpcVM46", "ip": "77.90.188.158", "role": "offline_checkpoint_builder"},
+  "nodes": [
+    {"node_id": "hvm-testnet-v1", "ip": "77.90.188.153"},
+    {"node_id": "hvm-testnet-v2", "ip": "77.90.188.154"},
+    {"node_id": "hvm-testnet-v3", "ip": "77.90.188.155"},
+    {"node_id": "hvm-testnet-v4", "ip": "77.90.188.157"}
+  ],
+  "rpc_listen": "127.0.0.1:18009",
+  "p2p_tcp_port": 31307,
+  "tep_udp_port": 47777,
+  "status": "targets_pending_live_preflight",
+  "default_provision_role": "observer",
+  "activation_role": "validator",
+  "automatic_service_start": false,
+  "public_ingress_enabled": false
+}
