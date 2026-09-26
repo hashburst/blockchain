@@ -6,6 +6,7 @@ import (
 	"hashburst/consensus"
 	"hashburst/hvm"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,12 +54,15 @@ func OpenExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 		return nil, err
 	}
 	bc := &Blockchain{Blocks: blocks, MiningReward: DefaultMiningReward, storage: storage, state: NewState(), hvmEngine: hvm.NewEngine(nil, cfg.FeePolicy), validators: consensus.NewRegistry(cfg.Validator), voteJournal: vote, bftJournal: bft, receipts: make(map[string]hvm.Receipt), v2Config: cfg}
+	log.Printf("HVM_CHAIN_VERIFY_BEGIN blocks=%d", len(blocks))
 	if err := bc.VerifyChain(); err != nil {
 		return nil, fmt.Errorf("verify existing chain: %w", err)
 	}
+	log.Printf("HVM_CHAIN_REPLAY_BEGIN blocks=%d", len(blocks))
 	if err := bc.rebuildProjections(blocks); err != nil {
 		return nil, fmt.Errorf("replay existing chain: %w", err)
 	}
+	log.Printf("HVM_CHAIN_REPLAY_COMPLETE height=%d", bc.Height())
 	return bc, nil
 }
 

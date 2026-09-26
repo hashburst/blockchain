@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"hashburst/consensus"
@@ -15,6 +16,9 @@ func (bc *Blockchain) computeProjections(blocks []*Block) (*State, *hvm.Engine, 
 	receipts := make(map[string]hvm.Receipt)
 	confirmedNodes := make(map[string]ConfirmedNodeIdentity)
 	for _, b := range blocks {
+		if b.Index > 0 && b.Index%5000 == 0 {
+			log.Printf("HVM_REPLAY_PROGRESS height=%d total=%d", b.Index, len(blocks))
+		}
 		if b.EffectiveVersion() < BlockVersionV2 {
 			if err := st.ApplyBlock(b); err != nil {
 				return nil, nil, nil, nil, fmt.Errorf("block #%d native state: %w", b.Index, err)
