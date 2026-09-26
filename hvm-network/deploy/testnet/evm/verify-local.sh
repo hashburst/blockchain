@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 GO_BIN="${GO_BIN:-go}"
 test "$("$GO_BIN" version | awk '{print $3}')" = go1.25.7
 export GOTOOLCHAIN=local
+export PYTHONDONTWRITEBYTECODE=1
 export GOMAXPROCS="${GOMAXPROCS:-2}"
 REPORT="$(mktemp -d "${TMPDIR:-/tmp}/hvm-evm-integration.XXXXXX")"
 trap 'echo "STOP: tests failed; diagnostics=$REPORT"' ERR
