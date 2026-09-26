@@ -1,0 +1,8 @@
+=== RUN   TestNativeDeployProfileReadback
+--- PASS: TestNativeDeployProfileReadback (0.01s)
+=== RUN   TestReceiptRejectsWrongHashFeeAndFailure
+--- PASS: TestReceiptRejectsWrongHashFeeAndFailure (0.00s)
+=== RUN   TestSavedSignedTransactionRoundTrip
+--- PASS: TestSavedSignedTransactionRoundTrip (0.00s)
+PASS
+ok  	hashburst/cmd/hvm-native-canary	0.009s
