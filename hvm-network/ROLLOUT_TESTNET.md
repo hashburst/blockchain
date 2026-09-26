@@ -7,7 +7,7 @@ Baseline legacy preservata: cdcf740fdc0a16eb695c9176142cf848c5e7b9ad.
 ## Esito revisione e confine di accettazione
 
 L'import in hvm-network/ mantiene il modulo Go separato e non cambia alcun file legacy.
-Manifest originali e corretti consentono il confronto dei sorgenti.
+I manifest storici, conservati nella cronologia Git indicata in RECOVERY.md, consentono il confronto dei sorgenti originali.
 La suite completa passa dopo l'import. Le evidenze locali comprendono race,
 trasporto e loopback. Il transcript VPS registra tutti i gate RC3 a quattro nodi:
 packet loss a 49, partition/reconnect a 79, proposer crash a 110.
