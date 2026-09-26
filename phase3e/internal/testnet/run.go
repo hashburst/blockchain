@@ -51,6 +51,7 @@ func Run(parent context.Context, s *State) error {
 	rpc := blockchain.NewRPCHandler(s.Chain, mp, int64(c.Protocol.ChainID))
 	rpc.SetV2Broadcaster(syncer)
 	mux := http.NewServeMux()
+	mux.HandleFunc("/ws", rpc.ServeReadOnlyWebSocket)
 	mux.Handle("/rpc", http.MaxBytesHandler(rpc, int64(c.Protocol.ConsensusNetwork.MaxMessageBytes)))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
