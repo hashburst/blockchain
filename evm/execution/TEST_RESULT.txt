@@ -1,0 +1,19 @@
+=== RUN   TestSignedTransferAndReplay
+--- PASS: TestSignedTransferAndReplay (0.01s)
+=== RUN   TestDeployStorageLogAndRevert
+--- PASS: TestDeployStorageLogAndRevert (0.00s)
+=== RUN   TestInvalidBlockIsAtomic
+--- PASS: TestInvalidBlockIsAtomic (0.00s)
+=== RUN   TestDecodeRejectsMalformedAndUnprotected
+--- PASS: TestDecodeRejectsMalformedAndUnprotected (0.00s)
+=== RUN   TestWebSocketHeadsLogsAndUnsubscribe
+--- PASS: TestWebSocketHeadsLogsAndUnsubscribe (0.00s)
+=== RUN   TestTopicFilterAndQueueBound
+--- PASS: TestTopicFilterAndQueueBound (0.00s)
+=== RUN   TestEthereumFilterSyntax
+--- PASS: TestEthereumFilterSyntax (0.00s)
+PASS
+ok  	hashburst/evm-execution	0.020s
+
+Race check: NOT COMPLETED. Go's cgo tool terminated with SIGSEGV before tests,
+including with -p 1 and GOMAXPROCS=2. Repeat before production integration.

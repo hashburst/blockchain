@@ -480,3 +480,12 @@ Finally, to distribute tokens and manage transactions via API, use Web3 services
 - **Exchanges and Wallets**: Offer APIs for minting tokens, querying balances, and managing transactions.
 
 This framework will enable the Hashburst Blockchain to support complex smart contract operations and seamlessly integrate with external systems, ensuring interoperability with major blockchain standards.
+
+
+## HVM Network execution development
+
+The executable Go adapter and its tests are in [execution](execution/README.md).
+It is isolated from the running native HVM ledger until the documented
+activation, persistence, balance-conservation and RPC integration gates pass.
+The PHP files and Solidity examples in this folder are historical application
+artifacts, not the implementation of the Ethereum execution engine.
