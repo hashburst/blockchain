@@ -9,6 +9,9 @@ import (
 // Certificates may contain different valid signer subsets; compare commitments,
 // not their byte encodings, across nodes.
 type FinalizedCommitment struct {
+	EVMStateRoot     string                       `json:"evm_state_root,omitempty"`
+	EVMReceiptsRoot  string                       `json:"evm_receipts_root,omitempty"`
+	EVMGasUsed       uint64                       `json:"evm_gas_used,omitempty"`
 	ChainID          uint64                       `json:"chain_id"`
 	Height           int                          `json:"height"`
 	Hash             string                       `json:"hash"`
@@ -39,7 +42,7 @@ func (h *RPCHandler) getFinalizedCommitment(params []json.RawMessage) (interface
 	}
 	// Deep clone while locked: the response must not alias mutable chain state.
 	copy := cloneBlockForConsensus(b)
-	return FinalizedCommitment{copy.ProtocolChainID, copy.Index, copy.Hash, copy.PrevHash,
+	return FinalizedCommitment{copy.EVMStateRoot, copy.EVMReceiptsRoot, copy.EVMGasUsed, copy.ProtocolChainID, copy.Index, copy.Hash, copy.PrevHash,
 		copy.HBTStateRoot, copy.HVMStateRoot, copy.ReceiptsRoot, copy.ValidatorSetRoot,
 		copy.FinalityCertificate}, nil
 }

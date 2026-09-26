@@ -51,6 +51,16 @@ func Run(parent context.Context, s *State) error {
 	rpc := blockchain.NewRPCHandler(s.Chain, mp, int64(c.Protocol.ChainID))
 	rpc.SetV2Broadcaster(syncer)
 	mux := http.NewServeMux()
+	if c.Protocol.EVM != nil {
+		evmRPC, err := s.Chain.NewEthereumRPC(syncer.GossipEthereum)
+		if err != nil {
+			return err
+		}
+		defer evmRPC.Stop()
+		// Separate loopback route until the public gateway method filter is upgraded.
+		mux.Handle("/evm", http.MaxBytesHandler(evmRPC, 256<<10))
+		mux.Handle("/evm/ws", evmRPC.WebsocketHandler([]string{"http://localhost", "https://blockchainapi.one"}))
+	}
 	mux.HandleFunc("/ws", rpc.ServeReadOnlyWebSocket)
 	mux.Handle("/rpc", http.MaxBytesHandler(rpc, int64(c.Protocol.ConsensusNetwork.MaxMessageBytes)))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

@@ -28,11 +28,13 @@ const (
 	MsgNewBlock    = "new_block"
 	MsgNewTx       = "new_tx"
 	MsgNewTxV2     = "new_tx_v2"
+	MsgEthereum    = "new_ethereum_tx"
 	maxFrameBytes  = 8 << 20
 	maxBlocksBatch = 500
 )
 
 type syncMessage struct {
+	EthereumRaw              []byte                    `json:"ethereum_raw,omitempty"`
 	Type                     string                    `json:"type"`
 	Height                   int                       `json:"height,omitempty"`
 	PoHTicks                 int64                     `json:"poh_ticks,omitempty"`
@@ -46,6 +48,10 @@ type syncMessage struct {
 }
 
 type blockWire struct {
+	EthereumTransactions    [][]byte                      `json:"ethereum_transactions,omitempty"`
+	EVMStateRoot            string                        `json:"evm_state_root,omitempty"`
+	EVMReceiptsRoot         string                        `json:"evm_receipts_root,omitempty"`
+	EVMGasUsed              uint64                        `json:"evm_gas_used,omitempty"`
 	Version                 uint16                        `json:"version,omitempty"`
 	ProtocolChainID         uint64                        `json:"protocol_chain_id,omitempty"`
 	Index                   int                           `json:"index"`
@@ -98,6 +104,7 @@ func blockToWire(b *Block) *blockWire {
 		txsV2 = append(txsV2, tx.Clone())
 	}
 	return &blockWire{
+		EthereumTransactions: cloneRawTransactions(b.EthereumTransactions), EVMStateRoot: b.EVMStateRoot, EVMReceiptsRoot: b.EVMReceiptsRoot, EVMGasUsed: b.EVMGasUsed,
 		Version: b.Version, ProtocolChainID: b.ProtocolChainID, Index: b.Index, TimestampNs: b.Timestamp.UnixNano(),
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: b.PrevHash, Hash: b.Hash, ProofOfWork: b.ProofOfWork, ProofOfTime: b.ProofOfTime,
@@ -117,6 +124,7 @@ func (bw *blockWire) toBlock() *Block {
 		txsV2 = append(txsV2, tx.Clone())
 	}
 	return &Block{
+		EthereumTransactions: cloneRawTransactions(bw.EthereumTransactions), EVMStateRoot: bw.EVMStateRoot, EVMReceiptsRoot: bw.EVMReceiptsRoot, EVMGasUsed: bw.EVMGasUsed,
 		Version: bw.Version, ProtocolChainID: bw.ProtocolChainID, Index: bw.Index, Timestamp: time.Unix(0, bw.TimestampNs).UTC(),
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: bw.PrevHash, Hash: bw.Hash, ProofOfWork: bw.ProofOfWork, ProofOfTime: bw.ProofOfTime,
@@ -198,6 +206,8 @@ func (sy *Syncer) dispatch(s network.Stream, peerID peer.ID, msg *syncMessage) e
 		return sy.onBlocks(peerID, msg)
 	case MsgNewTx:
 		return sy.onNewTx(peerID, msg)
+	case MsgEthereum:
+		return sy.onEthereum(peerID, msg.EthereumRaw)
 	case MsgNewTxV2:
 		return sy.onNewTxV2(peerID, msg)
 	default:
@@ -407,5 +417,35 @@ func (sy *Syncer) BroadcastNewBlock(b *Block) {
 				log.Printf("sync: broadcast a %s fallito: %v", pid, err)
 			}
 		}(p)
+	}
+}
+
+func (sy *Syncer) onEthereum(from peer.ID, raw []byte) error {
+	// Suppress already-admitted gossip before forwarding to avoid echo storms.
+	sy.mp.mutex.Lock()
+	duplicate := false
+	for _, existing := range sy.mp.ethereum {
+		if string(existing) == string(raw) {
+			duplicate = true
+			break
+		}
+	}
+	sy.mp.mutex.Unlock()
+	if duplicate {
+		return nil
+	}
+	if _, err := sy.bc.AdmitEthereum(raw); err != nil {
+		return err
+	}
+	sy.gossipEthereumExcept(raw, from)
+	return nil
+}
+func (sy *Syncer) GossipEthereum(raw []byte) { sy.gossipEthereumExcept(raw, "") }
+func (sy *Syncer) gossipEthereumExcept(raw []byte, except peer.ID) {
+	msg := &syncMessage{Type: MsgEthereum, EthereumRaw: append([]byte(nil), raw...)}
+	for _, p := range sy.host.Network().Peers() {
+		if p != except {
+			go func(id peer.ID) { _ = sy.sendMessage(id, msg) }(p)
+		}
 	}
 }

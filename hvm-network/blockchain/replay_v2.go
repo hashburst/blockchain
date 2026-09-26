@@ -22,9 +22,12 @@ func (bc *Blockchain) computeProjections(blocks []*Block) (*State, *hvm.Engine, 
 			applyNodeRegistrations(confirmedNodes, b, bc.v2Config.ChainID)
 			continue
 		}
-		result, err := bc.executeBlockV2(st, engine, validators, cloneNodeIdentityMap(confirmedNodes), b)
+		result, err := bc.executeBlockV2(st, engine, validators, cloneNodeIdentityMap(confirmedNodes), b, blocks[:b.Index])
 		if err != nil {
 			return nil, nil, nil, nil, fmt.Errorf("block #%d V2 execution: %w", b.Index, err)
+		}
+		if err := checkEVMCommitments(b, result.state); err != nil {
+			return nil, nil, nil, nil, err
 		}
 		if !strings.EqualFold(result.state.Root(), b.HBTStateRoot) ||
 			!strings.EqualFold(result.hvm.State().Root(), b.HVMStateRoot) ||

@@ -34,7 +34,7 @@ const (
 	computeValidatorEvidence = uint64(120_000)
 )
 
-func (bc *Blockchain) executeBlockV2(baseState *State, baseHVM *hvm.Engine, baseValidators *consensus.Registry, confirmedNodes map[string]ConfirmedNodeIdentity, b *Block) (*blockExecutionV2, error) {
+func (bc *Blockchain) executeBlockV2(baseState *State, baseHVM *hvm.Engine, baseValidators *consensus.Registry, confirmedNodes map[string]ConfirmedNodeIdentity, b *Block, ancestors []*Block) (*blockExecutionV2, error) {
 	if baseState == nil || baseHVM == nil || baseValidators == nil {
 		return nil, fmt.Errorf("missing execution projection")
 	}
@@ -247,6 +247,9 @@ func (bc *Blockchain) executeBlockV2(baseState *State, baseHVM *hvm.Engine, base
 		receipts = append(receipts, receipt)
 	}
 
+	if err := bc.executeEthereum(baseState, stateShadow, b, ancestors); err != nil {
+		return nil, err
+	}
 	return &blockExecutionV2{state: stateShadow, hvm: hvmShadow, validators: validatorShadow, validatorSet: preSet, receipts: receipts}, nil
 }
 
@@ -312,9 +315,14 @@ func isProtocolV2ExecutableTxType(t protocolv2.TxType) bool {
 }
 
 func (bc *Blockchain) prepareV2Commitments(b *Block) (*blockExecutionV2, error) {
-	result, err := bc.executeBlockV2(bc.state, bc.hvmEngine, bc.validators, nodeIdentityProjection(bc.Blocks, bc.v2Config.ChainID), b)
+	result, err := bc.executeBlockV2(bc.state, bc.hvmEngine, bc.validators, nodeIdentityProjection(bc.Blocks, bc.v2Config.ChainID), b, bc.Blocks)
 	if err != nil {
 		return nil, err
+	}
+	if bc.v2Config.EVMEnabledAt(b.Index) {
+		b.EVMStateRoot = result.state.evm.root
+		b.EVMReceiptsRoot = result.state.evm.receiptsRoot
+		b.EVMGasUsed = result.state.evm.gasUsed
 	}
 	b.HBTStateRoot = result.state.Root()
 	b.HVMStateRoot = result.hvm.State().Root()
@@ -325,8 +333,11 @@ func (bc *Blockchain) prepareV2Commitments(b *Block) (*blockExecutionV2, error) 
 }
 
 func (bc *Blockchain) validateV2Commitments(b *Block) (*blockExecutionV2, error) {
-	result, err := bc.executeBlockV2(bc.state, bc.hvmEngine, bc.validators, nodeIdentityProjection(bc.Blocks, bc.v2Config.ChainID), b)
+	result, err := bc.executeBlockV2(bc.state, bc.hvmEngine, bc.validators, nodeIdentityProjection(bc.Blocks, bc.v2Config.ChainID), b, bc.Blocks)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkEVMCommitments(b, result.state); err != nil {
 		return nil, err
 	}
 	if got := result.state.Root(); !strings.EqualFold(got, b.HBTStateRoot) {

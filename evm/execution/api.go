@@ -132,12 +132,17 @@ func (a *API) SendRawTransaction(ctx context.Context, raw hexutil.Bytes) (common
 }
 
 type CallArgs struct {
-	From  *common.Address `json:"from"`
-	To    *common.Address `json:"to"`
-	Gas   *hexutil.Uint64 `json:"gas"`
-	Value *hexutil.Big    `json:"value"`
-	Data  *hexutil.Bytes  `json:"data"`
-	Input *hexutil.Bytes  `json:"input"`
+	AccessList           types.AccessList `json:"accessList,omitempty"`
+	Nonce                *hexutil.Uint64  `json:"nonce,omitempty"`
+	GasPrice             *hexutil.Big     `json:"gasPrice,omitempty"`
+	MaxFeePerGas         *hexutil.Big     `json:"maxFeePerGas,omitempty"`
+	MaxPriorityFeePerGas *hexutil.Big     `json:"maxPriorityFeePerGas,omitempty"`
+	From                 *common.Address  `json:"from"`
+	To                   *common.Address  `json:"to"`
+	Gas                  *hexutil.Uint64  `json:"gas"`
+	Value                *hexutil.Big     `json:"value"`
+	Data                 *hexutil.Bytes   `json:"data"`
+	Input                *hexutil.Bytes   `json:"input"`
 }
 type revertError struct{ data []byte }
 
@@ -177,6 +182,49 @@ func simulate(ctx context.Context, s *state.StateDB, b Block, chain uint64, args
 	if len(data) > MaxRawBytes {
 		return nil, errors.New("call data exceeds limit")
 	}
+	if args.GasPrice != nil && (args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil) {
+		return nil, errors.New("gasPrice conflicts with dynamic fees")
+	}
+	fee, tip, price := new(uint256.Int), new(uint256.Int), new(uint256.Int)
+	convert := func(v *hexutil.Big) (*uint256.Int, error) {
+		if v == nil {
+			return new(uint256.Int), nil
+		}
+		n := (*big.Int)(v)
+		if n.Sign() < 0 || n.BitLen() > 256 {
+			return nil, errors.New("invalid fee")
+		}
+		return uint256.MustFromBig(n), nil
+	}
+	if args.GasPrice != nil {
+		price, e = convert(args.GasPrice)
+		if e != nil {
+			return nil, e
+		}
+		fee.Set(price)
+		tip.Set(price)
+	} else {
+		fee, e = convert(args.MaxFeePerGas)
+		if e != nil {
+			return nil, e
+		}
+		tip, e = convert(args.MaxPriorityFeePerGas)
+		if e != nil {
+			return nil, e
+		}
+		if tip.Cmp(fee) > 0 {
+			return nil, errors.New("priority fee exceeds cap")
+		}
+		effective := new(big.Int).Add(b.BaseFee, tip.ToBig())
+		if effective.Cmp(fee.ToBig()) > 0 {
+			effective = fee.ToBig()
+		}
+		price.SetFromBig(effective)
+	}
+	nonce := s.GetNonce(from)
+	if args.Nonce != nil {
+		nonce = uint64(*args.Nonce)
+	}
 	// eth_call runs on a copy and does not charge gas to the canonical ledger.
 	st := s.Copy()
 	env := vm.NewEVM(vm.BlockContext{CanTransfer: core.CanTransfer, Transfer: core.Transfer, GetHash: func(n uint64) common.Hash {
@@ -197,7 +245,7 @@ func simulate(ctx context.Context, s *state.StateDB, b Block, chain uint64, args
 		case <-done:
 		}
 	}()
-	result, e := core.ApplyMessage(env, &core.Message{From: from, To: args.To, Value: value, GasLimit: gas, GasPrice: new(uint256.Int), GasFeeCap: new(uint256.Int), GasTipCap: new(uint256.Int), Data: data, SkipNonceChecks: true, SkipTransactionChecks: true}, core.NewGasPool(gas))
+	result, e := core.ApplyMessage(env, &core.Message{From: from, To: args.To, Value: value, GasLimit: gas, GasPrice: price, GasFeeCap: fee, GasTipCap: tip, Nonce: nonce, AccessList: args.AccessList, Data: data, SkipNonceChecks: true, SkipTransactionChecks: true}, core.NewGasPool(gas))
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}

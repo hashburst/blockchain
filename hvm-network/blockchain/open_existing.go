@@ -14,6 +14,7 @@ import (
 // OpenExistingBlockchain never creates genesis or repairs an invalid chain.
 // The caller must exclusively lock the directory for the entire node lifetime.
 func OpenExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, checkpointHeight int, checkpointHash string) (*Blockchain, error) {
+	cfg = cfg.detached()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}

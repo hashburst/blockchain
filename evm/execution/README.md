@@ -1,91 +1,85 @@
-# HVM Network Ethereum execution adapter
+# HVM Network Ethereum execution
 
-Status: development only, not imported by the running HVM Network runtime.
-No endpoint, ledger migration or network activation is enabled by this module.
+Development branch, not activated on the deployed testnet or mainnet.
 
-The adapter pins go-ethereum 1.17.6 and explicitly freezes Cancun execution
-rules. It validates protected legacy, access-list and EIP-1559 signed transaction
-envelopes and applies a candidate block to a copy of the supplied state. Invalid
-transactions reject the candidate. EVM revert consumes gas and nonce but reverts
-contract effects. Geth generates receipts, logs and receipt/state roots.
+The HashBurst node now imports this module. `hvm-network/blockchain/evm_*.go`
+connects signed Ethereum envelopes to the real mempool, libp2p gossip, BFT
+proposal validation, native account state, durable HashBurst blocks and replay.
+There is no independently advancing Ethereum chain or freely allocated balance.
 
-The subscription adapter implements newHeads, filtered logs and unsubscribe;
-tests use an actual localhost WebSocket connection. The adapter has bounded
-queues and a subscription cap. It is not yet registered in the public gateway.
-Slow consumers are detached; production integration must close their sockets
-and support historical catch-up, authentication/rate limits and idle timeouts.
+## Execution and consensus
 
-Run with Go 1.25.7:
+- Pinned go-ethereum 1.17.6, explicit Cancun rules. Protected legacy, access-list
+  and dynamic-fee envelopes; wrong-chain, blob and EIP-7702 envelopes rejected.
+- An optional consensus `evm` configuration specifies activation height, gas
+  limit and fixed base fee. Nil preserves existing behavior and config digest.
+  This initial base-fee policy is fixed, not Ethereum's variable EIP-1559 policy.
+- Version 3 blocks commit original signed bytes, EVM state/receipt roots and gas
+  usage in the same HashBurst hash that validators sign. Old hashes are unchanged.
+- Native effects execute first; Ethereum effects execute second. One account
+  balance/nonce is projected in native units and wei. Fractional wei survives
+  native transactions, finalization and replay; no floating-point conversion.
+- Consensus commit writes the existing block store before changing projections.
+  Restart replays those blocks and checks commitments. Signing journals are not
+  reset or migrated by this implementation.
+- RPC admission reserves nonce/funds without applying canonical effects.
+  Competing native/Ethereum reservations are rejected; consumed nonces are
+  pruned after finality. Proposal selection does not replay each pending prefix.
+
+## Node APIs
+
+When explicitly configured, the loopback runtime registers `/evm` and `/evm/ws`.
+The existing public gateway has NOT been changed to expose these paths.
+
+Implemented: chain ID, block number, balance, nonce, code, storage, receipt,
+signed raw admission, call, gas estimation, block by number/hash, transaction by
+hash, gas price, priority fee, fee history, bounded historical log queries,
+net_version, client version, newHeads/logs subscriptions and unsubscribe.
+
+Subscription hashes identify actual finalized HashBurst blocks. Ethereum header
+fields are a projection, not an independently hashed Ethereum consensus chain.
+Queries support latest/finalized/safe and pending simulation. Arbitrary historical
+account-state queries and state overrides are explicitly unsupported. Historical
+receipts/logs are replayed from canonical blocks. Slow subscriptions are detached
+with bounded queues; public socket-lifecycle and gateway limits still need review.
+
+## Reproducible tests
+
+Go 1.25.7:
 
 ```sh
-cd evm/execution
-go test -count=1 -v ./...
+(cd evm/execution && go test -count=1 ./...)
+(cd hvm-network && go test -count=1 ./...)
+(cd hvm-network && go test -race -count=1 ./blockchain -run '^TestEVM')
 ```
 
-## Integration gates still required
+The integrated test uses four actual HashBurst chain instances, localhost libp2p
+gossip, recovered Ethereum signatures, four-validator finalization, native/EVM
+accounting, contract deploy/storage/logs, actual HTTP and WebSocket clients,
+canonical block/receipt queries, fee history, disk reopen and subsequent signing,
+and an observer replay with no signatures. This is local automation, not proof
+that the production VPS have received or activated the code.
 
-1. Versioned activation in HashBurst consensus, including EVM transaction bytes,
-   state/receipt roots, block gas limit and base-fee transition validation.
-2. Connect the durable replay store to finalized HashBurst blocks and validate
-   its activation anchor against the agreed native checkpoint. The store is
-   implemented and tested in isolation; no running node uses it yet.
-3. Specify and test conservation between native 8-decimal HBT and 18-decimal
-   EVM balances. No silent rounding, duplicate balances or unrestricted minting.
-4. Admission, gossip, nonce reservations and block proposal integration for
-   Ethereum envelopes. No conversion to unsigned native transactions.
-5. Ethereum RPC block/transaction/receipt/log mappings, eth_call, estimateGas,
-   fee history, public write limits, and bounded WebSocket subscriptions.
-6. Four-validator testnet agreement, observer agreement, restart/replay and real
-   MetaMask transfer/deploy/call/event tests, followed by separate mainnet config.
+`persistence.go` remains a separately tested immutable replay-store utility.
+The integrated node deliberately uses its own canonical block store instead;
+it does not create a competing execution database.
 
-Chain IDs: testnet 4735490; mainnet 4735489 reserved; legacy 1337 unchanged.
-Support in this adapter does not activate either network. Blob and EIP-7702
-transactions are rejected, rather than being partially interpreted.
+## Remaining release gates
 
-References:
-- https://geth.ethereum.org/docs/developers/geth-as-a-library
-- https://ethereum.org/developers/docs/apis/json-rpc/
-- https://github.com/ethereum/go-ethereum/tree/v1.17.6
+1. Review the new consensus format/economics and adversarial resource limits.
+2. Implement and test an explicit migration of the pinned runtime configuration;
+   choose a future activation height only after all validators/observer are ready.
+   Do not edit/delete runtime.pin or journals to bypass the existing pin check.
+3. Upgrade public gateway filters/write and WebSocket controls; make read APIs
+   consistently expose the activated Ethereum projection.
+4. Roll out testnet, compare all four validators and observer at a common finalized
+   height, restart one validator and verify retained journal/new signatures.
+5. Run the supplied manual MetaMask canary with a funded testnet account and retain
+   actual wallet evidence. Then prepare mainnet configuration separately.
 
-Dependency licensing: go-ethereum library is LGPL-3.0; distribution of linked
-runtime binaries must include the applicable notices and compliance materials.
-This change distributes source and module references only.
+Testnet 4735490; mainnet 4735489 reserved; legacy 1337 unchanged. No test here
+certifies complete MetaMask interoperability or mainnet readiness.
 
-## Durable execution projection
-
-`OpenStore` pins a chain/activation anchor, balances and the previous BLOCKHASH
-window. It requires a private directory and exclusive process lock. `Append`
-re-executes the signed transactions and checks state root, receipts root and gas
-against the supplied finalized commitments. It publishes immutable per-height
-records with file and directory fsync before advancing memory. An ambiguous I/O
-failure poisons the handle until reopen. Reopen replays all records and rejects
-corruption, gaps, changed anchors and wrong commitments. It never opens or
-rewrites the existing native blockchain database or signing journal.
-
-The activation allocation is an input, not a faucet: consensus must derive it
-from the approved native snapshot and prevent double accounting before calling
-this API. `NativeToWei` and `SplitWei` perform exact conversion and preserve dust;
-they do not themselves implement the cross-ledger settlement or migration.
-
-Tests cover transfer replay, deployed code/storage replay, duplicate writers,
-changed anchors, corrupt records, missing ancestor hashes and conversion overflow.
-The record format and storage backend remain developmental: full-history replay,
-checkpoint acceleration and recovery at the actual consensus commit boundary
-still require node integration and distributed validation.
-
-## RPC-to-consensus boundary
-
-`API` exposes chain ID, height, balance, nonce, code, storage, nullable receipt,
-raw transaction admission, call and gas estimation through a required `Backend`.
-There is no default or standalone mining backend. Raw signed bytes are decoded,
-then passed to `Backend.Admit`; a backend error is returned to the client rather
-than fabricating acceptance. Receipt output adds sender/recipient and preserves
-Ethereum null and hexadecimal fields. Calls run on state copies with bounded
-execution time; revert errors include code 3 and revert data.
-
-The running HashBurst node does not implement this Backend yet. Pending and
-historical snapshots must be supplied correctly by that integration. The current
-call argument subset does not yet implement fee overrides, access lists or state
-overrides; block/transaction queries, fee history and historical log RPCs remain
-required for the public Ethereum interface. These local tests are not a MetaMask
-acceptance test and do not authorize EVM activation.
+Dependency: go-ethereum library LGPL-3.0; binary distribution must include its
+applicable notices/compliance materials. This PR supplies source, not a rollout
+binary. Upstream: https://github.com/ethereum/go-ethereum/tree/v1.17.6

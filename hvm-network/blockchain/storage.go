@@ -33,6 +33,10 @@ const (
 )
 
 type blockOnDisk struct {
+	EthereumTransactions    [][]byte
+	EVMStateRoot            string
+	EVMReceiptsRoot         string
+	EVMGasUsed              uint64
 	Version                 uint16
 	ProtocolChainID         uint64
 	Index                   int
@@ -274,6 +278,7 @@ func blockToOnDisk(b *Block) blockOnDisk {
 		}
 	}
 	return blockOnDisk{
+		EthereumTransactions: cloneRawTransactions(b.EthereumTransactions), EVMStateRoot: b.EVMStateRoot, EVMReceiptsRoot: b.EVMReceiptsRoot, EVMGasUsed: b.EVMGasUsed,
 		Version: b.Version, ProtocolChainID: b.ProtocolChainID, Index: b.Index, TimestampNs: b.Timestamp.UnixNano(),
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: b.PrevHash, Hash: b.Hash, ProofOfWork: b.ProofOfWork, ProofOfTime: b.ProofOfTime,
@@ -302,6 +307,7 @@ func blockFromOnDisk(bod *blockOnDisk) *Block {
 		}
 	}
 	return &Block{
+		EthereumTransactions: cloneRawTransactions(bod.EthereumTransactions), EVMStateRoot: bod.EVMStateRoot, EVMReceiptsRoot: bod.EVMReceiptsRoot, EVMGasUsed: bod.EVMGasUsed,
 		Version: bod.Version, ProtocolChainID: bod.ProtocolChainID, Index: bod.Index, Timestamp: time.Unix(0, bod.TimestampNs).UTC(),
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: bod.PrevHash, Hash: bod.Hash, ProofOfWork: bod.ProofOfWork, ProofOfTime: bod.ProofOfTime,
