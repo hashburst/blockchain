@@ -1,0 +1,1 @@
+3 offline Python tests passed: method rejection, invalid requests, denied request never forwarded upstream. Python syntax passed. Nginx syntax is checked on deployment host by nginx -t; it has not been run locally. Public HTTPS/WS checks await live execution.

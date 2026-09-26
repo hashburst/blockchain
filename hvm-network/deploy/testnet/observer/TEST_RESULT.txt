@@ -1,0 +1,1 @@
+Offline tests passed: fresh P2P identity; overwrite rejected without changing the key; approved checkpoint provision and check; empty observer signing journals; consensus-key configuration rejected. Installer and verification Python syntax valid. No live VPS provisioning performed by these tests.
