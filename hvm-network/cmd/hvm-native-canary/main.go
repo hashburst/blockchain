@@ -47,18 +47,45 @@ func rpc(method string, params any, result any) error {
 	if res.StatusCode != 200 {
 		return fmt.Errorf("RPC HTTP %d", res.StatusCode)
 	}
-	var body struct {
-		Result json.RawMessage `json:"result"`
-		Error  json.RawMessage `json:"error"`
+	raw, e := io.ReadAll(io.LimitReader(res.Body, (2<<20)+1))
+	if e != nil {
+		return fmt.Errorf("RPC %s: read response: %w", method, e)
 	}
-	if e = json.NewDecoder(io.LimitReader(res.Body, 2<<20)).Decode(&body); e != nil {
-		return e
+	if len(raw) > 2<<20 {
+		return fmt.Errorf("RPC %s: response too large", method)
+	}
+	return decodeRPC(method, raw, result)
+}
+func decodeRPC(method string, raw []byte, result any) error {
+	var body struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Result  json.RawMessage `json:"result"`
+		Error   json.RawMessage `json:"error"`
+	}
+	if e := json.Unmarshal(raw, &body); e != nil {
+		return fmt.Errorf("RPC %s: invalid response JSON: %w", method, e)
+	}
+	if body.JSONRPC != "2.0" || string(body.ID) != "1" {
+		return fmt.Errorf("RPC %s: invalid response envelope", method)
 	}
 	if len(body.Error) > 0 && string(body.Error) != "null" {
 		return fmt.Errorf("RPC %s: %s", method, body.Error)
 	}
-	return json.Unmarshal(body.Result, result)
+	if len(body.Result) == 0 {
+		// Older deployed runtime omits result for an unknown native receipt.
+		// Compatibility is restricted to this nullable method, never other results.
+		if method != "hb_getTransactionReceipt" {
+			return fmt.Errorf("RPC %s: missing result", method)
+		}
+		body.Result = json.RawMessage("null")
+	}
+	if e := json.Unmarshal(body.Result, result); e != nil {
+		return fmt.Errorf("RPC %s: invalid result: %w", method, e)
+	}
+	return nil
 }
+
 func quantity(method string, params any) uint64 {
 	var s string
 	must(rpc(method, params, &s))

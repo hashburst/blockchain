@@ -1,4 +1,4 @@
-HVM Network — collaudo nativo finanziato v1.0.0
+HVM Network — collaudo nativo finanziato v1.0.1
 
 Eseguire esclusivamente su v1 (77.90.188.153):
   sha256sum -c SHA256SUMS && ./hvm-native-canary
@@ -25,3 +25,9 @@ persistenza dei byte firmati e rifiuto chain errata. Il risultato LIVE è
 ottenuto soltanto dopo i due comandi sopra; non è già certificato.
 Questo pacchetto NON implementa EVM, Ethereum subscriptions o MetaMask.
 Legacy 1337 e mainnet 4735489 non sono modificati.
+
+Correzione v1.0.1: receipt assente del runtime precedente accettata solo
+per hb_getTransactionReceipt; errori RPC riportano metodo e contesto.
+Riutilizza /root/hvm-native-canary-v1 senza cancellare o sovrascrivere chiavi.
+Il binario validator non viene sostituito. La correzione strutturale JSON-RPC
+è inclusa nel repository per la prossima release del runtime.

@@ -4,5 +4,11 @@
 --- PASS: TestReceiptRejectsWrongHashFeeAndFailure (0.00s)
 === RUN   TestSavedSignedTransactionRoundTrip
 --- PASS: TestSavedSignedTransactionRoundTrip (0.00s)
+=== RUN   TestDeployedMissingReceiptResult
+--- PASS: TestDeployedMissingReceiptResult (0.00s)
 PASS
 ok  	hashburst/cmd/hvm-native-canary	0.009s
+=== RUN   TestRPCNullableResultAndErrorEnvelope
+--- PASS: TestRPCNullableResultAndErrorEnvelope (0.00s)
+PASS
+ok  	hashburst/blockchain	0.006s

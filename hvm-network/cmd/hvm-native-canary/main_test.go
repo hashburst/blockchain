@@ -74,3 +74,22 @@ func TestSavedSignedTransactionRoundTrip(t *testing.T) {
 		t.Fatal("wrong chain accepted")
 	}
 }
+
+func TestDeployedMissingReceiptResult(t *testing.T) {
+	for _, body := range []string{`{"jsonrpc":"2.0","id":1}`, `{"jsonrpc":"2.0","id":1,"result":null}`} {
+		r := &hvm.Receipt{Success: true}
+		if err := decodeRPC("hb_getTransactionReceipt", []byte(body), &r); err != nil || r != nil {
+			t.Fatalf("nullable receipt: %v %+v", err, r)
+		}
+	}
+	for _, body := range []string{``, `{}`, `{"jsonrpc":"2.0","id":2}`, `{"jsonrpc":"2.0","id":1,"error":{"code":-1,"message":"failed"}}`} {
+		var r *hvm.Receipt
+		if decodeRPC("hb_getTransactionReceipt", []byte(body), &r) == nil {
+			t.Fatalf("accepted malformed/error envelope: %s", body)
+		}
+	}
+	var value string
+	if decodeRPC("eth_chainId", []byte(`{"jsonrpc":"2.0","id":1}`), &value) == nil {
+		t.Fatal("accepted missing chain result")
+	}
+}
