@@ -1,0 +1,1 @@
+The distributable adds the unchanged API runtime binary and a generated SHA256SUMS. Binary SHA256: 2166ef8177aec64d1ea191ee00f5abf9e76f4779c072284b94a91076a14e9532. SOURCE_COMMIT identifies the binary source, not the deployment wrapper.
