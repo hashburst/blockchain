@@ -1,0 +1,3 @@
+# Observer acceptance — 2026-09-26
+Operator reports observer 64.31.4.9, peer 12D3KooWDdtS7twaerqrivLp2Gp4CBWSg1H35NqkAp6YoYy7e8ed, synchronized to validator v1 and agreed at finalized heights 40652 and 40663. Signing journals remained empty. Evidence directory: observer-proof-ogik9cnv; raw JSON reports not imported. UFW on v1/v4 now permits source 64.31.4.9 to TCP/31307 only. RPC remains loopback until public ingress deployment. Chain 4735490; legacy 1337 unchanged; mainnet 4735489 not activated.
+Deployment directories contain source templates, not complete binary/checkpoint release archives. Use the checksummed deployment package. Public ingress and application canary acceptance remain pending.
