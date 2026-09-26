@@ -9,6 +9,7 @@ import (
 )
 
 type Mempool struct {
+	ethereum       map[string][]byte
 	transactions   map[string]*Transaction
 	transactionsV2 map[string]*protocolv2.TransactionV2
 	mutex          sync.Mutex
@@ -16,6 +17,7 @@ type Mempool struct {
 
 func NewMempool() *Mempool {
 	return &Mempool{
+		ethereum:       make(map[string][]byte),
 		transactions:   make(map[string]*Transaction),
 		transactionsV2: make(map[string]*protocolv2.TransactionV2),
 	}
@@ -153,7 +155,7 @@ func (m *Mempool) PendingV2ForSender(sender string) []*protocolv2.TransactionV2 
 func (m *Mempool) Size() int {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	return len(m.transactions) + len(m.transactionsV2)
+	return len(m.transactions) + len(m.transactionsV2) + len(m.ethereum)
 }
 
 func (m *Mempool) SizeV2() int {

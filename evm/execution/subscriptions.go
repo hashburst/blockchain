@@ -64,7 +64,7 @@ func (f *LogFilter) UnmarshalJSON(data []byte) error {
 }
 
 type event struct {
-	head *types.Header
+	head json.RawMessage
 	logs []*types.Log
 }
 type listener struct {
@@ -184,12 +184,25 @@ func matches(log *types.Log, f LogFilter) bool {
 // than accumulating unbounded memory. Callers must provide strictly ordered,
 // finalized events; historical queries handle reconnect catch-up.
 func (s *Subscriptions) PublishFinalized(header *types.Header, logs []*types.Log) error {
+	return s.PublishCanonicalFinalized(header, headerHash(header), logs)
+}
+
+func headerHash(h *types.Header) common.Hash {
+	if h == nil {
+		return common.Hash{}
+	}
+	return h.Hash()
+}
+
+// PublishCanonicalFinalized preserves the host chain block hash in Ethereum RPC.
+// HashBurst commits additional native state and is not an Ethereum header chain.
+func (s *Subscriptions) PublishCanonicalFinalized(header *types.Header, hash common.Hash, logs []*types.Log) error {
 	if header == nil || header.Number == nil {
 		return errors.New("missing finalized header")
 	}
 	copyLogs := make([]*types.Log, len(logs))
 	for i, l := range logs {
-		if l == nil || l.Removed || l.BlockHash != header.Hash() || l.BlockNumber != header.Number.Uint64() {
+		if l == nil || l.Removed || l.BlockHash != hash || l.BlockNumber != header.Number.Uint64() {
 			return errors.New("log does not match finalized header")
 		}
 		c := *l
@@ -197,7 +210,20 @@ func (s *Subscriptions) PublishFinalized(header *types.Header, logs []*types.Log
 		c.Data = append([]byte(nil), l.Data...)
 		copyLogs[i] = &c
 	}
-	e := event{head: types.CopyHeader(header), logs: copyLogs}
+	data, err := json.Marshal(header)
+	if err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err = json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	fields["hash"], _ = json.Marshal(hash)
+	data, err = json.Marshal(fields)
+	if err != nil {
+		return err
+	}
+	e := event{head: data, logs: copyLogs}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for l := range s.clients {
@@ -218,3 +244,6 @@ func (s *Subscriptions) Close() {
 		close(l.done)
 	}
 }
+
+// MatchesLog applies the same filter to historical queries and subscriptions.
+func MatchesLog(log *types.Log, f LogFilter) bool { return matches(log, f) }

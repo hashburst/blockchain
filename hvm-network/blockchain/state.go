@@ -20,6 +20,7 @@ import (
 // State is the native HBT projection. Internal address keys are lowercase
 // without 0x. sequences stores the NEXT expected TransactionV2 sequence.
 type State struct {
+	evm       *evmProjection
 	mu        sync.RWMutex
 	balances  map[string]int64  // address -> HBT atomic units (1 HBT = 1e8)
 	sequences map[string]uint64 // address -> next expected V2 sequence
@@ -56,6 +57,7 @@ func (s *State) Clone() *State {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := NewState()
+	out.evm = s.evm.clone()
 	for k, v := range s.balances {
 		out.balances[k] = v
 	}
@@ -73,6 +75,7 @@ func (s *State) ReplaceWith(other *State) {
 	defer other.mu.RUnlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.evm = other.evm.clone()
 	s.balances = make(map[string]int64, len(other.balances))
 	for k, v := range other.balances {
 		s.balances[k] = v

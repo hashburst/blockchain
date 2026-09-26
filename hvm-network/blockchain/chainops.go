@@ -148,6 +148,10 @@ func (bc *Blockchain) removeMinedFromMempool(b *Block) {
 	if bc.mempool == nil {
 		return
 	}
+	bc.mempool.removeEthereum(b.EthereumTransactions)
+	if bc.state.evm != nil {
+		bc.pruneConsumedEthereumNonces()
+	}
 	for _, tx := range b.Transactions {
 		if tx != nil {
 			bc.mempool.RemoveTransaction(tx.ID)

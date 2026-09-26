@@ -4,6 +4,8 @@
 --- PASS: TestCallRevertAndCancellation (0.00s)
 === RUN   TestReceiptEthereumFields
 --- PASS: TestReceiptEthereumFields (0.00s)
+=== RUN   TestCallAccessListAndGasPrice
+--- PASS: TestCallAccessListAndGasPrice (0.00s)
 === RUN   TestSignedTransferAndReplay
 --- PASS: TestSignedTransferAndReplay (0.00s)
 === RUN   TestDeployStorageLogAndRevert
@@ -19,12 +21,12 @@
 === RUN   TestActivationRequiresAncestorHashes
 --- PASS: TestActivationRequiresAncestorHashes (0.00s)
 === RUN   TestContractStateSurvivesReplay
---- PASS: TestContractStateSurvivesReplay (0.00s)
+--- PASS: TestContractStateSurvivesReplay (0.01s)
 === RUN   TestWebSocketHeadsLogsAndUnsubscribe
---- PASS: TestWebSocketHeadsLogsAndUnsubscribe (0.00s)
+--- PASS: TestWebSocketHeadsLogsAndUnsubscribe (0.01s)
 === RUN   TestTopicFilterAndQueueBound
 --- PASS: TestTopicFilterAndQueueBound (0.00s)
 === RUN   TestEthereumFilterSyntax
 --- PASS: TestEthereumFilterSyntax (0.00s)
 PASS
-ok  	hashburst/evm-execution	0.026s
+ok  	hashburst/evm-execution	1.047s

@@ -55,6 +55,9 @@ func Load(path string) (Config, error) {
 	return c, c.Validate()
 }
 func (c Config) Validate() error {
+	if c.Protocol.EVM != nil && c.Protocol.ChainID != 4735490 {
+		return fmt.Errorf("testnet EVM requires chain ID 4735490; mainnet uses a separate runtime configuration")
+	}
 	if c.P2PKeyFile == "" {
 		return fmt.Errorf("P2P key path required")
 	}

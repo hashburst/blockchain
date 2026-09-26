@@ -146,3 +146,22 @@ func TestReceiptEthereumFields(t *testing.T) {
 		t.Fatal("receipt without transaction accepted")
 	}
 }
+
+func TestCallAccessListAndGasPrice(t *testing.T) {
+	s, from, b := fixture(t)
+	api, _ := NewAPI(TestnetID, &testBackend{s: s, b: b})
+	to := common.HexToAddress("0x9876")
+	gas, err := api.EstimateGas(context.Background(), CallArgs{From: &from, To: &to, AccessList: types.AccessList{{Address: to, StorageKeys: []common.Hash{{}}}}})
+	if err != nil || gas != 25300 {
+		t.Fatalf("access list gas %d: %v", gas, err)
+	}
+	s.SetCode(to, []byte{0x3a, 0x60, 0, 0x52, 0x60, 0x20, 0x60, 0, 0xf3}, tracing.CodeChangeUnspecified)
+	price := hexutil.Big(*big.NewInt(9))
+	out, err := api.Call(context.Background(), CallArgs{From: &from, To: &to, GasPrice: &price}, rpc.LatestBlockNumber)
+	if err != nil || new(big.Int).SetBytes(out).Uint64() != 9 {
+		t.Fatalf("GASPRICE %x: %v", out, err)
+	}
+	if _, err = api.Call(context.Background(), CallArgs{GasPrice: &price, MaxFeePerGas: &price}, rpc.LatestBlockNumber); err == nil {
+		t.Fatal("conflicting fee styles accepted")
+	}
+}

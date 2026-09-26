@@ -27,7 +27,7 @@ func poHWithTicks(prev int64, ticks int) int64 {
 func PoH(prev int64) int64 { return poHWithTicks(prev, PoHTicks) }
 
 // validatePoHWithTicks validates the deterministic PoH chain at the configured
-// per-block tick count. Phase 3E isolated fixtures may select fewer ticks to
+// per-block tick count. HVM Network isolated fixtures may select fewer ticks to
 // keep acceptance tests bounded; production/default configs remain at PoHTicks.
 func validatePoHWithTicks(prev, poh int64, ticks int) bool {
 	return poHWithTicks(prev, ticks) == poh

@@ -13,6 +13,10 @@ import (
 // old blocks leave Version=0; EffectiveVersion treats that as legacy V1.
 // Phase 3B V2 blocks add native/HVM/receipt commitments and TransactionV2.
 type Block struct {
+	EthereumTransactions    [][]byte `json:",omitempty"`
+	EVMStateRoot            string   `json:",omitempty"`
+	EVMReceiptsRoot         string   `json:",omitempty"`
+	EVMGasUsed              uint64   `json:",omitempty"`
 	Version                 uint16
 	ProtocolChainID         uint64
 	Index                   int
@@ -153,6 +157,16 @@ func (b *Block) generateV2Hash() string {
 	c.putString(b.ValidatorSetRoot)
 	c.putString(b.ValidatorStateRoot)
 	c.putString(b.AuthorValidatorID)
+	if b.EffectiveVersion() >= BlockVersionEVM {
+		c.putString("HASHBURST_EVM_CANCUN_V1")
+		c.putUint64(uint64(len(b.EthereumTransactions)))
+		for _, raw := range b.EthereumTransactions {
+			c.putString(hex.EncodeToString(raw))
+		}
+		c.putString(b.EVMStateRoot)
+		c.putString(b.EVMReceiptsRoot)
+		c.putUint64(b.EVMGasUsed)
+	}
 	// Phase 3D deliberately excludes current-round proposer and round from the
 	// block/content hash. A valid block may be safely re-proposed in a later BFT
 	// round without changing its identity. AuthorValidatorID remains committed so

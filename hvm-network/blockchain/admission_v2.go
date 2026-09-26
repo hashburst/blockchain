@@ -13,8 +13,8 @@ func (bc *Blockchain) AdmitTransactionV2(tx *protocolv2.TransactionV2) error {
 	if bc.mempool == nil {
 		return fmt.Errorf("mempool not configured")
 	}
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
 
 	nextHeight := bc.Blocks[len(bc.Blocks)-1].Index + 1
 	if !bc.v2Config.EnabledAt(nextHeight) {
@@ -27,6 +27,11 @@ func (bc *Blockchain) AdmitTransactionV2(tx *protocolv2.TransactionV2) error {
 		return fmt.Errorf("transaction already confirmed")
 	}
 
+	for _, raw := range bc.mempool.snapshotEthereum() {
+		if sameEthereumSender(raw, bc.v2Config.ChainID, tx.Sender) {
+			return fmt.Errorf("Ethereum transaction already reserves sender nonce")
+		}
+	}
 	pending := bc.mempool.PendingV2ForSender(tx.Sender)
 	expected := bc.state.Sequence(tx.Sender)
 	reserved := int64(0)

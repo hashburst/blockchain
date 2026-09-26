@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/tracing"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
@@ -78,6 +79,7 @@ type Result struct {
 	StateRoot    common.Hash
 	ReceiptsRoot common.Hash
 	GasUsed      uint64
+	Touched      map[common.Address]struct{}
 }
 
 // ApplyBlock executes on a copy. Rejected transactions invalidate the whole
@@ -99,7 +101,12 @@ func ApplyBlock(ctx context.Context, parent *state.StateDB, chainID uint64, b Bl
 		}
 		return b.HashAt(n)
 	}
-	env := vm.NewEVM(vm.BlockContext{CanTransfer: core.CanTransfer, Transfer: core.Transfer, GetHash: hashAt, Coinbase: b.Coinbase, GasLimit: b.GasLimit, BlockNumber: number, Time: b.Time, Difficulty: new(big.Int), BaseFee: new(big.Int).Set(b.BaseFee), BlobBaseFee: big.NewInt(1), Random: &b.Random}, st, cfg, vm.Config{})
+	touched := make(map[common.Address]struct{})
+	hooks := &tracing.Hooks{
+		OnBalanceChange: func(a common.Address, _, _ *big.Int, _ tracing.BalanceChangeReason) { touched[a] = struct{}{} },
+		OnNonceChangeV2: func(a common.Address, _, _ uint64, _ tracing.NonceChangeReason) { touched[a] = struct{}{} },
+	}
+	env := vm.NewEVM(vm.BlockContext{CanTransfer: core.CanTransfer, Transfer: core.Transfer, GetHash: hashAt, Coinbase: b.Coinbase, GasLimit: b.GasLimit, BlockNumber: number, Time: b.Time, Difficulty: new(big.Int), BaseFee: new(big.Int).Set(b.BaseFee), BlobBaseFee: big.NewInt(1), Random: &b.Random}, state.NewHookedState(st, hooks), cfg, vm.Config{Tracer: hooks})
 	defer env.Release()
 	gp := core.NewGasPool(b.GasLimit)
 	receipts := make(types.Receipts, 0, len(rawTxs))
@@ -124,5 +131,5 @@ func ApplyBlock(ctx context.Context, parent *state.StateDB, chainID uint64, b Bl
 		receipts = append(receipts, receipt)
 	}
 	root := st.IntermediateRoot(cfg.Rules(number, true, b.Time))
-	return &Result{State: st, Receipts: receipts, StateRoot: root, ReceiptsRoot: types.DeriveSha(receipts, trie.NewStackTrie(nil)), GasUsed: gp.CumulativeUsed()}, nil
+	return &Result{State: st, Receipts: receipts, StateRoot: root, ReceiptsRoot: types.DeriveSha(receipts, trie.NewStackTrie(nil)), GasUsed: gp.CumulativeUsed(), Touched: touched}, nil
 }

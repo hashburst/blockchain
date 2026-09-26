@@ -3,6 +3,7 @@ package blockchain
 import (
 	"encoding/hex"
 	"fmt"
+	execution "hashburst/evm-execution"
 	"log"
 	"os"
 	"path/filepath"
@@ -18,10 +19,11 @@ import (
 // Protocol V2/HVM projections. The chain remains the source of truth; native
 // HBT state, HVM state and receipts are deterministic projections of blocks.
 type Blockchain struct {
-	Blocks       []*Block
-	PendingTXs   []*Transaction
-	PendingTXsV2 []*protocolv2.TransactionV2
-	MiningReward float64
+	evmSubscriptions *execution.Subscriptions
+	Blocks           []*Block
+	PendingTXs       []*Transaction
+	PendingTXsV2     []*protocolv2.TransactionV2
+	MiningReward     float64
 
 	mu               sync.RWMutex
 	state            *State
@@ -51,6 +53,7 @@ func NewBlockchainWithDir(dir string) *Blockchain {
 }
 
 func NewBlockchainWithDirAndV2Config(dir string, cfg ProtocolV2Config) *Blockchain {
+	cfg = cfg.detached()
 	if err := cfg.Validate(); err != nil {
 		panic(fmt.Sprintf("invalid Protocol V2 config: %v", err))
 	}
@@ -153,7 +156,7 @@ func (bc *Blockchain) ConsensusEvidence() []consensus.BFTDoubleSignEvidence {
 }
 
 // syncConsensusReactorToHead reconciles the pacemaker with a finalized chain
-// head that arrived through the ordinary chain-sync protocol. Real Phase 3E
+// head that arrived through the ordinary chain-sync protocol. Real HVM Network
 // nodes run chain sync and BFT gossip concurrently, so the finalized block can
 // legitimately reach a peer through /hashburst/1.0.0 before the dedicated
 // consensus-finalized envelope. The blockchain is already authoritative after
@@ -297,6 +300,7 @@ func (bc *Blockchain) commitV2Execution(ex *blockExecutionV2) {
 	bc.state.ReplaceWith(ex.state)
 	bc.hvmEngine.ReplaceStateWith(ex.hvm)
 	bc.validators.ReplaceWith(ex.validators)
+	bc.publishEthereumFinalizedLocked()
 	for _, r := range ex.receipts {
 		bc.receipts[strings.ToLower(strings.TrimPrefix(r.TxID, "0x"))] = r
 	}
@@ -329,13 +333,20 @@ func ValidateBlockAgainstConfig(prev *Block, b *Block, miningReward float64, cfg
 	}
 
 	v2Enabled := cfg.EnabledAt(b.Index)
-	if v2Enabled && b.EffectiveVersion() != BlockVersionV2 {
+	expectedVersion := BlockVersionV2
+	if cfg.EVMEnabledAt(b.Index) {
+		expectedVersion = BlockVersionEVM
+	}
+	if err := validateEVMEnvelope(b, cfg); err != nil {
+		return err
+	}
+	if v2Enabled && b.EffectiveVersion() != expectedVersion {
 		return fmt.Errorf("blocco #%d deve usare versione V2 dopo activation height", b.Index)
 	}
 	if !v2Enabled && b.EffectiveVersion() >= BlockVersionV2 {
 		return fmt.Errorf("blocco V2 prima dell'activation height")
 	}
-	if b.EffectiveVersion() > BlockVersionV2 {
+	if b.EffectiveVersion() > BlockVersionEVM {
 		return fmt.Errorf("versione blocco non supportata %d", b.EffectiveVersion())
 	}
 
@@ -533,7 +544,7 @@ func (bc *Blockchain) Receipt(txID string) (hvm.Receipt, bool) {
 	return r, ok
 }
 
-func (bc *Blockchain) ProtocolV2Config() ProtocolV2Config     { return bc.v2Config }
+func (bc *Blockchain) ProtocolV2Config() ProtocolV2Config     { return bc.v2Config.detached() }
 func (bc *Blockchain) State() *State                          { return bc.state }
 func (bc *Blockchain) HVMEngine() *hvm.Engine                 { return bc.hvmEngine }
 func (bc *Blockchain) ValidatorRegistry() *consensus.Registry { return bc.validators }

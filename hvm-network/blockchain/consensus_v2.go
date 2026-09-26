@@ -61,11 +61,20 @@ func (bc *Blockchain) BuildConsensusProposal(proposerID string, round uint64) (*
 	rewardTX := NewSystemReward(expected.RewardAddress, bc.MiningReward)
 	txs := append([]*Transaction{rewardTX}, bc.PendingTXs...)
 	b := NewBlockV2(txs, bc.PendingTXsV2, latest.Hash, nextHeight, poHWithTicks(latest.ProofOfTime, bc.v2Config.EffectivePoHTicks()), bc.v2Config.ChainID)
+	if bc.v2Config.EVMEnabledAt(nextHeight) {
+		b.Version = BlockVersionEVM
+		if bc.mempool != nil {
+			b.EthereumTransactions = bc.mempool.snapshotEthereum()
+		}
+	}
 	b.AuthorValidatorID = expected.ID
 	b.ProposerID = expected.ID
 	b.ConsensusRound = round
 	b.ValidRound = -1
 	b.ValidPrevoteCertificate = nil
+	if b.Version == BlockVersionEVM {
+		bc.selectEthereum(b)
+	}
 	prepared, err := bc.prepareV2Commitments(b)
 	if err != nil {
 		return nil, fmt.Errorf("prepare consensus proposal: %w", err)
@@ -342,6 +351,7 @@ func cloneBlockForConsensus(b *Block) *Block {
 		return nil
 	}
 	out := *b
+	out.EthereumTransactions = cloneRawTransactions(b.EthereumTransactions)
 	out.Transactions = append([]*Transaction(nil), b.Transactions...)
 	out.TransactionsV2 = make([]*protocolv2.TransactionV2, 0, len(b.TransactionsV2))
 	for _, tx := range b.TransactionsV2 {
