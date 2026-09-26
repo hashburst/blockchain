@@ -1,0 +1,24 @@
+=== RUN   TestSignedTransferAndReplay
+--- PASS: TestSignedTransferAndReplay (0.01s)
+=== RUN   TestDeployStorageLogAndRevert
+--- PASS: TestDeployStorageLogAndRevert (0.00s)
+=== RUN   TestInvalidBlockIsAtomic
+--- PASS: TestInvalidBlockIsAtomic (0.00s)
+=== RUN   TestDecodeRejectsMalformedAndUnprotected
+--- PASS: TestDecodeRejectsMalformedAndUnprotected (0.00s)
+=== RUN   TestPersistentReplayAndPinnedAnchor
+--- PASS: TestPersistentReplayAndPinnedAnchor (0.00s)
+=== RUN   TestExactWeiAccounting
+--- PASS: TestExactWeiAccounting (0.00s)
+=== RUN   TestActivationRequiresAncestorHashes
+--- PASS: TestActivationRequiresAncestorHashes (0.00s)
+=== RUN   TestContractStateSurvivesReplay
+--- PASS: TestContractStateSurvivesReplay (0.00s)
+=== RUN   TestWebSocketHeadsLogsAndUnsubscribe
+--- PASS: TestWebSocketHeadsLogsAndUnsubscribe (0.00s)
+=== RUN   TestTopicFilterAndQueueBound
+--- PASS: TestTopicFilterAndQueueBound (0.00s)
+=== RUN   TestEthereumFilterSyntax
+--- PASS: TestEthereumFilterSyntax (0.00s)
+PASS
+ok  	hashburst/evm-execution	0.023s
