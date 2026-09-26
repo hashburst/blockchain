@@ -1,0 +1,1 @@
+6 offline tests passed: identity/readiness guards; preserved journal prefix and truncation rejection; no service stop/start for existing upgrade; HTTP timeout retry; protocol error not retried; bounded timeout. Python syntax valid. Binary unchanged from API v1.1.0. Live rollout is not yet performed with this package.
