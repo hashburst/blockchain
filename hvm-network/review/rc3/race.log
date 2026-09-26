@@ -1,0 +1,3 @@
+ok  	hashburst/consensus	1.805s
+ok  	hashburst/blockchain	15.022s
+ok  	hashburst/devnet/hvm-network/cmd/node	1.116s

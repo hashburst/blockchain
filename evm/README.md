@@ -1,3 +1,13 @@
+# EVM integration with HVM Network
+
+The Solidity and PHP examples in this folder are design material, not an executable EVM implementation or evidence of wallet compatibility.
+
+The maintained runtime lives in [`../hvm-network/`](../hvm-network/). Its current execution engine runs native HVM contracts. See [compatibility gates](../hvm-network/deploy/testnet/HVM_COMPATIBILITY_GATES.md) for the Ethereum transaction, gas, receipt/log, WebSocket subscription and MetaMask acceptance requirements. Read-only WebSocket RPC does not implement subscriptions.
+
+Testnet chain ID: 4735490. Legacy: 1337, unchanged. Mainnet: 4735489, activation pending separate configuration and acceptance.
+
+## Historical design examples
+
 To integrate a smart contract system into Hashburst Blockchain and extend it with support for HBT-20 and HBT-721 standards (compatible with TRC, ERC, and BEP standards) means  implement the contracts using Solidity and a framework for token minting (both fungible and non-fungible tokens) within the ecosystem.
 This will enable issuing assets like utility tokens, security tokens, and asset tokens.
 

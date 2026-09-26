@@ -1,0 +1,6 @@
+HVM_NETWORK_DIAGNOSTICS=/tmp/tmp_mly94oj/devnet/hvm-network/run-diagnostic/diagnostics.tar.gz
+..
+----------------------------------------------------------------------
+Ran 2 tests in 1.066s
+
+OK
