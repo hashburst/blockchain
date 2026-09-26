@@ -1,9 +1,21 @@
 {
   "schema": 1,
   "decided_on": "2026-09-25",
-  "legacy": {"chain_id": 1337, "hex": "0x539", "policy": "unchanged"},
-  "hvm_mainnet": {"chain_id": 4735489, "hex": "0x484201", "status": "project_assigned_not_activated"},
-  "hvm_testnet": {"chain_id": 4735490, "hex": "0x484202", "status": "project_assigned_not_activated"},
+  "legacy": {
+    "chain_id": 1337,
+    "hex": "0x539",
+    "policy": "unchanged"
+  },
+  "hvm_mainnet": {
+    "chain_id": 4735489,
+    "hex": "0x484201",
+    "status": "project_assigned_not_activated"
+  },
+  "hvm_testnet": {
+    "chain_id": 4735490,
+    "hex": "0x484202",
+    "status": "validators_active_restart_recovery_verified_private_rpc"
+  },
   "registry_check": {
     "repository": "https://github.com/ethereum-lists/chains",
     "commit": "4deb40dafb2675f0d120a79b30b20b90f363bb63",
