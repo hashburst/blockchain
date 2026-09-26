@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -157,6 +158,7 @@ func MigrateEVM(configPath, nextPath string) error {
 	}
 	// Prepare takes the runtime's nonblocking exclusive lock and verifies keys,
 	// journals, canonical history and validator membership before any mutation.
+	log.Printf("HVM_MIGRATION_PREPARE_BEGIN node=%s", current.NodeID)
 	state, e := Prepare(active, false)
 	if e != nil {
 		return e
@@ -169,9 +171,17 @@ func MigrateEVM(configPath, nextPath string) error {
 	if uint64(height)+EVMActivationMargin >= next.Protocol.EVM.ActivationHeight {
 		return fmt.Errorf("activation must be more than %d blocks ahead of local height %d", EVMActivationMargin, height)
 	}
-	if _, e = blockchain.OpenExistingBlockchain(next.DataDir, next.Protocol, next.GenesisHash, next.CheckpointHeight, next.CheckpointHash); e != nil {
+	log.Printf("HVM_MIGRATION_CANDIDATE_BEGIN height=%d", height)
+	candidateChain, e := blockchain.OpenExistingBlockchain(next.DataDir, next.Protocol, next.GenesisHash, next.CheckpointHeight, next.CheckpointHash)
+	if e != nil {
 		return fmt.Errorf("candidate replay: %w", e)
 	}
+	if next.Role == "validator" {
+		if e = candidateChain.CheckValidatorRestart(next.ValidatorID); e != nil {
+			return fmt.Errorf("candidate recovery: %w", e)
+		}
+	}
+	log.Print("HVM_MIGRATION_CANDIDATE_VALIDATED")
 	journals := map[string]string{}
 	for _, name := range []string{"consensus-votes.jsonl", "consensus-bft-signatures.jsonl"} {
 		h, e := digestFile(filepath.Join(next.DataDir, name))

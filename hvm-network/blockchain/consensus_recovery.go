@@ -33,9 +33,28 @@ type recoveryEnvelope struct {
 }
 
 func (bc *Blockchain) recoveryConfigHash() string {
-	b, _ := json.Marshal(bc.v2Config)
+	return recoveryProtocolHash(bc.v2Config)
+}
+
+func recoveryProtocolHash(cfg ProtocolV2Config) string {
+	b, _ := json.Marshal(cfg)
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// A scheduled first EVM activation does not change rules at earlier heights.
+// Preserve the original certified lock and journal; accept the old digest only
+// when removing that future EVM configuration exactly reproduces the digest.
+func (bc *Blockchain) recoveryConfigMatches(s *consensusRecovery) bool {
+	if s.ConfigHash == bc.recoveryConfigHash() {
+		return true
+	}
+	cfg := bc.v2Config.detached()
+	if cfg.ChainID != 4735490 || cfg.EVM == nil || s.Height >= cfg.EVM.ActivationHeight {
+		return false
+	}
+	cfg.EVM = nil
+	return s.ConfigHash == recoveryProtocolHash(cfg)
 }
 
 // readRecovery validates the snapshot against the already verified chain and
@@ -73,7 +92,7 @@ func (bc *Blockchain) readRecovery(id string) (*consensusRecovery, error) {
 	if err = strictRecoveryJSON(env.Payload, &s); err != nil {
 		return nil, err
 	}
-	if s.Version != 1 || s.ChainID != bc.v2Config.ChainID || !strings.EqualFold(s.ValidatorID, id) || s.ConfigHash != bc.recoveryConfigHash() {
+	if s.Version != 1 || s.ChainID != bc.v2Config.ChainID || !strings.EqualFold(s.ValidatorID, id) || !bc.recoveryConfigMatches(&s) {
 		return nil, fmt.Errorf("recovery identity/config mismatch")
 	}
 	if s.Height < height && len(records) == 0 {

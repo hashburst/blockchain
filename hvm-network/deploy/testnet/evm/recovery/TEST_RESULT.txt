@@ -1,0 +1,26 @@
+EVM recovery release - local verification 2026-09-26
+Base source: febed851ecdc2bf725b2c1f3a57961ce463eb886
+Toolchain: Go 1.25.7 linux/amd64, CGO_ENABLED=0.
+
+PASS: hvm-network go test ./... -count=1 -timeout=10m.
+PASS: evm/execution go test ./... -count=1 -timeout=10m.
+PASS: TestEVMRecoveryDigestBoundary.
+PASS: TestEVMRecoveryFourLockedValidatorsPreserveAndFinalize.
+PASS: existing persistent recovery tests.
+PASS: TestFundingSignedEnvelopeAndChainSeparation.
+PASS: Python recovery guards (7 tests) and common-height guards (2 tests).
+PASS: MetaMask canary JavaScript syntax (Node 24).
+
+The new four-validator recovery test creates certified pending locks, reopens
+persistent chains with a future EVM activation, preserves chain/recovery/journal
+bytes during checking, and finalizes the previously locked block.
+
+No live VPS was changed by these local tests. No real MetaMask interaction was
+performed. No mainnet was activated. Race tests were not rerun in this release
+because this build environment uses CGO_DISABLED; earlier PR race evidence is
+separate and is not represented as a new result here.
+
+The original long-running VPS migration timeout is not reproduced using its
+live database. The new detached worker adds bounded operator polling and
+persistent replay/recovery phase logs; it does not certify that a stalled live
+process is healthy or bypass failed verification.
