@@ -28,6 +28,22 @@ type rpcResponse struct {
 	Error   *rpcError       `json:"error,omitempty"`
 }
 
+// MarshalJSON preserves explicit null results on successful nullable RPC calls.
+func (r rpcResponse) MarshalJSON() ([]byte, error) {
+	if r.Error != nil {
+		return json.Marshal(struct {
+			JSONRPC string          `json:"jsonrpc"`
+			ID      json.RawMessage `json:"id"`
+			Error   *rpcError       `json:"error"`
+		}{r.JSONRPC, r.ID, r.Error})
+	}
+	return json.Marshal(struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      json.RawMessage `json:"id"`
+		Result  interface{}     `json:"result"`
+	}{r.JSONRPC, r.ID, r.Result})
+}
+
 type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
