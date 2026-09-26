@@ -72,3 +72,20 @@ changed anchors, corrupt records, missing ancestor hashes and conversion overflo
 The record format and storage backend remain developmental: full-history replay,
 checkpoint acceleration and recovery at the actual consensus commit boundary
 still require node integration and distributed validation.
+
+## RPC-to-consensus boundary
+
+`API` exposes chain ID, height, balance, nonce, code, storage, nullable receipt,
+raw transaction admission, call and gas estimation through a required `Backend`.
+There is no default or standalone mining backend. Raw signed bytes are decoded,
+then passed to `Backend.Admit`; a backend error is returned to the client rather
+than fabricating acceptance. Receipt output adds sender/recipient and preserves
+Ethereum null and hexadecimal fields. Calls run on state copies with bounded
+execution time; revert errors include code 3 and revert data.
+
+The running HashBurst node does not implement this Backend yet. Pending and
+historical snapshots must be supplied correctly by that integration. The current
+call argument subset does not yet implement fee overrides, access lists or state
+overrides; block/transaction queries, fee history and historical log RPCs remain
+required for the public Ethereum interface. These local tests are not a MetaMask
+acceptance test and do not authorize EVM activation.
