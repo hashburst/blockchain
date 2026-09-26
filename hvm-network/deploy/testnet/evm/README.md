@@ -11,7 +11,7 @@ Use the reviewed PR revision and Go 1.25.7. Run verify-local.sh, then
 Run `python3 test-rollout.py` in that directory. Check SHA256SUMS before installing.
 The generated SOURCE_COMMIT must identify the reviewed source, not a dirty tree.
 
-Generate a read-only candidate plan with `python3 make-plan.py --binary hashburst-testnet --out plan.json`. It reads the five live heights and checks the shared configuration. Defaults are a 10000-block margin, gas limit 1000000 and fixed base fee 1 wei; the printed plan makes these explicit before any service change. Adjust these testnet parameters with the documented CLI options if the reviewed network decision differs. Review these fields:
+Generate a read-only candidate plan with `python3 make-plan.py --binary hashburst-testnet --out plan.json`. It reads the five live heights and checks the shared configuration. Defaults are a 2000-block margin, gas limit 1000000 and fixed base fee 1 wei; the printed plan makes these explicit before any service change. Adjust these testnet parameters with the documented CLI options if the reviewed network decision differs. Review these fields:
 
 - chain_id: 4735490
 - binary_sha256: SHA256 of the built hashburst-testnet
