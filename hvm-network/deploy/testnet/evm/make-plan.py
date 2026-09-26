@@ -17,7 +17,7 @@ def main(p):
  return {'node_id':c['node_id'],'role':c['role'],'height':h['finalized_height'],'digest':h['config_digest']}
 '''
 def main():
- p=argparse.ArgumentParser();p.add_argument('--binary',required=True);p.add_argument('--out',required=True);p.add_argument('--margin',type=int,default=10000);p.add_argument('--gas-limit',type=int,default=1000000);p.add_argument('--base-fee-wei',type=int,default=1);a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--binary',required=True);p.add_argument('--out',required=True);p.add_argument('--margin',type=int,default=2000);p.add_argument('--gas-limit',type=int,default=200000);p.add_argument('--base-fee-wei',type=int,default=1);a=p.parse_args()
  if a.margin<=1000 or not 21000<=a.gas_limit<=30000000 or not 1<=a.base_fee_wei<2**64:raise RuntimeError('invalid activation parameters')
  rows=[]
  for i,ip in enumerate(('77.90.188.153','77.90.188.154','77.90.188.155','77.90.188.157','64.31.4.9')):
