@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "network": "testnet",
+  "node_id": "hvm-testnet-v2",
+  "role": "validator",
+  "data_dir": "/var/lib/hashburst-hvm-testnet",
+  "rpc_listen": "127.0.0.1:18009",
+  "p2p_listen_ip": "0.0.0.0",
+  "p2p_port": 31307,
+  "peer_id": "12D3KooWAZC8H5umPzDqUUTZeJTkdKgmqZsD91WCH9ffca3MMVcZ",
+  "p2p_key_file": "/etc/hashburst-hvm-testnet/p2p.key",
+  "validator_id": "0x1c9f916d23b0ce6f8c31c2996d743d6142841f55c66fe5d12ea2736d0a1809cf",
+  "consensus_key_file": "/etc/hashburst-hvm-testnet/consensus.key",
+  "genesis_hash": "1f7761e81921358af25c403e13e19ffe7b8f0c588a03cc8b9f96ede3dead35e9",
+  "checkpoint_height": 7,
+  "checkpoint_hash": "07952f85f09813f5f419a736e1fab7229102faff953523eb5ef325487080d7a0",
+  "bootnodes": [
+    "/ip4/77.90.188.153/tcp/31307/p2p/12D3KooWEr9u4YnFhPxLtiYdaRfyMtoPTtcwbrGepe8koz6L5CBz",
+    "/ip4/77.90.188.155/tcp/31307/p2p/12D3KooWRVmAqEdN3j666P4j7QmWH9Et1FR1sHms7Pu6ZUaL59CR",
+    "/ip4/77.90.188.157/tcp/31307/p2p/12D3KooWPRBLbipoywiGXmRXJ3DNv6rGcmZ8qkTnUfvMZpekLAiN"
+  ],
+  "protocol": {
+    "chain_id": 4735490,
+    "activation_height": 6,
+    "fee_policy": {
+      "fee_rate_units_per_million": 1000,
+      "base_tx_units": 100
+    },
+    "fee_collector": "0x000000000000000000000000000000000000fee0",
+    "max_tx_data_bytes": 1048576,
+    "legacy_pow_difficulty": 1,
+    "poh_ticks_per_block": 4000,
+    "consensus_activation_height": 8,
+    "validator": {
+      "min_bond_units": 1000000000,
+      "activation_delay_blocks": 1,
+      "unbonding_blocks": 8,
+      "jail_blocks": 100,
+      "double_vote_slash_bps": 500
+    },
+    "consensus_network": {
+      "proposal_timeout": 3000000000,
+      "prevote_timeout": 2000000000,
+      "precommit_timeout": 2000000000,
+      "round_timeout_delta": 500000000,
+      "max_round": 64,
+      "max_future_height": 4,
+      "max_message_bytes": 4194304
+    },
+    "require_node_registration_v2": true,
+    "slash_collector": "0x00000000000000000000000000000000000051a5"
+  }
+}
