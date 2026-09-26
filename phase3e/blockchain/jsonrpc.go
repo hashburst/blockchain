@@ -119,6 +119,8 @@ func (h *RPCHandler) dispatch(req *rpcRequest) (interface{}, *rpcError) {
 		return h.getValidatorSet(req.Params)
 	case "hb_getProposer":
 		return h.getProposer(req.Params)
+	case "hb_getFinalizedCommitment":
+		return h.getFinalizedCommitment(req.Params)
 	case "hb_getFinalizedHeight":
 		return hexUint(uint64(h.bc.FinalizedHeight())), nil
 	case "hb_getConsensusStatus":
