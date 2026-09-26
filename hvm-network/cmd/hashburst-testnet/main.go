@@ -15,10 +15,23 @@ func run() int {
 	path := flag.String("config", "", "required testnet configuration JSON")
 	provision := flag.Bool("provision", false, "pin an existing prepared testnet checkpoint; do not start")
 	check := flag.Bool("check", false, "validate pinned state and keys; do not start")
+	migration := flag.String("migrate-evm", "", "offline: migrate pinned testnet to this candidate config; safely resume the same transition")
 	flag.Parse()
 	if *path == "" || (*provision && *check) {
 		log.Print("--config required; --provision and --check are exclusive")
 		return 2
+	}
+	if *migration != "" {
+		if *provision || *check {
+			log.Print("migration excludes provision/check")
+			return 2
+		}
+		if e := testnet.MigrateEVM(*path, *migration); e != nil {
+			log.Printf("migration: %v", e)
+			return 1
+		}
+		log.Print("HVM_EVM_CONFIG_MIGRATION_OK")
+		return 0
 	}
 	c, e := testnet.Load(*path)
 	if e != nil {
