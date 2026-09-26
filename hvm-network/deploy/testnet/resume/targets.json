@@ -1,0 +1,34 @@
+[
+  {
+    "ip": "77.90.188.153",
+    "hostname": "46.249.32.85.DE.01",
+    "tep_node_id": "hashburst-dr1",
+    "tep_public_key": "b75568b136da2bead662ef80573fa938169198c9aa7c047236faed2eaa193348",
+    "node_id": "hvm-testnet-v1",
+    "chain_id": 4735490
+  },
+  {
+    "ip": "77.90.188.154",
+    "hostname": "46.249.32.85.DE.02",
+    "tep_node_id": "hashburst-witness-1",
+    "tep_public_key": "d8bee47919c3d65159d1067729170dae49d4b880faeef7a972c5918d3af3b679",
+    "node_id": "hvm-testnet-v2",
+    "chain_id": 4735490
+  },
+  {
+    "ip": "77.90.188.155",
+    "hostname": "erp-crm",
+    "tep_node_id": "node-6",
+    "tep_public_key": "2af980af076ceecf73d2847711abdc38e6d7167ccf0991be22d92d8ef05dd164",
+    "node_id": "hvm-testnet-v3",
+    "chain_id": 4735490
+  },
+  {
+    "ip": "77.90.188.157",
+    "hostname": "blockchain-repositories",
+    "tep_node_id": "n4",
+    "tep_public_key": "6c28f96e1ff9512b0e1095d8eb1701136aa68947d20cda6937e542f1f31fe806",
+    "node_id": "hvm-testnet-v4",
+    "chain_id": 4735490
+  }
+]

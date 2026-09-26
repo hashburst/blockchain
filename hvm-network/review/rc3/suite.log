@@ -1,0 +1,10 @@
+?   	hashburst	[no test files]
+ok  	hashburst/blockchain	1.864s
+ok  	hashburst/consensus	0.028s
+?   	hashburst/devnet/hvm-network/cmd/ctl	[no test files]
+?   	hashburst/devnet/hvm-network/cmd/fixture	[no test files]
+ok  	hashburst/devnet/hvm-network/cmd/node	0.076s
+?   	hashburst/devnet/hvm-network/internal/devnet	[no test files]
+ok  	hashburst/hvm	0.018s
+ok  	hashburst/protocolv2	0.010s
+ok  	hashburst/wallet	0.074s
