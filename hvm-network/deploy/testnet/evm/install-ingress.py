@@ -28,8 +28,9 @@ def main():
  text=V.read_text()
  if text.count(anchor)!=1 or 'hvm-testnet-evm.conf' in text or S.exists() or U.exists() or APP.exists():raise RuntimeError('unexpected or existing ingress; retain and inspect')
  backup=Path(tempfile.mkdtemp(prefix='hvm-evm-ingress-',dir='/root'));shutil.copy2(V,backup/'vhost.conf');print('BACKUP='+str(backup),flush=True)
- APP.mkdir(mode=0o755);shutil.copy2(R/'hvm-evm-gateway',APP/'hvm-evm-gateway');(APP/'hvm-evm-gateway').chmod(0o755);shutil.copy2(R/'metamask-canary.html',APP/'metamask-canary.html');(APP/'metamask-canary.html').chmod(0o644)
+ APP.mkdir(mode=0o755);APP.chmod(0o755);shutil.copy2(R/'hvm-evm-gateway',APP/'hvm-evm-gateway');(APP/'hvm-evm-gateway').chmod(0o755);shutil.copy2(R/'metamask-canary.html',APP/'metamask-canary.html');(APP/'metamask-canary.html').chmod(0o644)
  U.write_text('[Unit]\nDescription=HVM Network public EVM testnet gateway\nAfter=network.target hashburst-hvm-testnet-ingress.service\n[Service]\nDynamicUser=yes\nExecStart=/opt/hashburst-hvm-evm-gateway/hvm-evm-gateway\nRestart=on-failure\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nRestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX\nMemoryMax=256M\nTasksMax=64\n[Install]\nWantedBy=multi-user.target\n')
+ U.chmod(0o644)
  try:
   run('systemctl','daemon-reload');run('systemctl','enable','--now',U.name)
   for i in range(20):
@@ -38,7 +39,7 @@ def main():
    except Exception:
     if i==19:raise
     time.sleep(1)
-  shutil.copy2(R/'routes.conf',S);V.write_text(text.replace(anchor,anchor+'\n    include /etc/nginx/snippets/hvm-testnet-evm.conf;',1))
+  shutil.copy2(R/'routes.conf',S);S.chmod(0o644);V.write_text(text.replace(anchor,anchor+'\n    include /etc/nginx/snippets/hvm-testnet-evm.conf;',1))
   run('nginx','-t');run('systemctl','reload','nginx')
   for i in range(20):
    try:
@@ -52,3 +53,4 @@ def main():
  except BaseException:
   V.write_text(text);S.unlink(missing_ok=True);run('nginx','-t');run('systemctl','reload','nginx');subprocess.run(['systemctl','disable','--now',U.name]);raise
 if __name__=='__main__':main()
+
