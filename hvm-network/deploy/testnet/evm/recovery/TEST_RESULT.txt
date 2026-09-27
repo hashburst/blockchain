@@ -48,3 +48,8 @@ No live service was changed or validated from this environment. VPS finality, pu
 Six new cases: executor-to-runtime transition, disappearing PID followed by EXEC failure, persistently different binary retained, inactive unit skips reset-failed, unload race accepted only after loaded/inactive/no-PID recheck, genuine reset failure not suppressed.
 The original repair-flow test now requires stop/start with no reset of an inactive unit.
 No consensus or binary change; no VPS execution performed here.
+
+2026-09-27 v1.0.3 metadata-guard hotfix
+Full exec_scope preflight regression added with populated LoadState and FragmentPath, followed by rejection checks for each of RootDirectory, RootImage, NoExecPaths and ExecPaths.
+Permission suite: 15 passed, one UID/GID transition test skipped under sandbox restrictions. Existing recovery/agreement suites: 12 passed. No runtime or VPS mutation.
+Fix removes only LoadState/FragmentPath from the restriction predicate; they remain queried for diagnostics.

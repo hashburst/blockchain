@@ -124,6 +124,40 @@ class ExecPermissions(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'did not clear'):
                 m.reset_failed_if_needed('test.service')
 
+    def test_full_preflight_accepts_loaded_unit_metadata_but_rejects_real_restrictions(self):
+        real_path=Path
+        with tempfile.TemporaryDirectory() as directory:
+            base=real_path(directory)
+            def mapped_path(value):
+                if str(value).startswith('/etc') or str(value).startswith('/opt'):
+                    return base/str(value).lstrip('/')
+                return real_path(value)
+            prefix='hashburst-hvm-testnet';sha='abcdef0123456789'
+            root=mapped_path('/opt')/prefix/('evm-repair-'+sha[:12]);root.mkdir(parents=True);root.chmod(0o700)
+            cfg=mapped_path('/etc')/prefix/'node.json';cfg.parent.mkdir(parents=True)
+            evm={'activation_height':53303,'gas_limit':200000,'base_fee_wei':1}
+            cfg.write_text(json.dumps({'node_id':'v1','role':'validator','protocol':{'chain_id':4735490,'evm':evm}}))
+            binary=root/'hashburst-testnet';binary.write_text('binary');binary.chmod(0o755)
+            for name in ('candidate.json','job.json','offline.py'):
+                p=root/name;p.write_text('private');p.chmod(0o600)
+            (root/'result.json').write_text(json.dumps({'ok':True,'node_id':'v1','binary_sha256':sha,'evm':evm}))
+            unit=mapped_path('/etc/systemd/system')/(prefix+'.service.d');unit.mkdir(parents=True)
+            (unit/'50-evm-release.conf').write_text('[Service]\nExecStart=\nExecStart='+str(binary)+' --config '+str(cfg)+'\n')
+            props={'User':prefix,'DynamicUser':'no','ExecStart':str(binary)+' --config '+str(cfg),
+                   'LoadState':'loaded','FragmentPath':'/etc/systemd/system/'+prefix+'.service',
+                   'MainPID':'0','ExecMainStatus':'203'}
+            payload={'node':{'node_id':'v1','role':'validator'},'sha256':sha,'evm':evm}
+            with patch.object(m,'Path',side_effect=mapped_path),patch.object(m,'trusted_path',side_effect=lambda p,**kw:stat.S_IMODE(p.stat().st_mode)),patch.object(m,'executable_sha',return_value=sha),patch.object(m,'service_properties',return_value=props),patch.object(m,'base_main',create=True) as preserve,patch.object(m.subprocess,'run') as run:
+                result=m.exec_scope(payload)
+                self.assertEqual(result[5],'repair-exec');preserve.assert_called_once();run.assert_not_called()
+                for key in ('RootDirectory','RootImage','NoExecPaths','ExecPaths'):
+                    with self.subTest(restriction=key):
+                        props[key]='/restricted'
+                        with self.assertRaisesRegex(RuntimeError,'additional execution restrictions'):
+                            m.exec_scope(payload)
+                        props.pop(key)
+                run.assert_not_called()
+
     def test_private_or_symlink_release_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             p=Path(d)/'link';p.symlink_to('/bin/true')
