@@ -22,6 +22,7 @@ def check_wallet(p):
  require(p.get('chainId')==4735490 and p.get('endpoint')==RPC,'wallet network/endpoint mismatch')
  checks=p.get('checks',[])
  require([c['label'] for c in checks]==['transfer','deploy','call'],'three wallet transactions required')
+ finalized=rpc('eth_getBlockByNumber',['finalized',False])
  receipts=[]
  for c in checks:
   r=rpc('eth_getTransactionReceipt',[c['hash']]);require(r and r['status']=='0x1','unsuccessful receipt')
@@ -29,6 +30,7 @@ def check_wallet(p):
    require(r.get(k)==c['receipt'].get(k),'exported receipt differs: '+k)
   b=rpc('eth_getBlockByNumber',[r['blockNumber'],False]);require(b['hash']==r['blockHash'],'canonical block mismatch')
   require(int(r['gasUsed'],16)>0,'gas missing')
+  require(int(r['blockNumber'],16)<=int(finalized['number'],16),'receipt not finalized')
   tx=rpc('eth_getTransactionByHash',[c['hash']]);require(tx and tx['from'].lower()==p['account'].lower(),'wallet sender mismatch')
   require(int(tx['chainId'],16)==4735490,'transaction chain ID mismatch')
   receipts.append(r)
