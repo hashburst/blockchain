@@ -101,7 +101,7 @@ func (bc *Blockchain) readRecovery(id string) (*consensusRecovery, error) {
 	if s.Height != height || !strings.EqualFold(s.ParentHash, bc.HeadSnapshot().Hash) {
 		return nil, fmt.Errorf("recovery height/parent mismatch")
 	}
-	if s.ReservedRound >= bc.v2Config.ConsensusNetwork.MaxRound {
+	if s.ReservedRound >= consensusRoundLimit(bc.v2Config) {
 		return nil, fmt.Errorf("recovery exhausted consensus rounds")
 	}
 	set := bc.CurrentValidatorSet(height)
