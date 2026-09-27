@@ -32,3 +32,13 @@ PASS: 2 common-height guard tests. Go runtime and three release binaries are
 unchanged from v1.0.0; prior Go test results above are not new live results.
 User evidence: FIVE_OFFLINE_GATES_OK. Subsequent readiness/finality, public
 EVM ingress and wallet gates remain unverified.
+
+2026-09-27 recovery v1.0.2 EXEC-permission correction
+Input evidence: five completed offline jobs, same d91ed8eeef0f runtime; five 203/EXEC Permission denied failures, no MainPID/listener.
+Installer defect: root-only 0700 release directory, service dedicated user.
+Only recovery Python tooling changes; all three binaries reused byte-for-byte.
+Local Python checks: 20 tests passed; one additional real UID/GID execution test skipped because this sandbox cannot switch UID/GID (EPERM/EINVAL).
+Passed guards cover repair flow, private file modes/content retention, no mutation during preflight, no restart of a running correct binary, refusal for wrong binary or unrelated failure, original plan, journal/identity gates, SSH failure handling, common-height agreement and orchestration stops.
+All Python files and concatenated remote source compiled.
+The package requires an actual --help executable probe under the systemd service UID/GID on each VPS before service start. This probe does not load config/state.
+No live service was changed or validated from this environment. VPS finality, public EVM and real MetaMask gates remain pending; mainnet is not activated.

@@ -15,7 +15,7 @@ def validate_plan(p):
  if p.get('chain_id')!=4735490 or p.get('binary_sha256')!=ORIGINAL or p.get('observer_node_id')!='hvm-testnet-ingress':raise RuntimeError('not the original partial-rollout plan')
  if p.get('evm')!={'activation_height':53303,'gas_limit':200000,'base_fee_wei':1}:raise RuntimeError('original EVM parameters changed')
 def main():
- a=argparse.ArgumentParser();a.add_argument('action',choices=['recover','start-prepared','verify','restart-v4']);a.add_argument('--plan',required=True);a.add_argument('--retry-offline',action='store_true');args=a.parse_args()
+ a=argparse.ArgumentParser();a.add_argument('action',choices=['recover','start-prepared','verify','restart-v4','repair-exec']);a.add_argument('--plan',required=True);a.add_argument('--retry-offline',action='store_true');args=a.parse_args()
  plan=json.loads(Path(args.plan).read_text());validate_plan(plan)
  for line in (R/'SHA256SUMS').read_text().splitlines():
   sha,name=line.split('  ',1)
@@ -23,9 +23,9 @@ def main():
  raw=(R/'hashburst-testnet').read_bytes();sha=hashlib.sha256(raw).hexdigest();evm=plan['evm']
  nodes=common.NODES+[{'ip':'64.31.4.9','node_id':'hvm-testnet-ingress','role':'observer'}]
  logs=Path(tempfile.mkdtemp(prefix='evm-recovery-',dir=R));sessions={}
- source=(R/'node-rollout.py').read_text().replace('def main(p):','def base_main(p):',1)+'\n'+(R/'remote.py').read_text()
+ source=(R/'node-rollout.py').read_text().replace('def main(p):','def base_main(p):',1)+'\n'+(R/'exec-permissions.py').read_text()+'\n'+(R/'remote.py').read_text()
  def call(n,action,**kw):
-  payload={'node':n,'action':action,'sha256':sha,'evm':evm,'_timeout':180 if action=='prepare' else 60,**kw}
+  payload={'node':n,'action':action,'sha256':sha,'evm':evm,'_timeout':180 if action in ('prepare','exec-preflight','exec-repair') else 60,**kw}
   try:r=sessions[n['ip']].call(payload)
   except Exception as e:
    (logs/(str(time.time_ns())+'-'+n['node_id']+'-'+action+'-error.txt')).write_text(str(e));raise
@@ -40,7 +40,7 @@ def main():
    if errors:raise RuntimeError('; '.join(errors))
    return results
  def progress():
-  deadline=time.monotonic()+14400;start=None
+  deadline=time.monotonic()+14400;start=None;last_report=0
   while time.monotonic()<deadline:
    try:
     states=batch('status')
@@ -54,12 +54,24 @@ def main():
      elif height>=start+5:return height
    except Exception as e:
     require_live_transports(sessions)
+    runtime_rows=batch('startup-state')
+    for n,row in zip(nodes,runtime_rows):
+     if row.get('failed'):raise RuntimeError('RUNTIME_FAILED '+n['node_id']+' '+json.dumps(row))
+    if time.monotonic()-last_report>=60:
+     for n,row in zip(nodes,runtime_rows):print('RUNTIME '+n['node_id']+' '+json.dumps(row),flush=True)
+     last_report=time.monotonic()
     print('WAIT '+str(e),flush=True)
    time.sleep(15)
   raise RuntimeError('finality wait expired; services retained; run verify after inspecting logs')
  try:
   for n in nodes:
    print('SSH_AUTH='+n['ip'],flush=True);sessions[n['ip']]=transport.Session(transport.ssh_command(n['ip']),source)
+  if args.action=='repair-exec':
+   rows=batch('exec-preflight')
+   for row in rows:print('EXEC_PREFLIGHT='+json.dumps(row),flush=True)
+   print('FIVE_OFFLINE_AND_IDENTITY_GATES_VERIFIED',flush=True)
+   rows=batch('exec-repair')
+   for row in rows:print('EXEC_REPAIR='+json.dumps(row),flush=True)
   if args.action=='recover':
    if any(r['service_state'] not in ('inactive','failed') for r in batch('inspect')):raise RuntimeError('all five services must be stopped; active services retained. Use verify if already started.')
    batch('prepare',files={'hashburst-testnet':base64.b64encode(raw).decode(),'offline.py':base64.b64encode((R/'offline.py').read_bytes()).decode()},retry_offline=args.retry_offline)

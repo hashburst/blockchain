@@ -1,85 +1,42 @@
-# Ripresa dopo migrazione completata (v1.0.1)
+# Riparazione EXEC e completamento testnet, v1.0.2
 
-Gli output del 27 settembre confermano FIVE_OFFLINE_GATES_OK e le richieste di avvio, poi la perdita delle sessioni SSH dei quattro validatori. La finalità non è ancora verificata. La v1.0.0 continuava erroneamente ad attendere connessioni dichiarate inutilizzabili: questa versione termina immediatamente su quell'errore. Non modifica il runtime Go né i binari distribuiti.
+Causa identificata negli allegati del 27 settembre: tutti i cinque job offline hanno completato la migrazione, ma il pacchetto recovery creava la directory del binario root:root 0700. Il servizio utilizza un utente dedicato: systemd fallisce con 203/EXEC e Permission denied prima del replay. È un difetto dell'installer recovery.
 
-Dal Mac, nella cartella del nuovo pacchetto, dopo il controllo SHA256SUMS:
+La release mantiene gli stessi tre binari della v1.0.0/v1.0.1. Cambiano installer, ripresa e test. Nessuna modifica al consenso in questa correzione. Il runtime SHA256 è d91ed8eeef0fb9290f74516883d536caf52500878ef89099a81f1a4b6064c8d3.
+
+## Comando dal Mac
+
+Eseguire dalla cartella che contiene il vecchio piano, dopo aver scaricato il nuovo archivio:
 
 ```sh
+tar -xzf HashBurst-EVM-Recovery-v1.0.2.tar.gz
+cd HashBurst-EVM-Recovery-v1.0.2
+shasum -a 256 -c SHA256SUMS &&
 python3 resume-live.py --plan ../HashBurst-EVM-Testnet-RC-19a76ac5/plan.json
 ```
 
-Il primo passaggio è in sola lettura: nuove connessioni SSH, stato servizi, health, processi, listener 18009, esiti offline già registrati e ultimi log. Se un nodo non è pronto, salva startup-diagnostic-* e si ferma senza avvii, riavvii o migrazioni. Fornire quei log. Il mancato health da solo non distingue replay, errore di avvio e altri problemi.
+Non eseguire nuovamente activate.py, finish.py o recover.py recover. Non cambiare il piano. Lasciare aperto il Mac e la connessione durante l'attesa.
 
-Se tutti sono pronti, procede con confronto di finalità, unico riavvio controllato di v4 e pubblicazione HTTPS. Mantiene i marker del riavvio già presenti sui nodi per evitarne la ripetizione. Le prove MetaMask richiedono ancora le conferme nel wallet, descritte sotto. La nuova cartella non contiene i log o gate locali della precedente: conservarla insieme a quella vecchia.
+## Sequenza automatica
 
-Non utilizzare finish.py/recover nella fase attuale: migrazione già superata. Non riavviare manualmente i cinque nodi per risolvere una disconnessione del controllo dal Mac. I comandi generali seguenti sono mantenuti come riferimento delle altre fasi.
+1. Autentica cinque sessioni SSH nuove. Verifica identità, testnet 4735490, configurazione EVM esistente, binario, cinque risultati offline, prefissi dei journal, override systemd e utente del servizio. Nessuna modifica se un preflight fallisce.
+2. Per il solo errore 203/EXEC, ferma il ciclo di riavvio, registra le evidenze e cambia esclusivamente la directory evm-repair-d91ed8eeef0f da 0700 a 0755. Nessun chmod ricorsivo; candidate.json, job.json e offline.py rimangono 0600. Non cambia unità, utente, hardening, database, config, pin, chiavi o journal.
+3. Prova l'esecuzione di --help con UID/GID del servizio: non carica configurazioni o dati. Avvia il servizio e verifica un processo reale con lo SHA atteso. Un processo già in esecuzione con lo stesso binario viene mantenuto senza restart. Una ripresa dopo interruzione usa la prova registrata.
+4. Attende il replay e confronta i cinque nodi alla stessa altezza finalizzata, includendo EVM dopo 53303. Attende cinque ulteriori blocchi. Può durare fino a quattro ore; un nuovo fallimento systemd o una sessione SSH definitivamente persa interrompe subito il controllo. Lo script non scambia un processo attivo per una finalità verificata.
+5. Esegue o riprende la prova di riavvio del solo v4, controllando journal, pin e nuovo precommit. Pubblica l'ingress EVM solo dopo questi gate.
 
----
+L'attivazione resta 53303, gas limit 200000, base fee 1 wei. Legacy 1337 invariata; mainnet 4735489 non viene attivata da questo pacchetto. Non vengono rigenerati checkpoint o genesis.
 
-# Recupero EVM della testnet HashBurst
+Se SSH si interrompe, i servizi rimangono intatti. Lo stesso comando riprende senza migrazione e senza riavviare i processi già attivi. Con un errore diverso da 203/EXEC si ferma conservando i log: non forza l'avvio. Il riavvio di v4 già registrato non viene ripetuto. La directory evm-recovery-* contiene gli esiti; inspect-live.py raccoglie lo stato in sola lettura se necessario.
 
-Questo pacchetto riprende il rollout interrotto con il piano originale: chain ID 4735490, attivazione EVM a 53303, gas per blocco 200000, base fee 1 wei. Non eseguire il vecchio activate.py/rollout.py. Non rigenerare il piano, il genesis, le identità o i journal. La rete legacy 1337 resta invariata; questo pacchetto non attiva mainnet 4735489.
+La pubblicazione richiede GATE-restart-v4.json. Dopo una pubblicazione riuscita basta verify-public.py. Una pubblicazione parziale si ferma richiedendo l'esame dei suoi log.
 
-Il runtime corregge la lettura di un recovery snapshot creato prima dell'aggiunta della futura attivazione EVM. La compatibilità del digest è ammessa esclusivamente prima dell'altezza di attivazione sulla testnet 4735490, quando tutte le altre regole coincidono. Lock, QC, firme, parent e journal continuano a essere verificati. Snapshot e journal non vengono riscritti dalla migrazione.
-
-I test locali sono descritti in TEST_RESULT.txt. Non certificano l'esito sulle VPS. Il timeout originale non è stato riprodotto sul database live: i nuovi log espongono verifica, replay, recovery e PID/CPU. Un processo realmente bloccato produrrà una diagnosi; il pacchetto non lo aggira cancellando i dati.
-
-## Procedura in sequenza
-
-Dopo estrazione e checksum, `python3 finish.py --plan ../HashBurst-EVM-Testnet-RC-19a76ac5/plan.json` esegue recupero, riavvio di v4 e pubblicazione HTTPS in ordine, fermandosi al primo errore. Dopo il successo restano le conferme reali MetaMask (sezione 4) e la revisione/merge GitHub (sezione 5). Le sezioni seguenti consentono anche di eseguire e riprendere ogni fase separatamente.
-
-## 1. Sul Mac: recupero e avvio
-
-Richiede Python 3.10+, SSH/scp e password dei cinque nodi. I binari sono Linux amd64 e vengono eseguiti solo sulle VPS.
-
-```sh
-tar -xzf HashBurst-EVM-Recovery-v1.0.1.tar.gz
-cd HashBurst-EVM-Recovery-v1.0.1
-shasum -a 256 -c SHA256SUMS &&
-python3 recover.py recover --plan ../HashBurst-EVM-Testnet-RC-19a76ac5/plan.json
-```
-
-Il comando verifica il piano originale e i journal salvati dal precedente stop, trasferisce il nuovo runtime, esegue migrazione e verifica offline sui cinque nodi, poi avvia i servizi solo dopo cinque esiti positivi. Non aggiorna altri servizi. Per ogni nodo la migrazione è un job systemd indipendente dalla sessione SSH. Il polling dura al massimo quattro ore: la sua scadenza lascia il job intatto.
-
-Dopo un'interruzione SSH o del polling, lo stesso comando si riaggancia ai job. Non riavviarli manualmente. Un job fallito richiede l'esame della diagnosi stampata; `--retry-offline` consente un tentativo solo se i servizi restano fermi e i file protetti corrispondono al precedente tentativo. Non usare questo flag per superare una verifica fallita.
-
-Se i cinque job sono completati ma l'avvio dei servizi è stato interrotto:
-
-```sh
-python3 recover.py start-prepared --plan ../HashBurst-EVM-Testnet-RC-19a76ac5/plan.json
-```
-
-`start-prepared` richiede cinque risultati offline coerenti e avvia soltanto servizi non già attivi. Non migra e non riavvia quelli attivi.
-
-Per sola verifica dopo l'avvio:
-
-```sh
-python3 recover.py verify --plan ../HashBurst-EVM-Testnet-RC-19a76ac5/plan.json
-```
-
-Il confronto usa una stessa altezza finalizzata sui quattro validatori e sull'observer e include i commitment EVM dopo l'attivazione. Le attestazioni sono verificate dal runtime: il comparatore non è un secondo verificatore crittografico indipendente.
-
-## 2. Un solo riavvio controllato
-
-```sh
-python3 recover.py restart-v4 --plan ../HashBurst-EVM-Testnet-RC-19a76ac5/plan.json
-```
-
-Gli altri tre validatori rimangono attivi. Il comando richiede avanzamento, accordo finale, prefisso journal e pin conservati e una nuova registrazione PRECOMMIT. Se esiste la prova del riavvio, riprende la verifica senza richiedere un secondo riavvio. Se il riavvio è stato interrotto fra stop e start, usare prima `start-prepared` e poi ripetere il controllo. Il replay può richiedere tempo.
-
-## 3. Pubblicazione dell'ingress EVM
-
-```sh
-python3 publish.py
-```
-
-Richiede GATE-restart-v4.json per il binario distribuito. Installa il gateway e le route dedicate su 64.31.4.9, preservando l'ingress HVM nativo, poi verifica HTTPS dal Mac. Non espone API amministrative, chiavi o funzioni di firma del nodo.
-
+Endpoint previsti dopo i gate:
 - JSON-RPC: https://blockchainapi.one/api/hashburst/hvm/testnet/evm
 - WebSocket: wss://blockchainapi.one/api/hashburst/hvm/testnet/evm/ws
-- Collaudo: https://blockchainapi.one/hvm-testnet-metamask/
+- Collaudo wallet: https://blockchainapi.one/hvm-testnet-metamask/
 
-L'installer è destinato alla prima pubblicazione. Se rileva un'installazione EVM già presente, si ferma senza sovrascriverla. Dopo una pubblicazione riuscita basta `python3 verify-public.py`. Un'installazione parziale richiede di leggere il backup/log indicato, non cancellare file alla cieca.
+Le conferme MetaMask rimangono manuali. Non viene dichiarato un risultato live usando soltanto i test locali.
 
 ## 4. Account MetaMask e tre transazioni reali
 
@@ -139,6 +96,7 @@ Per riprodurre i test dal repository al commit SOURCE_COMMIT, usare Go 1.25.7:
 cd hvm-network
 CGO_ENABLED=0 go test ./... -count=1 -timeout=10m
 python3 deploy/testnet/evm/recovery/test-recovery.py
+python3 deploy/testnet/evm/recovery/test-exec-permissions.py
 cd ../evm/execution
 CGO_ENABLED=0 go test ./... -count=1 -timeout=10m
 ```

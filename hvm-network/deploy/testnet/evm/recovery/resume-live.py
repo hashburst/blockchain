@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Resume after FIVE_OFFLINE_GATES_OK, never rerun migration or initial start."""
+"""Repair the proven EXEC permission failure, then verify; never repeat migration."""
 import argparse,subprocess,sys
 from pathlib import Path
 R=Path(__file__).resolve().parent
 def main():
  a=argparse.ArgumentParser();a.add_argument('--plan',required=True);args=a.parse_args();plan=str(Path(args.plan).resolve())
- steps=[['inspect-live.py'],['recover.py','verify','--plan',plan],['recover.py','restart-v4','--plan',plan]]
+ steps=[['recover.py','repair-exec','--plan',plan],['recover.py','restart-v4','--plan',plan]]
  steps.append(['verify-public.py'] if (R/'GATE-public.json').exists() else ['publish.py'])
  for step in steps:
   print('STEP='+' '.join(step),flush=True)
