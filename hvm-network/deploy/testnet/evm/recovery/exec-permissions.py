@@ -35,7 +35,7 @@ def trusted_path(path, directory=False):
 def service_properties(service):
     props = ('User', 'Group', 'DynamicUser', 'MainPID', 'ActiveState', 'SubState',
              'ExecMainStatus', 'NRestarts', 'ExecStart', 'RootDirectory', 'RootImage',
-             'NoExecPaths', 'ExecPaths')
+             'NoExecPaths', 'ExecPaths', 'LoadState', 'FragmentPath')
     args = ['systemctl', 'show', service]
     for key in props:
         args.extend(['-p', key])
@@ -43,17 +43,58 @@ def service_properties(service):
     return dict(line.split('=', 1) for line in out.splitlines() if '=' in line)
 
 
+class PendingExecution(RuntimeError):
+    """A sampled MainPID has not yet been confirmed as the target executable."""
+
+
 def launch_decision(properties, binary, sha, marker_exists):
     pid = int(properties.get('MainPID', '0'))
     if pid:
-        if executable_sha(Path('/proc') / str(pid) / 'exe') != sha:
-            raise RuntimeError('existing process has a different binary; retained')
+        actual = executable_sha(Path('/proc') / str(pid) / 'exe')
+        if actual != sha:
+            raise PendingExecution('existing process has a different binary; retained; pid=' + str(pid) + ' sha256=' + actual)
         return 'already-running'
     if properties.get('ExecMainStatus') == '203':
         return 'repair-exec'
     if marker_exists and properties.get('ActiveState') in ('inactive', 'failed'):
         return 'resume-recorded-start'
+    if properties.get('ActiveState') in ('activating', 'active', 'deactivating'):
+        raise PendingExecution('service transition; no confirmed executable yet')
     raise RuntimeError('not the observed 203/EXEC failure; service retained')
+
+
+def settled_launch_decision(service, binary, sha, marker_exists, timeout=15):
+    # Type=simple may publish MainPID before exec; /proc may still identify
+    # systemd's executor or disappear between samples. Never stop that PID.
+    deadline = time.monotonic() + timeout
+    last = ''
+    while True:
+        properties = service_properties(service)
+        try:
+            decision = launch_decision(properties, binary, sha, marker_exists)
+            return properties, decision
+        except (PendingExecution, FileNotFoundError, ProcessLookupError, PermissionError) as exc:
+            last = str(exc)
+        if time.monotonic() >= deadline:
+            raise RuntimeError('EXEC_IDENTITY_UNCONFIRMED; no service changed; ' + last +
+                               '; last_service_state=' + json.dumps(properties))
+        time.sleep(0.5)
+
+
+def reset_failed_if_needed(service):
+    state = service_properties(service)
+    if state.get('ActiveState') != 'failed':
+        return False
+    result = subprocess.run(['systemctl', 'reset-failed', service],
+                            capture_output=True, text=True, timeout=15)
+    if result.returncode:
+        # A stopped unit can be unloaded between the query and reset-failed.
+        # Only a fresh, loaded inactive unit is an acceptable disappearance.
+        after = service_properties(service)
+        if after.get('LoadState') != 'loaded' or after.get('ActiveState') != 'inactive' or int(after.get('MainPID', '0')):
+            raise RuntimeError('reset-failed did not clear failure: ' + result.stderr.strip() +
+                               '; state=' + json.dumps(after))
+    return True
 
 
 def probe_exec(binary, user, group):
@@ -102,7 +143,7 @@ def exec_scope(p):
         raise RuntimeError('effective ExecStart differs')
     if not props.get('User') or props['User'] == 'root' or props.get('DynamicUser') == 'yes':
         raise RuntimeError('expected a dedicated static service user')
-    if any(props.get(key) for key in ('RootDirectory', 'RootImage', 'NoExecPaths', 'ExecPaths')):
+    if any(props.get(key) for key in ('RootDirectory', 'RootImage', 'NoExecPaths', 'ExecPaths', 'LoadState', 'FragmentPath')):
         raise RuntimeError('additional execution restrictions require review; hardening retained')
     marker = root / 'exec-permissions-proof.json'
     if marker.exists():
@@ -110,7 +151,7 @@ def exec_scope(p):
         saved = json.loads(marker.read_text())
         if saved.get('binary_sha256') != p['sha256'] or saved.get('node_id') != n['node_id']:
             raise RuntimeError('permission repair evidence differs')
-    decision = launch_decision(props, binary, p['sha256'], marker.exists())
+    props, decision = settled_launch_decision(service, binary, p['sha256'], marker.exists())
     base_main(dict(p, action='preservation'))
     return root, binary, service, props, marker, decision, mode
 
@@ -132,8 +173,8 @@ def exec_action(p):
             f.flush()
             os.fsync(f.fileno())
     # Recheck immediately before stopping the known EXEC crash loop.
-    current = service_properties(service)
-    if launch_decision(current, binary, p['sha256'], True) == 'already-running':
+    current, current_decision = settled_launch_decision(service, binary, p['sha256'], True)
+    if current_decision == 'already-running':
         return dict(result, no_restart=True)
     subprocess.run(['systemctl', 'stop', service], check=True, timeout=30)
     stopped = service_properties(service)
@@ -143,7 +184,7 @@ def exec_action(p):
     os.chmod(root, 0o755)  # Only this release directory; no recursive chmod.
     probe_exec(binary, props['User'], props.get('Group', ''))
     base_main(dict(p, action='preservation'))
-    subprocess.run(['systemctl', 'reset-failed', service], check=True, timeout=15)
+    reset_failed_if_needed(service)
     subprocess.run(['systemctl', 'start', '--no-block', service], check=True, timeout=15)
     # Prove a real process, without waiting here for long canonical replay.
     deadline = time.monotonic() + 40

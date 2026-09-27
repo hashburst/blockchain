@@ -76,6 +76,7 @@ class ExecPermissions(unittest.TestCase):
             marker=root/'exec-permissions-proof.json'
             scope=(root,root/'runtime','test.service',{'User':'dedicated','Group':'dedicated'},marker,'repair-exec',0o700)
             properties=[{'MainPID':'0','ExecMainStatus':'203'},
+                        {'MainPID':'0','ActiveState':'inactive'},
                         {'MainPID':'0','ActiveState':'inactive'}]+[{'MainPID':'99','ActiveState':'active','SubState':'running'}]*10
             clock=itertools.count()
             with patch.object(m,'exec_scope',return_value=scope),patch.object(m,'service_properties',side_effect=properties),patch.object(m,'trusted_path'),patch.object(m,'probe_exec') as probe,patch.object(m,'base_main',create=True) as preserve,patch.object(m.subprocess,'run') as run,patch.object(m,'executable_sha',return_value='sha'),patch.object(m.time,'sleep'),patch.object(m.time,'monotonic',side_effect=lambda:next(clock)):
@@ -86,8 +87,42 @@ class ExecPermissions(unittest.TestCase):
             self.assertEqual(secret.read_text(),'unchanged')
             self.assertEqual(stat.S_IMODE(marker.stat().st_mode),0o600)
             self.assertEqual(json.loads(marker.read_text())['directory_mode'],'0o700')
-            self.assertEqual([c.args[0][1] for c in run.call_args_list],['stop','reset-failed','start'])
+            self.assertEqual([c.args[0][1] for c in run.call_args_list],['stop','start'])
             probe.assert_called_once();preserve.assert_called_once()
+
+    def test_transient_executor_then_real_binary_is_preserved(self):
+        state={'MainPID':'23','ActiveState':'active','SubState':'running'}
+        with patch.object(m,'service_properties',return_value=state),patch.object(m,'executable_sha',side_effect=['systemd-executor','sha']),patch.object(m.time,'sleep'),patch.object(m.subprocess,'run') as run:
+            _,decision=m.settled_launch_decision('test.service',Path('/bin/runtime'),'sha',False)
+            self.assertEqual(decision,'already-running');run.assert_not_called()
+
+    def test_exiting_executor_then_203_is_recognized(self):
+        states=[{'MainPID':'23','ActiveState':'active'}, {'MainPID':'0','ExecMainStatus':'203','SubState':'auto-restart'}]
+        with patch.object(m,'service_properties',side_effect=states),patch.object(m,'executable_sha',side_effect=FileNotFoundError('process exited')),patch.object(m.time,'sleep'):
+            _,decision=m.settled_launch_decision('test.service',Path('/bin/runtime'),'sha',False)
+            self.assertEqual(decision,'repair-exec')
+
+    def test_persistently_wrong_process_stops_without_mutation(self):
+        with patch.object(m,'service_properties',return_value={'MainPID':'23'}),patch.object(m,'executable_sha',return_value='different'),patch.object(m.subprocess,'run') as run:
+            with self.assertRaisesRegex(RuntimeError,'EXEC_IDENTITY_UNCONFIRMED'):
+                m.settled_launch_decision('test.service',Path('/bin/runtime'),'sha',False,timeout=0)
+            run.assert_not_called()
+
+    def test_inactive_unit_does_not_need_reset_failed(self):
+        with patch.object(m,'service_properties',return_value={'ActiveState':'inactive','MainPID':'0'}),patch.object(m.subprocess,'run') as run:
+            self.assertFalse(m.reset_failed_if_needed('test.service'));run.assert_not_called()
+
+    def test_unload_race_only_accepted_after_loaded_inactive_check(self):
+        states=[{'ActiveState':'failed'}, {'LoadState':'loaded','ActiveState':'inactive','MainPID':'0'}]
+        result=subprocess.CompletedProcess([],1,'','Unit not loaded')
+        with patch.object(m,'service_properties',side_effect=states),patch.object(m.subprocess,'run',return_value=result):
+            self.assertTrue(m.reset_failed_if_needed('test.service'))
+
+    def test_real_reset_failure_not_suppressed(self):
+        result=subprocess.CompletedProcess([],1,'','access denied')
+        with patch.object(m,'service_properties',return_value={'LoadState':'loaded','ActiveState':'failed','MainPID':'0'}),patch.object(m.subprocess,'run',return_value=result):
+            with self.assertRaisesRegex(RuntimeError,'did not clear'):
+                m.reset_failed_if_needed('test.service')
 
     def test_private_or_symlink_release_rejected(self):
         with tempfile.TemporaryDirectory() as d:

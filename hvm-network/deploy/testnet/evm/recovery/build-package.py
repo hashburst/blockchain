@@ -10,7 +10,7 @@ def main():
  if (ROOT/'.git').exists():
   head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
   if head!=args.commit or subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip():raise RuntimeError('clean checkout at requested commit required')
- out=Path(args.out).resolve();out.mkdir(parents=True,exist_ok=True);dest=out/'HashBurst-EVM-Recovery-v1.0.2';dest.mkdir()
+ out=Path(args.out).resolve();out.mkdir(parents=True,exist_ok=True);dest=out/'HashBurst-EVM-Recovery-v1.0.3';dest.mkdir()
  env=dict(os.environ,CGO_ENABLED='0',GOOS='linux',GOARCH='amd64',GOTOOLCHAIN='local')
  for name in ('hashburst-testnet','hvm-evm-gateway','hvm-evm-fund'):
   subprocess.run(['go','build','-p','1','-trimpath','-buildvcs=false','-o',str(dest/name),'./cmd/'+name],cwd=ROOT/'hvm-network',env=env,check=True)
