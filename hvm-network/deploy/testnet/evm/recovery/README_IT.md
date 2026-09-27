@@ -1,16 +1,20 @@
-# Riparazione EXEC e completamento testnet, v1.0.2
+# Riparazione EXEC e completamento testnet, v1.0.3
 
 Causa identificata negli allegati del 27 settembre: tutti i cinque job offline hanno completato la migrazione, ma il pacchetto recovery creava la directory del binario root:root 0700. Il servizio utilizza un utente dedicato: systemd fallisce con 203/EXEC e Permission denied prima del replay. È un difetto dell'installer recovery.
 
 La release mantiene gli stessi tre binari della v1.0.0/v1.0.1. Cambiano installer, ripresa e test. Nessuna modifica al consenso in questa correzione. Il runtime SHA256 è d91ed8eeef0fb9290f74516883d536caf52500878ef89099a81f1a4b6064c8d3.
+
+La v1.0.3 corregge la ripresa parziale della v1.0.2: dopo lo stop non richiede reset-failed a un servizio già inattivo. Identifica il processo con una finestra di lettura limitata a 15 secondi, perché MainPID può essere pubblicato prima dell'esecuzione del binario. Se l'identità resta diversa o incerta, si ferma senza toccare quel processo e registra PID, hash osservato e stato. La causa specifica del messaggio di v2 non è confermata dai soli log: il controllo la distingue sul nodo.
+
+Su v1, v3 e v4 il precedente output indica che chmod e la prova --help erano già superati prima dell'errore reset-failed. La nuova versione riprende dai marker salvati. L'observer, se già avviato, rimane in esecuzione. Non riesegue i job offline.
 
 ## Comando dal Mac
 
 Eseguire dalla cartella che contiene il vecchio piano, dopo aver scaricato il nuovo archivio:
 
 ```sh
-tar -xzf HashBurst-EVM-Recovery-v1.0.2.tar.gz
-cd HashBurst-EVM-Recovery-v1.0.2
+tar -xzf HashBurst-EVM-Recovery-v1.0.3.tar.gz
+cd HashBurst-EVM-Recovery-v1.0.3
 shasum -a 256 -c SHA256SUMS &&
 python3 resume-live.py --plan ../HashBurst-EVM-Testnet-RC-19a76ac5/plan.json
 ```

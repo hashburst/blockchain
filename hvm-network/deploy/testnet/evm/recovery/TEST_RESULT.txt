@@ -42,3 +42,9 @@ Passed guards cover repair flow, private file modes/content retention, no mutati
 All Python files and concatenated remote source compiled.
 The package requires an actual --help executable probe under the systemd service UID/GID on each VPS before service start. This probe does not load config/state.
 No live service was changed or validated from this environment. VPS finality, public EVM and real MetaMask gates remain pending; mainnet is not activated.
+
+2026-09-27 v1.0.3 partial EXEC-repair resume
+26 Python tests passed; one UID/GID regression remains skipped due to sandbox restrictions.
+Six new cases: executor-to-runtime transition, disappearing PID followed by EXEC failure, persistently different binary retained, inactive unit skips reset-failed, unload race accepted only after loaded/inactive/no-PID recheck, genuine reset failure not suppressed.
+The original repair-flow test now requires stop/start with no reset of an inactive unit.
+No consensus or binary change; no VPS execution performed here.
