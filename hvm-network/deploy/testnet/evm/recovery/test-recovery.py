@@ -1,10 +1,11 @@
+from types import SimpleNamespace
 import copy,hashlib,importlib.util,json,tempfile,unittest
 from pathlib import Path
 from unittest.mock import patch
 R=Path(__file__).resolve().parent
 def module(name):
  spec=importlib.util.spec_from_file_location(name,R/(name+'.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
-offline=module('offline');recover=module('recover');public=module('verify-public')
+offline=module('offline');recover=module('recover');public=module('verify-public');resume=module('resume-live')
 class Guards(unittest.TestCase):
  def setUp(self):
   self.evm={'activation_height':53303,'gas_limit':200000,'base_fee_wei':1}
@@ -12,6 +13,19 @@ class Guards(unittest.TestCase):
   self.cfg={'node_id':'hvm-testnet-v1','role':'validator','protocol':{'chain_id':4735490},'peer_id':'peer','genesis_hash':'genesis'}
   self.job={'node_id':'hvm-testnet-v1','role':'validator','evm':self.evm}
   self.proof={'binary_sha256':recover.ORIGINAL,'chain_id':4735490,'evm':self.evm,'identity':'peer','genesis':'genesis'}
+ def test_resume_stops_before_verify_if_diagnostics_fail(self):
+  with patch('sys.argv',['resume-live.py','--plan','plan.json']),patch.object(resume.subprocess,'run',return_value=SimpleNamespace(returncode=2)) as run:
+   self.assertEqual(resume.main(),2);self.assertEqual(run.call_count,1);self.assertEqual(run.call_args.args[0][1],'inspect-live.py')
+ def test_resume_never_repeats_migration(self):
+  with patch('sys.argv',['resume-live.py','--plan','plan.json']),patch.object(resume.subprocess,'run',return_value=SimpleNamespace(returncode=0)) as run:
+   self.assertEqual(resume.main(),0)
+   steps=[c.args[0][1:] for c in run.call_args_list]
+   self.assertEqual(steps[1][0:2],['recover.py','verify']);self.assertEqual(steps[2][0:2],['recover.py','restart-v4'])
+   self.assertFalse(any('start-prepared' in s or 'recover' in s for s in steps))
+ def test_closed_transport_is_fatal(self):
+  recover.require_live_transports({'v1':SimpleNamespace(broken=False)})
+  with self.assertRaisesRegex(RuntimeError,'SSH_TRANSPORT_LOST'):
+   recover.require_live_transports({'v1':SimpleNamespace(broken=True)})
  def test_original_plan_only(self):
   recover.validate_plan(self.plan)
   for key,value in [('chain_id',4735489),('binary_sha256','replacement'),('evm',dict(self.evm,activation_height=60000))]:

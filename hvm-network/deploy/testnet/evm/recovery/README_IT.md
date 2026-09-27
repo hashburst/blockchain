@@ -1,3 +1,21 @@
+# Ripresa dopo migrazione completata (v1.0.1)
+
+Gli output del 27 settembre confermano FIVE_OFFLINE_GATES_OK e le richieste di avvio, poi la perdita delle sessioni SSH dei quattro validatori. La finalità non è ancora verificata. La v1.0.0 continuava erroneamente ad attendere connessioni dichiarate inutilizzabili: questa versione termina immediatamente su quell'errore. Non modifica il runtime Go né i binari distribuiti.
+
+Dal Mac, nella cartella del nuovo pacchetto, dopo il controllo SHA256SUMS:
+
+```sh
+python3 resume-live.py --plan ../HashBurst-EVM-Testnet-RC-19a76ac5/plan.json
+```
+
+Il primo passaggio è in sola lettura: nuove connessioni SSH, stato servizi, health, processi, listener 18009, esiti offline già registrati e ultimi log. Se un nodo non è pronto, salva startup-diagnostic-* e si ferma senza avvii, riavvii o migrazioni. Fornire quei log. Il mancato health da solo non distingue replay, errore di avvio e altri problemi.
+
+Se tutti sono pronti, procede con confronto di finalità, unico riavvio controllato di v4 e pubblicazione HTTPS. Mantiene i marker del riavvio già presenti sui nodi per evitarne la ripetizione. Le prove MetaMask richiedono ancora le conferme nel wallet, descritte sotto. La nuova cartella non contiene i log o gate locali della precedente: conservarla insieme a quella vecchia.
+
+Non utilizzare finish.py/recover nella fase attuale: migrazione già superata. Non riavviare manualmente i cinque nodi per risolvere una disconnessione del controllo dal Mac. I comandi generali seguenti sono mantenuti come riferimento delle altre fasi.
+
+---
+
 # Recupero EVM della testnet HashBurst
 
 Questo pacchetto riprende il rollout interrotto con il piano originale: chain ID 4735490, attivazione EVM a 53303, gas per blocco 200000, base fee 1 wei. Non eseguire il vecchio activate.py/rollout.py. Non rigenerare il piano, il genesis, le identità o i journal. La rete legacy 1337 resta invariata; questo pacchetto non attiva mainnet 4735489.
@@ -15,8 +33,8 @@ Dopo estrazione e checksum, `python3 finish.py --plan ../HashBurst-EVM-Testnet-R
 Richiede Python 3.10+, SSH/scp e password dei cinque nodi. I binari sono Linux amd64 e vengono eseguiti solo sulle VPS.
 
 ```sh
-tar -xzf HashBurst-EVM-Recovery-v1.0.0.tar.gz
-cd HashBurst-EVM-Recovery-v1.0.0
+tar -xzf HashBurst-EVM-Recovery-v1.0.1.tar.gz
+cd HashBurst-EVM-Recovery-v1.0.1
 shasum -a 256 -c SHA256SUMS &&
 python3 recover.py recover --plan ../HashBurst-EVM-Testnet-RC-19a76ac5/plan.json
 ```
