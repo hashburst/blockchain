@@ -21,13 +21,6 @@ func Run(parent context.Context, s *State) error {
 	defer listener.Close()
 	mp := blockchain.NewMempool()
 	s.Chain.SetMempool(mp)
-	p, e := blockchain.NewP2PNodeWithListenIP(s.Chain, mp, c.P2PListenIP, c.P2PPort, s.Key)
-	if e != nil {
-		return e
-	}
-	defer p.Host.Close()
-	syncer := blockchain.NewSyncer(s.Chain, mp, p.Host)
-	s.Chain.SetSyncer(syncer)
 	validator := ""
 	if s.Signer != nil {
 		validator = c.ValidatorID
@@ -42,6 +35,22 @@ func Run(parent context.Context, s *State) error {
 	if e != nil {
 		return e
 	}
+	// Restore durable signing state before any inbound or outbound chain sync
+	// can advance the head. Start is idempotent; Run below owns the timer loop.
+	// Pre-consensus observers still need networking to reach activation.
+	if c.Protocol.ConsensusEnabledAt(s.Chain.Height() + 1) {
+		if e = reactor.Start(); e != nil {
+			return fmt.Errorf("reactor before P2P: %w", e)
+		}
+	}
+	defer reactor.Stop()
+	p, e := blockchain.NewP2PNodeWithListenIP(s.Chain, mp, c.P2PListenIP, c.P2PPort, s.Key)
+	if e != nil {
+		return e
+	}
+	defer p.Host.Close()
+	syncer := blockchain.NewSyncer(s.Chain, mp, p.Host)
+	s.Chain.SetSyncer(syncer)
 	network, e := blockchain.NewLibp2pConsensusNetwork(p.Host, reactor, c.Protocol.ConsensusNetwork)
 	if e != nil {
 		return e
