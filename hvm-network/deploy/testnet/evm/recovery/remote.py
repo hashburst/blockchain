@@ -3,6 +3,7 @@ import base64,hashlib,json,os,subprocess,time
 from pathlib import Path
 def cmd(*args):return subprocess.check_output(args,text=True,stderr=subprocess.STDOUT,timeout=30).strip()
 def main(p):
+ if p['action'] in ('exec-preflight','exec-repair'):return exec_action(p)
  n=p['node'];prefix='hashburst-hvm-testnet'+('-ingress' if n['role']=='observer' else '')
  service=prefix+'.service';cfg=Path('/etc')/prefix/'node.json';c=json.loads(cfg.read_text());data=Path(c['data_dir'])
  if c['node_id']!=n['node_id'] or c['role']!=n['role'] or c['protocol']['chain_id']!=4735490:raise RuntimeError('node identity mismatch')
@@ -11,7 +12,9 @@ def main(p):
  if p['action']=='prepare':
   state=cmd('systemctl','show',service,'-p','ActiveState','--value')
   if state not in ('inactive','failed'):raise RuntimeError('repair is offline; active service retained; use verify after completed start')
-  root.mkdir(parents=True,exist_ok=True,mode=0o700)
+  root.mkdir(parents=True,exist_ok=True,mode=0o755)
+  trusted_path(root,directory=True)
+  root.chmod(0o755)  # Explicitly override a restrictive operator umask.
   for name,encoded in p['files'].items():
    if name not in ('hashburst-testnet','offline.py'):raise RuntimeError('unexpected release filename')
    raw=base64.b64decode(encoded,validate=True);dst=root/name
@@ -55,6 +58,11 @@ def main(p):
   if expected not in (Path('/etc/systemd/system')/(service+'.d')/'50-evm-release.conf').read_text():raise RuntimeError('service release mismatch')
   subprocess.run(['systemctl','start','--no-block',service],check=True,timeout=20)
   return {'start_requested':n['node_id']}
+ if p['action']=='startup-state':
+  props=service_properties(service)
+  failed=props.get('ActiveState') in ('inactive','failed') or (props.get('SubState')=='auto-restart' and props.get('ExecMainStatus')!='0')
+  log=cmd('journalctl','-u',service,'-n','6','--no-pager','-o','cat')
+  return {'failed':failed,'status':{k:props.get(k) for k in ('MainPID','ActiveState','SubState','ExecMainStatus','NRestarts')},'log':log}
  if p['action']=='restart-status':return {'requested':(data/'evm-restart-proof.json').exists()}
  if p['action']=='release':
   pid=int(cmd('systemctl','show',service,'-p','MainPID','--value'))

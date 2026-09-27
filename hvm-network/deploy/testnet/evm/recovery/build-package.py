@@ -10,11 +10,11 @@ def main():
  if (ROOT/'.git').exists():
   head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
   if head!=args.commit or subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip():raise RuntimeError('clean checkout at requested commit required')
- out=Path(args.out).resolve();out.mkdir(parents=True,exist_ok=True);dest=out/'HashBurst-EVM-Recovery-v1.0.1';dest.mkdir()
+ out=Path(args.out).resolve();out.mkdir(parents=True,exist_ok=True);dest=out/'HashBurst-EVM-Recovery-v1.0.2';dest.mkdir()
  env=dict(os.environ,CGO_ENABLED='0',GOOS='linux',GOARCH='amd64',GOTOOLCHAIN='local')
  for name in ('hashburst-testnet','hvm-evm-gateway','hvm-evm-fund'):
   subprocess.run(['go','build','-p','1','-trimpath','-buildvcs=false','-o',str(dest/name),'./cmd/'+name],cwd=ROOT/'hvm-network',env=env,check=True)
- for name in ('inspect-live.py','resume-live.py','finish.py','recover.py','remote.py','offline.py','verify-public.py','publish.py','closeout.py','test-recovery.py','README_IT.md','TEST_RESULT.txt'):
+ for name in ('exec-permissions.py','test-exec-permissions.py','inspect-live.py','resume-live.py','finish.py','recover.py','remote.py','offline.py','verify-public.py','publish.py','closeout.py','test-recovery.py','README_IT.md','TEST_RESULT.txt'):
   shutil.copy2(R/name,dest/name)
  for name in ('ssh-session.py','rollout.py','node-rollout.py','install-ingress.py','routes.conf','metamask-canary.html','test-rollout.py'):
   shutil.copy2(R.parent/name,dest/name)
