@@ -8,6 +8,9 @@ def load(name,file):
  path=R/file if (R/file).exists() else R.parent/file
  s=importlib.util.spec_from_file_location(name,path);m=importlib.util.module_from_spec(s);s.loader.exec_module(m);return m
 transport=load('repair_ssh','ssh-session.py');common=load('repair_common','rollout.py')
+def require_live_transports(sessions):
+ broken=[ip for ip,s in sessions.items() if s.broken]
+ if broken:raise RuntimeError('SSH_TRANSPORT_LOST: '+', '.join(broken)+'; services retained. Reconnect with verify; do not repeat migration.')
 def validate_plan(p):
  if p.get('chain_id')!=4735490 or p.get('binary_sha256')!=ORIGINAL or p.get('observer_node_id')!='hvm-testnet-ingress':raise RuntimeError('not the original partial-rollout plan')
  if p.get('evm')!={'activation_height':53303,'gas_limit':200000,'base_fee_wei':1}:raise RuntimeError('original EVM parameters changed')
@@ -49,7 +52,9 @@ def main():
     if height>=evm['activation_height']:
      if start is None:start=height
      elif height>=start+5:return height
-   except Exception as e:print('WAIT '+str(e),flush=True)
+   except Exception as e:
+    require_live_transports(sessions)
+    print('WAIT '+str(e),flush=True)
    time.sleep(15)
   raise RuntimeError('finality wait expired; services retained; run verify after inspecting logs')
  try:

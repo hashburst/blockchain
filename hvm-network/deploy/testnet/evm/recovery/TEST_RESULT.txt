@@ -24,3 +24,11 @@ The original long-running VPS migration timeout is not reproduced using its
 live database. The new detached worker adds bounded operator polling and
 persistent replay/recovery phase logs; it does not certify that a stalled live
 process is healthy or bypass failed verification.
+
+Coordinator update 2026-09-27 (v1.0.1):
+PASS: 10 recovery/coordinator tests, including fatal broken transport handling,
+readiness-failure stop before any rollout action, and no repeated migration.
+PASS: 2 common-height guard tests. Go runtime and three release binaries are
+unchanged from v1.0.0; prior Go test results above are not new live results.
+User evidence: FIVE_OFFLINE_GATES_OK. Subsequent readiness/finality, public
+EVM ingress and wallet gates remain unverified.
