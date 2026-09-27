@@ -11,3 +11,5 @@ Python syntax and static Linux amd64 runtime build: PASS.
 No new race-detector run. No live VPS deployment executed from this workspace.
 The ordering regression is deterministic; it does not reproduce the exact timing of the production race.
 EVM execution code and recovery validation rules unchanged.
+
+Coordinator v1.0.1: 10 Python tests PASS. Added transient catch-up read, resume without restart, nontransient failure and read-error classification tests. Python syntax PASS. Runtime binary byte-identical to Startup v1.0.0; no new Go/runtime change or repeat of Go suite required. Live evidence: v1 reached RECOVERY_READY at height 52011, release preservation verified, then status read timed out during catch-up. Other four nodes reported finalized height 53542. No complete five-node gate in the supplied archive.

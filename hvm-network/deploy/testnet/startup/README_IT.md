@@ -10,7 +10,7 @@ Estrarre questa release in una cartella nuova, poi:
 shasum -a 256 -c SHA256SUMS && python3 rollout.py apply
 ```
 
-Questo apply e' specifico di Startup v1.0.0: non eseguire apply dal precedente pacchetto Pacemaker. Richiede il runtime Pacemaker SHA256 1fcdb11df7a23d06a22a7aa56cb3fc5034088129cad6f098a6c2bf32a54e988f e le sue prove preservation.json su ogni nodo. Richiede la configurazione EVM gia' migrata, altezza 53303, gas 200000, base fee 1. Legacy 1337 invariata; nessuna mainnet 4735489 viene attivata.
+Questo apply e' specifico di Startup v1.0.1: non eseguire apply dal precedente pacchetto Pacemaker. Richiede il runtime Pacemaker SHA256 1fcdb11df7a23d06a22a7aa56cb3fc5034088129cad6f098a6c2bf32a54e988f e le sue prove preservation.json su ogni nodo. Richiede la configurazione EVM gia' migrata, altezza 53303, gas 200000, base fee 1. Legacy 1337 invariata; nessuna mainnet 4735489 viene attivata.
 
 L'aggiornamento procede v1, v2, v3, v4, observer. Prima di fermare ogni nodo verifica accordo e avanzamento degli altri validatori. v1 puo' essere ancora in replay: la sua API non e' necessaria per lo staging, ma processo, binario, override, identita', configurazione, pin e prefissi journal devono corrispondere alle prove conservate. Dopo ciascun arresto registra gli hash dei file, cambia soltanto ExecStart e attende recupero e catch-up prima del nodo successivo. Nessun database, journal o recovery snapshot viene riscritto dall'installer. Il normale runtime puo' estendere lo stato e i journal.
 
@@ -45,3 +45,11 @@ python3 deploy/testnet/startup/build-package.py --out /tmp/hvm-startup-release
 ```
 
 I test creano solo fixture temporanee. Non rigenerano il genesis della rete pubblica.
+
+## Ripresa v1.0.1
+
+Il binario e' identico a v1.0.0 (SHA256 1e52296f36b6666d5fc2d4f7ab1d312d7ded467c73312be946d65211eaac8ba9). Solo il coordinatore cambia: i timeout e connection-refused di letture health/commitment durante il catch-up vengono ritentati entro il limite di due ore, mantenendo gli errori di identita', divergenza, certificato o SSH come terminali. L'attesa finale senza progresso verificato resta limitata a dieci minuti.
+
+Dai log startup-results-qh5tbmu4: v1 aggiornato, attivo, 4 peer, altezza 52011 e release/prefix verificati; v2/v3/v4/observer a 53542. Il timeout successivo ha interrotto il coordinatore prima dell'aggiornamento di v2. La ripresa apply riconosce v1 e non lo riavvia; attende il catch-up di tutti e cinque anche nel percorso ALREADY_UPDATED_NO_RESTART prima di procedere. Una singola risposta health positiva non basta piu' a saltare questa barriera.
+
+Estrarre v1.0.1 in una nuova cartella sul Mac, controllare SHA256SUMS ed eseguire python3 rollout.py apply. Non occorre copiare plan.json o ripetere la migrazione. I risultati VPS e l'accordo finale restano da acquisire.

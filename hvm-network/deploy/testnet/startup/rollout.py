@@ -14,6 +14,11 @@ def compare(rows,height):
  if any(tuple(r.get(k) for k in FIELDS)!=tuple(rows[0].get(k) for k in FIELDS) for r in rows[1:]):raise RuntimeError('same-height commitments disagree')
 def ready(rows):
  return all(r.get('reactor_running') and r.get('peer_count',0)>=2 and r.get('chain_id')==4735490 for r in rows)
+def retryable_read_error(exc):
+ # Batch errors retain the node prefix. Retry only the two observed read errors;
+ # identity, agreement, certificate, SSH and release failures remain terminal.
+ parts=str(exc).split('; ')
+ return bool(parts) and all(part.endswith('timed out') or part.endswith('<urlopen error [Errno 111] Connection refused>') for part in parts)
 def main():
  parser=argparse.ArgumentParser();parser.add_argument('action',choices=('apply','verify','restart-v4'));a=parser.parse_args()
  for line in (R/'SHA256SUMS').read_text().splitlines():
@@ -40,6 +45,20 @@ def main():
   if not ready(rows):raise RuntimeError('reactor/peers not ready')
   if len({r['config_digest'] for r in rows})!=1:raise RuntimeError('config digests differ')
   height=min(r['finalized_height'] for r in rows);compare(batch(nodes,'proof',height=height),height);return height
+ def wait_catchup():
+  deadline=time.monotonic()+7200
+  while time.monotonic()<deadline:
+   try:
+    rows=batch(NODES,'status')
+    heights=[r['finalized_height'] for r in rows]
+    print('CATCHUP '+json.dumps({n['node_id']:r['finalized_height'] for n,r in zip(NODES,rows)}),flush=True)
+    if ready(rows) and max(heights)-min(heights)<=8:
+     height=agreement(NODES);print('FIVE_NODE_CATCHUP_OK='+str(height),flush=True);return
+   except Exception as exc:
+    if any(s.broken for s in sessions.values()) or not retryable_read_error(exc):raise
+    print('READ_ONLY_RETRY '+str(exc),flush=True)
+   time.sleep(15)
+  raise RuntimeError('bounded catch-up timeout; next node not stopped')
  def wait_node(n):
   deadline=time.monotonic()+7200;report=0
   while time.monotonic()<deadline:
@@ -63,7 +82,7 @@ def main():
    for n in NODES:
     info=call(n,'inspect')
     if info['sha256']==sha:
-     call(n,'prepared');print('ALREADY_UPDATED_NO_RESTART='+n['node_id'],flush=True);wait_node(n);continue
+     call(n,'prepared');print('ALREADY_UPDATED_NO_RESTART='+n['node_id'],flush=True);wait_node(n);wait_catchup();continue
     if info['sha256']!=OLD or info['prepared']:raise RuntimeError('partial/unexpected release on '+n['node_id']+'; inspect before further mutation')
     others=[v for v in NODES[:4] if v!=n]
     baseline=agreement(others);time.sleep(5)
@@ -71,14 +90,7 @@ def main():
     print('UPGRADING='+n['node_id'],flush=True)
     call(n,'stage',binary=base64.b64encode(raw).decode())
     call(n,'stop');call(n,'install');call(n,'start');wait_node(n)
-    # Catch-up must complete before taking the next validator out of service.
-    deadline=time.monotonic()+600
-    while True:
-     rows=batch(NODES,'status')
-     if ready(rows) and max(r['finalized_height'] for r in rows)-min(r['finalized_height'] for r in rows)<=8:
-      agreement(NODES);break
-     if time.monotonic()>deadline:raise RuntimeError('catch-up timeout; next node not stopped')
-     time.sleep(10)
+    wait_catchup()
   elif a.action=='restart-v4':
    gate=json.loads((R/'GATE-startup.json').read_text())
    if gate.get('binary_sha256')!=sha or gate.get('height',0)<53303 or time.time()-gate['timestamp']>86400:raise RuntimeError('recent finality gate required')
@@ -87,7 +99,12 @@ def main():
    for n in NODES:wait_node(n)
   deadline=time.monotonic()+7200;last=None;changed=time.monotonic();activated=None
   while time.monotonic()<deadline:
-   height=agreement(NODES);print('COMMON_FINALITY='+str(height),flush=True)
+   try:height=agreement(NODES)
+   except Exception as exc:
+    if any(s.broken for s in sessions.values()) or not retryable_read_error(exc):raise
+    if time.monotonic()-changed>600:raise RuntimeError('no verified progress for 600 seconds; services retained') from exc
+    print('READ_ONLY_RETRY '+str(exc),flush=True);time.sleep(15);continue
+   print('COMMON_FINALITY='+str(height),flush=True)
    if last is not None and height<last:raise RuntimeError('finalized height regressed')
    if last is None or height>last:last=height;changed=time.monotonic()
    if time.monotonic()-changed>600:raise RuntimeError('finality stalled; services retained')

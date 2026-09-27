@@ -7,7 +7,7 @@ def main():
  a=argparse.ArgumentParser();a.add_argument('--out',required=True);args=a.parse_args()
  commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
  if subprocess.check_output(['git','status','--porcelain'],cwd=ROOT,text=True).strip():raise RuntimeError('clean checkout required')
- out=Path(args.out).resolve();dest=out/'HashBurst-HVM-Startup-v1.0.0';dest.mkdir(parents=True)
+ out=Path(args.out).resolve();dest=out/'HashBurst-HVM-Startup-v1.0.1';dest.mkdir(parents=True)
  for p in R.rglob('*'):
   if p.is_file() and '__pycache__' not in p.parts:
    target=dest/p.relative_to(R);target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(p,target)

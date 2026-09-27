@@ -9,8 +9,8 @@ class Guards(unittest.TestCase):
   roll.compare([p.copy() for _ in range(5)],51473)
   with self.assertRaisesRegex(RuntimeError,'disagree'):roll.compare([p,{**p,'hash':'b'}],51473)
   with self.assertRaisesRegex(RuntimeError,'missing EVM'):roll.compare([{**p,'height':53303}],53303)
- def exercise(self,action='apply',updated=False,fail_stop=False):
-  events=[];counter=[53400];idx=[0];new=hashlib.sha256(b'binary').hexdigest()
+ def exercise(self,action='apply',updated=False,fail_stop=False,read_error=None):
+  events=[];counter=[53400];idx=[0];injected=[False];released=[False];new=hashlib.sha256(b'binary').hexdigest()
   class Session:
    broken=False
    def __init__(self,*args):self.i=idx[0];idx[0]+=1;self.sha=new if updated else roll.OLD
@@ -18,7 +18,10 @@ class Guards(unittest.TestCase):
    def call(self,p):
     a=p['action'];events.append((self.i,a));n=p['node']
     if a=='inspect':return {'sha256':self.sha,'prepared':updated}
+    if a=='release' and self.i==0:released[0]=True
     if a=='status':
+     if self.i==0 and released[0] and read_error and not injected[0]:
+      injected[0]=True;raise RuntimeError(read_error)
      counter[0]+=1
      return {'chain_id':4735490,'config_digest':'same','node_id':n['node_id'],'reactor_running':True,'peer_count':4,'finalized_height':counter[0]}
     if a=='proof':return {'chain_id':4735490,'height':p['height'],'hash':str(p['height']),'certificate':{'present':True},'evm_state_root':'a','evm_receipts_root':'b'}
@@ -42,6 +45,19 @@ class Guards(unittest.TestCase):
  def test_failed_stop_does_not_install_or_continue(self):
   mutations=[e for e in self.exercise(fail_stop=True) if e[1] in ('stage','stop','install','start')]
   self.assertEqual(mutations,[(0,'stage'),(0,'stop')])
+ def test_transient_catchup_read_preserves_rolling_order(self):
+  events=self.exercise(read_error='timed out')
+  self.assertEqual([e for e in events if e[1]=='start'],[(i,'start') for i in range(5)])
+ def test_resume_waits_for_catchup_without_restart(self):
+  events=self.exercise(updated=True,read_error='timed out')
+  self.assertFalse(any(a in ('stop','start','install') for _,a in events))
+ def test_nontransient_read_is_terminal(self):
+  with self.assertRaisesRegex(RuntimeError,'identity mismatch'):
+   self.exercise(updated=True,read_error='identity mismatch')
+ def test_read_error_classification(self):
+  self.assertTrue(roll.retryable_read_error(RuntimeError('v1: timed out; v2: <urlopen error [Errno 111] Connection refused>')))
+  for message in ('SSH lost','commitments disagree','v1: timed out; v2: identity mismatch','missing EVM commitments'):
+   self.assertFalse(roll.retryable_read_error(RuntimeError(message)))
  def test_readiness(self):
   self.assertFalse(roll.ready([{'chain_id':4735490,'reactor_running':False,'peer_count':4}]))
 if __name__=='__main__':unittest.main()
