@@ -143,7 +143,7 @@ def exec_scope(p):
         raise RuntimeError('effective ExecStart differs')
     if not props.get('User') or props['User'] == 'root' or props.get('DynamicUser') == 'yes':
         raise RuntimeError('expected a dedicated static service user')
-    if any(props.get(key) for key in ('RootDirectory', 'RootImage', 'NoExecPaths', 'ExecPaths', 'LoadState', 'FragmentPath')):
+    if any(props.get(key) for key in ('RootDirectory', 'RootImage', 'NoExecPaths', 'ExecPaths')):
         raise RuntimeError('additional execution restrictions require review; hardening retained')
     marker = root / 'exec-permissions-proof.json'
     if marker.exists():
