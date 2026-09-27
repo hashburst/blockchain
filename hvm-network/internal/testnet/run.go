@@ -71,7 +71,12 @@ func Run(parent context.Context, s *State) error {
 		status, fresh := reactor.TryStatus()
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "network": "testnet", "node_id": c.NodeID, "role": c.Role, "chain_id": c.Protocol.ChainID, "config_digest": c.Pin(), "height": s.Chain.Height(), "finalized_height": s.Chain.FinalizedHeight(), "peer_id": p.Host.ID().String(), "peer_count": len(p.Host.Network().Peers()), "reactor_running": reactor.Running(), "reactor_status_fresh": fresh, "reactor": status, "transport": network.Status()})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "network": "testnet", "node_id": c.NodeID, "role": c.Role, "chain_id": c.Protocol.ChainID, "config_digest": c.Pin(), "evm_activation_height": func() uint64 {
+			if c.Protocol.EVM != nil {
+				return c.Protocol.EVM.ActivationHeight
+			}
+			return 0
+		}(), "height": s.Chain.Height(), "finalized_height": s.Chain.FinalizedHeight(), "peer_id": p.Host.ID().String(), "peer_count": len(p.Host.Network().Peers()), "reactor_running": reactor.Running(), "reactor_status_fresh": fresh, "reactor": status, "transport": network.Status()})
 	})
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	errs := make(chan error, 2)

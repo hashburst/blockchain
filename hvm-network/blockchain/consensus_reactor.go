@@ -140,8 +140,8 @@ func (r *ConsensusReactor) Start() error {
 	if r.height != 0 && r.height == height {
 		// Administrative resume retains locks, certified values and received
 		// votes. Enter a fresh view through the normal journaled transition.
-		if r.round >= r.cfg.MaxRound {
-			err = fmt.Errorf("cannot resume consensus: exhausted max round %d", r.cfg.MaxRound)
+		if r.round >= r.roundLimit() {
+			err = fmt.Errorf("cannot resume consensus: exhausted max round %d", r.roundLimit())
 		} else {
 			err = r.requestRoundChangeLocked(r.round + 1)
 		}
@@ -185,6 +185,7 @@ func (r *ConsensusReactor) Run(ctx context.Context) error {
 	if err := r.Start(); err != nil {
 		return err
 	}
+	defer r.Stop()
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -201,7 +202,9 @@ func (r *ConsensusReactor) Run(ctx context.Context) error {
 				return fatal
 			}
 			if due {
-				_ = r.HandleTimeout()
+				if err := r.HandleTimeout(); err != nil {
+					return fmt.Errorf("consensus timeout at current view: %w", err)
+				}
 			}
 		}
 	}
@@ -271,13 +274,14 @@ func (r *ConsensusReactor) startHeightLocked(height uint64) error {
 }
 
 func (r *ConsensusReactor) enterRoundLocked(round uint64) error {
-	if round > r.cfg.MaxRound {
-		return fmt.Errorf("consensus round %d exceeds max %d", round, r.cfg.MaxRound)
+	if round > r.roundLimit() {
+		return fmt.Errorf("consensus round %d exceeds max %d", round, r.roundLimit())
 	}
 	if round < r.round {
 		return nil
 	}
 	r.round = round
+	r.pruneRoundWindowLocked()
 	r.step = consensus.StepProposal
 	r.deadline = time.Now().Add(r.cfg.TimeoutFor(consensus.StepProposal, round))
 
@@ -360,7 +364,7 @@ func (r *ConsensusReactor) acceptProposalLocked(p ConsensusProposal, mayVote boo
 	if h.ChainID != r.bc.v2Config.ChainID || h.Height != uint64(p.Block.Index) || h.Height != r.height || h.Round != p.Block.ConsensusRound || !strings.EqualFold(h.BlockHash, p.Block.Hash) || !strings.EqualFold(h.ValidatorSetRoot, p.Block.ValidatorSetRoot) || !strings.EqualFold(h.ProposerID, p.Block.ProposerID) || h.ValidRound != p.Block.ValidRound {
 		return fmt.Errorf("proposal header/block mismatch")
 	}
-	if h.Round > r.round+r.cfg.MaxRound || h.Round > r.cfg.MaxRound {
+	if !r.acceptsRound(h.Round) {
 		return fmt.Errorf("proposal round out of bounds")
 	}
 	set := r.bc.CurrentValidatorSet(r.height)
@@ -459,7 +463,7 @@ func (r *ConsensusReactor) HandlePrevote(v consensus.Prevote) error {
 }
 
 func (r *ConsensusReactor) acceptPrevoteLocked(v consensus.Prevote) error {
-	if v.ChainID != r.bc.v2Config.ChainID || v.Height != r.height || v.Round > r.cfg.MaxRound {
+	if v.ChainID != r.bc.v2Config.ChainID || v.Height != r.height || !r.acceptsRound(v.Round) {
 		return fmt.Errorf("prevote outside current consensus window")
 	}
 	set := r.bc.CurrentValidatorSet(r.height)
@@ -624,7 +628,7 @@ func (r *ConsensusReactor) HandlePrecommit(v consensus.Vote) error {
 }
 
 func (r *ConsensusReactor) acceptPrecommitLocked(v consensus.Vote) error {
-	if v.ChainID != r.bc.v2Config.ChainID || v.Height != r.height || v.Round > r.cfg.MaxRound {
+	if v.ChainID != r.bc.v2Config.ChainID || v.Height != r.height || !r.acceptsRound(v.Round) {
 		return fmt.Errorf("precommit outside current consensus window")
 	}
 	set := r.bc.CurrentValidatorSet(r.height)
@@ -740,7 +744,7 @@ func (r *ConsensusReactor) HandleRoundChange(rc consensus.RoundChange) error {
 	if !r.running {
 		return fmt.Errorf("consensus reactor not running")
 	}
-	if rc.ChainID != r.bc.v2Config.ChainID || rc.Height != r.height || rc.NextRound > r.cfg.MaxRound {
+	if rc.ChainID != r.bc.v2Config.ChainID || rc.Height != r.height || rc.NextRound > r.roundLimit() {
 		return fmt.Errorf("round-change outside current consensus window")
 	}
 	set := r.bc.CurrentValidatorSet(r.height)
@@ -753,6 +757,26 @@ func (r *ConsensusReactor) HandleRoundChange(rc consensus.RoundChange) error {
 	}
 	if err := consensus.VerifyRoundChange(rc, validator); err != nil {
 		return err
+	}
+	// Authenticated catch-up may span the entire replay interval. Retain at
+	// most one future round-change per validator, never an unbounded set of
+	// attacker-selected future rounds. f+1 power is still required to jump.
+	if r.bc.v2Config.ChainID == 4735490 {
+		if rc.NextRound <= r.round {
+			return nil
+		}
+		id := strings.ToLower(rc.ValidatorID)
+		for round, votes := range r.roundChanges {
+			if _, exists := votes[id]; exists && round > rc.NextRound {
+				return nil
+			}
+		}
+		for round, votes := range r.roundChanges {
+			delete(votes, id)
+			if len(votes) == 0 {
+				delete(r.roundChanges, round)
+			}
+		}
 	}
 	if r.roundChanges[rc.NextRound] == nil {
 		r.roundChanges[rc.NextRound] = make(map[string]consensus.RoundChange)
@@ -773,8 +797,8 @@ func (r *ConsensusReactor) HandleRoundChange(rc consensus.RoundChange) error {
 }
 
 func (r *ConsensusReactor) requestRoundChangeLocked(nextRound uint64) error {
-	if nextRound > r.cfg.MaxRound {
-		return fmt.Errorf("consensus exhausted max round %d", r.cfg.MaxRound)
+	if nextRound > r.roundLimit() {
+		return fmt.Errorf("consensus exhausted max round %d", r.roundLimit())
 	}
 	if r.signer != nil {
 		set := r.bc.CurrentValidatorSet(r.height)
