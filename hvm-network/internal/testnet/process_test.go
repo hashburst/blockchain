@@ -241,6 +241,32 @@ func TestFourPersistentValidatorProcesses(t *testing.T) {
 	}
 	start(3)
 	wait(int(lastHeight) + 4)
+	// Catch-up may precede this validator's first new vote. Keep it running
+	// until the signing proof is present, rather than stopping on sync alone.
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		current, e := os.ReadFile(journal)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if !bytes.HasPrefix(current, before) {
+			t.Fatal("journal prefix changed")
+		}
+		voted := false
+		for _, line := range bytes.Split(current[len(before):], []byte("\n")) {
+			var rec struct {
+				Height uint64
+				Step   string
+			}
+			if json.Unmarshal(line, &rec) == nil && rec.Height > lastHeight && rec.Step == "PRECOMMIT" {
+				voted = true
+			}
+		}
+		if voted {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	stop(3)
 	after, err = os.ReadFile(journal)
 	if err != nil {
