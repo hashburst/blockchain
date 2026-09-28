@@ -1,0 +1,19 @@
+Go 1.25.7 linux/amd64
+Base commit: 5346a9c993bc45300f1f75d49ae1533857238fa3
+
+PASS go test ./blockchain -run 'TestEVMHistor' -count=1
+  TestEVMHistoricalReadsAcrossFinalityAndRestart
+  TestEVMHistoryBoundedAndHashBound
+  Historical balance, nonce, code, storage, call and gas estimate stable after advancement/reopen.
+  Concurrent pinned reads during finalization, detached copies, speculative-height rejection.
+  Persistent replay preserves state roots and signing journal bytes.
+  Retention eviction and canonical-hash binding checked.
+PASS go test -race ./blockchain -run 'TestEVMHistor|TestEVMRealMempool' -count=1
+PASS go test ./blockchain ./internal/testnet ./internal/evmgateway -count=1
+PASS (evm/execution) go test ./... -count=1
+PASS python3 test-package.py (4 tests)
+
+Static Linux amd64 runtime built with CGO_ENABLED=0.
+Tests used isolated local fixtures. No live service or wallet was accessed.
+Live observer install, public historical acceptance and real MetaMask canary remain pending.
+Mainnet is not activated or certified by this package.

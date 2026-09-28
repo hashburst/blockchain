@@ -151,7 +151,7 @@ func TestCallAccessListAndGasPrice(t *testing.T) {
 	s, from, b := fixture(t)
 	api, _ := NewAPI(TestnetID, &testBackend{s: s, b: b})
 	to := common.HexToAddress("0x9876")
-	gas, err := api.EstimateGas(context.Background(), CallArgs{From: &from, To: &to, AccessList: types.AccessList{{Address: to, StorageKeys: []common.Hash{{}}}}})
+	gas, err := api.EstimateGas(context.Background(), CallArgs{From: &from, To: &to, AccessList: types.AccessList{{Address: to, StorageKeys: []common.Hash{{}}}}}, nil)
 	if err != nil || gas != 25300 {
 		t.Fatalf("access list gas %d: %v", gas, err)
 	}

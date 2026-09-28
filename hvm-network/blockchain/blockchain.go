@@ -20,6 +20,7 @@ import (
 // HBT state, HVM state and receipts are deterministic projections of blocks.
 type Blockchain struct {
 	evmSubscriptions *execution.Subscriptions
+	evmReadHistory   *evmReadHistory
 	Blocks           []*Block
 	PendingTXs       []*Transaction
 	PendingTXsV2     []*protocolv2.TransactionV2
@@ -298,6 +299,7 @@ func (bc *Blockchain) commitV2Execution(ex *blockExecutionV2) {
 		return
 	}
 	bc.state.ReplaceWith(ex.state)
+	bc.rememberEVMStateLocked()
 	bc.hvmEngine.ReplaceStateWith(ex.hvm)
 	bc.validators.ReplaceWith(ex.validators)
 	bc.publishEthereumFinalizedLocked()
@@ -475,11 +477,12 @@ func (bc *Blockchain) VerifyChain() error {
 }
 
 func (bc *Blockchain) rebuildProjections(blocks []*Block) error {
-	st, engine, validators, receipts, err := bc.computeProjections(blocks)
+	st, engine, validators, receipts, history, err := bc.computeProjections(blocks)
 	if err != nil {
 		return err
 	}
 	bc.state = st
+	bc.evmReadHistory = history
 	bc.hvmEngine = engine
 	bc.validators = validators
 	bc.receipts = receipts

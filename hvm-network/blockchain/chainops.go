@@ -56,13 +56,14 @@ func (bc *Blockchain) TryExtendOrAdopt(incoming []*Block) (applied bool, err err
 	if err := validateFullChainWithConfig(candidate, bc.v2Config, bc.MiningReward); err != nil {
 		return false, fmt.Errorf("ramo piu' lungo ma invalido: %w", err)
 	}
-	newState, newHVM, newValidators, newReceipts, err := bc.computeProjections(candidate)
+	newState, newHVM, newValidators, newReceipts, history, err := bc.computeProjections(candidate)
 	if err != nil {
 		return false, fmt.Errorf("ramo con proiezioni invalide: %w", err)
 	}
 	if err := bc.replaceLocked(candidate, newState, newHVM, newValidators, newReceipts); err != nil {
 		return false, err
 	}
+	bc.evmReadHistory = history
 	log.Printf("fork-choice: adottato ramo con %d tick PoH (nostro: %d)", candidateTicks, ourTicks)
 	return true, nil
 }
