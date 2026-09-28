@@ -1,9 +1,4 @@
-<!doctype html><html lang="it"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>HVM Network — MetaMask testnet canary</title>
-<style>body{font:16px system-ui;max-width:900px;margin:40px auto;padding:20px;background:#101827;color:#e7edf7}input{width:95%;padding:10px;margin:8px 0}button{padding:12px;margin:8px}pre{white-space:pre-wrap;overflow-wrap:anywhere}label{display:block}</style>
-<nav><button id="lang-it">Italiano</button><button id="lang-en">English</button></nav><h1>HVM Network · testnet 4735490</h1><p id="intro">Collaudo manuale MetaMask. Richiede un endpoint EVM attivato e un account testnet finanziato. Il test richiede tre conferme nel wallet: trasferimento di 1 wei a sé stessi, deploy e chiamata di un contratto. Non usa chiavi del validatore.</p>
-<label><span id="endpoint-label">Endpoint HTTPS JSON-RPC EVM</span><input id="url" type="url" value="https://blockchainapi.one/api/hashburst/hvm/testnet/evm"></label>
-<label><span id="wallet-label">Wallet rilevato</span><select id="wallet-select"></select></label><p id="discovery-status" role="status"></p><button id="refresh">Rileva wallet</button><button id="connect">Collega MetaMask alla testnet</button><button id="run" disabled>Esegui le tre transazioni testnet</button><button id="download" disabled>Scarica prova pubblica</button><pre id="output"></pre>
-<script>
+
 'use strict';let ws,wsSeq=0,wsPending=new Map(),events=[];
 async function openWS(){ws=new WebSocket(endpoint.replace(/^https:/,'wss:')+'/ws');await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(Error(T('WebSocket timeout'))),15000);ws.onopen=()=>{clearTimeout(t);resolve()};ws.onerror=()=>{clearTimeout(t);reject(Error(T('WebSocket failed')))}});ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.method==='eth_subscription'){events.push(m.params);return}const p=wsPending.get(m.id);if(p){clearTimeout(p.timer);wsPending.delete(m.id);m.error?p.reject(Error(JSON.stringify(m.error))):p.resolve(m.result)}};ws.onclose=()=>{for(const p of wsPending.values()){clearTimeout(p.timer);p.reject(Error(T('WebSocket closed')))}wsPending.clear()}}
 function wsrpc(method,params){return new Promise((resolve,reject)=>{const id=++wsSeq;const timer=setTimeout(()=>{wsPending.delete(id);reject(Error(T('WS response timeout')))},15000);wsPending.set(id,{resolve,reject,timer});ws.send(JSON.stringify({jsonrpc:'2.0',id,method,params}))})}
@@ -64,6 +59,4 @@ async function discoverWallets(){
 el('refresh').onclick=discoverWallets;
 el('lang-it').onclick=()=>setLanguage('it');el('lang-en').onclick=()=>setLanguage('en');
 setLanguage(language);requestWallets();
-
-</script></html>
 
