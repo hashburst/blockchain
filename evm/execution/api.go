@@ -274,10 +274,14 @@ func (a *API) Call(ctx context.Context, args CallArgs, tag rpc.BlockNumber) (hex
 	}
 	return append(hexutil.Bytes{}, result.Return()...), nil
 }
-func (a *API) EstimateGas(ctx context.Context, args CallArgs) (hexutil.Uint64, error) {
+func (a *API) EstimateGas(ctx context.Context, args CallArgs, tag *rpc.BlockNumber) (hexutil.Uint64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	s, b, e := a.backend.Snapshot(ctx, rpc.PendingBlockNumber)
+	blockTag := rpc.PendingBlockNumber
+	if tag != nil {
+		blockTag = *tag
+	}
+	s, b, e := a.backend.Snapshot(ctx, blockTag)
 	if e != nil {
 		return 0, e
 	}

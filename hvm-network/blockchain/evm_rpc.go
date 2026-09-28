@@ -31,7 +31,18 @@ func (a *EthereumBackend) Snapshot(ctx context.Context, tag rpc.BlockNumber) (*s
 		return nil, execution.Block{}, fmt.Errorf("EVM not active")
 	}
 	if tag != rpc.LatestBlockNumber && tag != rpc.FinalizedBlockNumber && tag != rpc.SafeBlockNumber && tag != rpc.PendingBlockNumber && int64(tag) != int64(head.Index) {
-		return nil, execution.Block{}, fmt.Errorf("historical EVM state unavailable")
+		if tag < 0 || int64(tag) > int64(head.Index) {
+			return nil, execution.Block{}, fmt.Errorf("unknown EVM block")
+		}
+		b := bc.Blocks[int(tag)]
+		if !bc.v2Config.EVMEnabledAt(b.Index) {
+			return nil, execution.Block{}, fmt.Errorf("EVM not active at requested block")
+		}
+		st, err := bc.evmReadHistory.snapshot(b)
+		if err != nil {
+			return nil, execution.Block{}, err
+		}
+		return st, bc.ethereumContext(b, append([]*Block(nil), bc.Blocks[:int(tag)+1]...)), nil
 	}
 	st := bc.state.evm.db.Copy()
 	block := bc.ethereumContext(head, append([]*Block(nil), bc.Blocks...))
