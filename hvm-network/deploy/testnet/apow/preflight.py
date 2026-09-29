@@ -43,12 +43,50 @@ def validate_rows(rows):
   if 'ActiveState=active' not in r['service'] or 'SubState=running' not in r['service']:raise ValueError('service not running: '+r['node_id'])
 def compare(proofs,height):
  if len(proofs)!=5:raise ValueError('five proofs required')
- for p in proofs:
-  if p.get('chain_id')!=4735490 or p.get('height')!=height or not p.get('certificate'):raise ValueError('wrong height/chain or missing QC')
-  if any(p.get(k) is None for k in FIELDS) or any(not p.get(k) for k in FIELDS if k not in ('height','evm_gas_used','chain_id')):raise ValueError('missing finalized roots')
- if any(tuple(p[k] for k in FIELDS)!=tuple(proofs[0][k] for k in FIELDS) for p in proofs[1:]):raise ValueError('finalized commitments differ')
+ normalized=[]
+ for i,original in enumerate(proofs):
+  p=dict(original)
+  # The Go uint64 field has json omitempty: absent means zero, not missing state.
+  p.setdefault('evm_gas_used',0)
+  gas=p['evm_gas_used']
+  if type(gas) is not int or not 0<=gas<2**64:raise ValueError(f'proof {i}: invalid evm_gas_used')
+  if p.get('chain_id')!=4735490 or p.get('height')!=height or not p.get('certificate'):raise ValueError(f'proof {i}: wrong height/chain or missing QC')
+  missing=[k for k in FIELDS if p.get(k) is None or (k not in ('height','evm_gas_used','chain_id') and not p.get(k))]
+  if missing:raise ValueError(f'proof {i}: missing finalized fields: '+', '.join(missing))
+  normalized.append(p)
+ for i,p in enumerate(normalized[1:],1):
+  different=[k for k in FIELDS if p[k]!=normalized[0][k]]
+  if different:raise ValueError(f'proof {i}: finalized commitments differ: '+', '.join(different))
+
+def verify_report(directory):
+ """Recheck saved evidence only. Never turn incomplete evidence into READY."""
+ directory=Path(directory)
+ rows=json.loads((directory/'nodes.json').read_text());validate_rows(rows)
+ height=min(r['height'] for r in rows)
+ proofs=json.loads((directory/'commitments.json').read_text());compare(proofs,height)
+ progress=directory/'progress.json'
+ checked=False
+ if progress.exists():
+  later=json.loads(progress.read_text());validate_rows(later)
+  before={r['node_id']:r for r in rows}
+  for b in later:
+   a=before[b['node_id']]
+   if b['height']<=a['height'] or b['digest']!=a['digest'] or b['pin_sha256']!=a['pin_sha256']:
+    raise ValueError('saved finality not progressing or configuration changed')
+  checked=True
+ return {'saved_commitments_agree':True,'common_height':height,'block_hash':proofs[0]['hash'],
+         'saved_progress_verified':checked,'live_state_checked':False,
+         'activation_authorized':False,'qc_signatures_independently_verified':False}
+
 def main():
- a=argparse.ArgumentParser();a.add_argument('--out-dir');args=a.parse_args()
+ a=argparse.ArgumentParser();a.add_argument('--out-dir');a.add_argument('--verify-report');args=a.parse_args()
+ if args.verify_report:
+  result=verify_report(args.verify_report)
+  print(json.dumps(result,indent=2))
+  print('SAVED_COMMITMENTS_AGREEMENT_OK')
+  print('SAVED_PROGRESS_VERIFIED' if result['saved_progress_verified'] else 'PROGRESS_GATE_NOT_EXECUTED_IN_SAVED_REPORT')
+  print('LOCAL_RECHECK_ONLY_NO_SSH_NO_SERVICE_CHANGED')
+  return
  out=Path(tempfile.mkdtemp(prefix='apow-preflight-',dir=args.out_dir or R));sessions=[]
  expected=hashlib.sha256((R/'hashburst-testnet').read_bytes()).hexdigest() if (R/'hashburst-testnet').exists() else None
  try:
