@@ -1,3 +1,5 @@
+> Historical planning document. For current testnet acceptance, see [29 September closeout](../../review/testnet-closeout/README.md). The native and EVM funded canaries, public EVM routes and scoped MetaMask/WebSocket checks have since passed. Mainnet is not active. The sections below preserve the original implementation-stage requirements.
+
 # Testnet API and wallet acceptance
 
 ## This change

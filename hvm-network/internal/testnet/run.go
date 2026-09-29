@@ -80,7 +80,7 @@ func Run(parent context.Context, s *State) error {
 		status, fresh := reactor.TryStatus()
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "network": "testnet", "node_id": c.NodeID, "role": c.Role, "chain_id": c.Protocol.ChainID, "config_digest": c.Pin(), "evm_activation_height": func() uint64 {
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "network": c.Network, "node_id": c.NodeID, "role": c.Role, "chain_id": c.Protocol.ChainID, "config_digest": c.Pin(), "evm_activation_height": func() uint64 {
 			if c.Protocol.EVM != nil {
 				return c.Protocol.EVM.ActivationHeight
 			}

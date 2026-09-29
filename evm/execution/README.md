@@ -1,6 +1,6 @@
 # HVM Network Ethereum execution
 
-Development branch, not activated on the deployed testnet or mainnet.
+Active on testnet 4735490; mainnet 4735489 remains inactive. See [verified testnet acceptance](../../hvm-network/review/testnet-closeout/README.md).
 
 The HashBurst node now imports this module. `hvm-network/blockchain/evm_*.go`
 connects signed Ethereum envelopes to the real mempool, libp2p gossip, BFT
@@ -29,7 +29,7 @@ There is no independently advancing Ethereum chain or freely allocated balance.
 ## Node APIs
 
 When explicitly configured, the loopback runtime registers `/evm` and `/evm/ws`.
-The existing public gateway has NOT been changed to expose these paths.
+The public testnet gateway exposes the EVM RPC and WebSocket routes with method and request limits.
 
 Implemented: chain ID, block number, balance, nonce, code, storage, receipt,
 signed raw admission, call, gas estimation, block by number/hash, transaction by
@@ -38,10 +38,11 @@ net_version, client version, newHeads/logs subscriptions and unsubscribe.
 
 Subscription hashes identify actual finalized HashBurst blocks. Ethereum header
 fields are a projection, not an independently hashed Ethereum consensus chain.
-Queries support latest/finalized/safe and pending simulation. Arbitrary historical
-account-state queries and state overrides are explicitly unsupported. Historical
+Queries support latest/finalized/safe, pending simulation and the latest 256 canonical
+EVM state snapshots (also rebuilt during replay). Older state and state overrides
+are explicitly unsupported. Historical
 receipts/logs are replayed from canonical blocks. Slow subscriptions are detached
-with bounded queues; public socket-lifecycle and gateway limits still need review.
+with bounded queues; the public gateway also limits requests and subscriptions.
 
 ## Reproducible tests
 
@@ -64,21 +65,17 @@ that the production VPS have received or activated the code.
 The integrated node deliberately uses its own canonical block store instead;
 it does not create a competing execution database.
 
-## Remaining release gates
+## Deployment status
 
-1. Review the new consensus format/economics and adversarial resource limits.
-2. Implement and test an explicit migration of the pinned runtime configuration;
-   choose a future activation height only after all validators/observer are ready.
-   Do not edit/delete runtime.pin or journals to bypass the existing pin check.
-3. Upgrade public gateway filters/write and WebSocket controls; make read APIs
-   consistently expose the activated Ethereum projection.
-4. Roll out testnet, compare all four validators and observer at a common finalized
-   height, restart one validator and verify retained journal/new signatures.
-5. Run the supplied manual MetaMask canary with a funded testnet account and retain
-   actual wallet evidence. Then prepare mainnet configuration separately.
+Pinned-config migration, testnet public gateway, validator/observer rollout and
+the funded MetaMask transfer/deploy/call canary are recorded in the linked testnet
+evidence. The independent public verifier rechecked receipt, log and subscription
+agreement. These are scoped acceptance tests, not every Ethereum or wallet feature.
 
-Testnet 4735490; mainnet 4735489 reserved; legacy 1337 unchanged. No test here
-certifies complete MetaMask interoperability or mainnet readiness.
+Mainnet requires a separate approved genesis/checkpoint and economic manifest,
+fresh identities, provisioning, common-height agreement, recovery and wallet tests.
+See [mainnet runtime foundation](../../hvm-network/deploy/mainnet/README.md).
+Legacy 1337 and testnet 4735490 remain unchanged.
 
 Dependency: go-ethereum library LGPL-3.0; binary distribution must include its
 applicable notices/compliance materials. This PR supplies source, not a rollout
