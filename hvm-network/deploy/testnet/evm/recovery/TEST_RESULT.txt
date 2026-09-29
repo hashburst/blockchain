@@ -1,0 +1,55 @@
+EVM recovery release - local verification 2026-09-26
+Base source: febed851ecdc2bf725b2c1f3a57961ce463eb886
+Toolchain: Go 1.25.7 linux/amd64, CGO_ENABLED=0.
+
+PASS: hvm-network go test ./... -count=1 -timeout=10m.
+PASS: evm/execution go test ./... -count=1 -timeout=10m.
+PASS: TestEVMRecoveryDigestBoundary.
+PASS: TestEVMRecoveryFourLockedValidatorsPreserveAndFinalize.
+PASS: existing persistent recovery tests.
+PASS: TestFundingSignedEnvelopeAndChainSeparation.
+PASS: Python recovery guards (7 tests) and common-height guards (2 tests).
+PASS: MetaMask canary JavaScript syntax (Node 24).
+
+The new four-validator recovery test creates certified pending locks, reopens
+persistent chains with a future EVM activation, preserves chain/recovery/journal
+bytes during checking, and finalizes the previously locked block.
+
+No live VPS was changed by these local tests. No real MetaMask interaction was
+performed. No mainnet was activated. Race tests were not rerun in this release
+because this build environment uses CGO_DISABLED; earlier PR race evidence is
+separate and is not represented as a new result here.
+
+The original long-running VPS migration timeout is not reproduced using its
+live database. The new detached worker adds bounded operator polling and
+persistent replay/recovery phase logs; it does not certify that a stalled live
+process is healthy or bypass failed verification.
+
+Coordinator update 2026-09-27 (v1.0.1):
+PASS: 10 recovery/coordinator tests, including fatal broken transport handling,
+readiness-failure stop before any rollout action, and no repeated migration.
+PASS: 2 common-height guard tests. Go runtime and three release binaries are
+unchanged from v1.0.0; prior Go test results above are not new live results.
+User evidence: FIVE_OFFLINE_GATES_OK. Subsequent readiness/finality, public
+EVM ingress and wallet gates remain unverified.
+
+2026-09-27 recovery v1.0.2 EXEC-permission correction
+Input evidence: five completed offline jobs, same d91ed8eeef0f runtime; five 203/EXEC Permission denied failures, no MainPID/listener.
+Installer defect: root-only 0700 release directory, service dedicated user.
+Only recovery Python tooling changes; all three binaries reused byte-for-byte.
+Local Python checks: 20 tests passed; one additional real UID/GID execution test skipped because this sandbox cannot switch UID/GID (EPERM/EINVAL).
+Passed guards cover repair flow, private file modes/content retention, no mutation during preflight, no restart of a running correct binary, refusal for wrong binary or unrelated failure, original plan, journal/identity gates, SSH failure handling, common-height agreement and orchestration stops.
+All Python files and concatenated remote source compiled.
+The package requires an actual --help executable probe under the systemd service UID/GID on each VPS before service start. This probe does not load config/state.
+No live service was changed or validated from this environment. VPS finality, public EVM and real MetaMask gates remain pending; mainnet is not activated.
+
+2026-09-27 v1.0.3 partial EXEC-repair resume
+26 Python tests passed; one UID/GID regression remains skipped due to sandbox restrictions.
+Six new cases: executor-to-runtime transition, disappearing PID followed by EXEC failure, persistently different binary retained, inactive unit skips reset-failed, unload race accepted only after loaded/inactive/no-PID recheck, genuine reset failure not suppressed.
+The original repair-flow test now requires stop/start with no reset of an inactive unit.
+No consensus or binary change; no VPS execution performed here.
+
+2026-09-27 v1.0.3 metadata-guard hotfix
+Full exec_scope preflight regression added with populated LoadState and FragmentPath, followed by rejection checks for each of RootDirectory, RootImage, NoExecPaths and ExecPaths.
+Permission suite: 15 passed, one UID/GID transition test skipped under sandbox restrictions. Existing recovery/agreement suites: 12 passed. No runtime or VPS mutation.
+Fix removes only LoadState/FragmentPath from the restriction predicate; they remain queried for diagnostics.

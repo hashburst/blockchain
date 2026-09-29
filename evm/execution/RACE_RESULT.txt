@@ -1,0 +1,1 @@
+15 execution tests passed under go test -race -count=1; see TEST_RESULT.txt.

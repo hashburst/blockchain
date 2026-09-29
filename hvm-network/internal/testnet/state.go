@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sys/unix"
 	"hashburst/blockchain"
 	"hashburst/wallet"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -118,6 +119,7 @@ func Prepare(c Config, provision bool) (out *State, err error) {
 			return nil, fmt.Errorf("journal must be a regular file")
 		}
 	}
+	log.Printf("HVM_OPEN_STATE_BEGIN node=%s", c.NodeID)
 	s.Chain, e = blockchain.OpenExistingBlockchain(real, c.Protocol, c.GenesisHash, c.CheckpointHeight, c.CheckpointHash)
 	if e != nil {
 		return nil, e
@@ -135,10 +137,12 @@ func Prepare(c Config, provision bool) (out *State, err error) {
 		if !ok || !wallet.AddressEqual(v.ConsensusAddress, s.Signer.Address()) || v.PeerID != c.PeerID {
 			return nil, fmt.Errorf("validator/key/peer registry mismatch")
 		}
+		log.Printf("HVM_RESTART_CHECK_BEGIN node=%s height=%d", c.NodeID, s.Chain.Height())
 		if e = s.Chain.CheckValidatorRestart(c.ValidatorID); e != nil {
 			return nil, e
 		}
 	}
+	log.Printf("HVM_STATE_CHECK_COMPLETE node=%s height=%d", c.NodeID, s.Chain.Height())
 	if provision {
 		if s.Chain.Height() != c.CheckpointHeight {
 			return nil, fmt.Errorf("provision requires exact prepared checkpoint height")

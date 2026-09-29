@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "chain_id": 4735490,
+  "height": 103597,
+  "block_hash": "0xd64c3568bcd299b6e1705e1fb6908288f4822cc51751013da4158374d7ea34d0",
+  "endpoint": "https://blockchainapi.one/api/hashburst/hvm/testnet/evm",
+  "checks": [
+    {
+      "method": "eth_getBalance",
+      "result": "0xde0b6b3a7635bf0"
+    },
+    {
+      "method": "eth_getTransactionCount",
+      "result": "0x1"
+    },
+    {
+      "method": "eth_getCode",
+      "result": "0x"
+    },
+    {
+      "method": "eth_getStorageAt",
+      "result": "0x0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "method": "eth_call",
+      "result": "0x"
+    },
+    {
+      "method": "eth_estimateGas",
+      "result": "0x5208"
+    }
+  ],
+  "no_transaction_sent": true,
+  "metamask_certified": false
+}

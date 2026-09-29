@@ -12,6 +12,7 @@ import (
 const (
 	BlockVersionLegacy uint16 = 1
 	BlockVersionV2     uint16 = 2
+	BlockVersionEVM    uint16 = 3
 
 	// DisabledActivationHeight is deliberately impossible for a practical chain
 	// height. Phase 3B ships Protocol V2 dark: production behavior remains V1
@@ -25,6 +26,7 @@ const (
 // values are provisional while ActivationHeight is disabled; before testnet or
 // mainnet activation they must be frozen in a versioned protocol release.
 type ProtocolV2Config struct {
+	EVM                       *EVMConfig              `json:"evm,omitempty"`
 	ChainID                   uint64                  `json:"chain_id"`
 	ActivationHeight          uint64                  `json:"activation_height"`
 	FeePolicy                 protocolv2.FeePolicy    `json:"fee_policy"`
@@ -85,7 +87,7 @@ func (c ProtocolV2Config) LegacyDifficulty() int {
 }
 
 // EffectivePoHTicks keeps configs serialized before this field was introduced
-// compatible: zero means the historical production PoHTicks value. Phase 3E
+// compatible: zero means the historical production PoHTicks value. HVM Network
 // isolated test/devnet manifests explicitly select a lower value.
 func (c ProtocolV2Config) EffectivePoHTicks() int {
 	if c.PoHTicksPerBlock == 0 {
@@ -95,6 +97,9 @@ func (c ProtocolV2Config) EffectivePoHTicks() int {
 }
 
 func (c ProtocolV2Config) Validate() error {
+	if err := c.validateEVMConfig(); err != nil {
+		return err
+	}
 	if c.ChainID == 0 {
 		return fmt.Errorf("protocol v2 chain id must be non-zero")
 	}

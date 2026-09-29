@@ -20,7 +20,11 @@ type phase3DSetup struct {
 
 func setupPhase3DChains(t *testing.T) phase3DSetup {
 	t.Helper()
-	cfg := phase3CTestConfig()
+	return setupPhase3DChainsWithConfig(t, phase3CTestConfig())
+}
+
+func setupPhase3DChainsWithConfig(t *testing.T, cfg ProtocolV2Config) phase3DSetup {
+	t.Helper()
 	cfg.ConsensusNetwork.ProposalTimeout = 20 * time.Millisecond
 	cfg.ConsensusNetwork.PrevoteTimeout = 20 * time.Millisecond
 	cfg.ConsensusNetwork.PrecommitTimeout = 20 * time.Millisecond
