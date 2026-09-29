@@ -1,0 +1,62 @@
+
+'use strict';let ws,wsSeq=0,wsPending=new Map(),events=[];
+async function openWS(){ws=new WebSocket(endpoint.replace(/^https:/,'wss:')+'/ws');await new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(Error(T('WebSocket timeout'))),15000);ws.onopen=()=>{clearTimeout(t);resolve()};ws.onerror=()=>{clearTimeout(t);reject(Error(T('WebSocket failed')))}});ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.method==='eth_subscription'){events.push(m.params);return}const p=wsPending.get(m.id);if(p){clearTimeout(p.timer);wsPending.delete(m.id);m.error?p.reject(Error(JSON.stringify(m.error))):p.resolve(m.result)}};ws.onclose=()=>{for(const p of wsPending.values()){clearTimeout(p.timer);p.reject(Error(T('WebSocket closed')))}wsPending.clear()}}
+function wsrpc(method,params){return new Promise((resolve,reject)=>{const id=++wsSeq;const timer=setTimeout(()=>{wsPending.delete(id);reject(Error(T('WS response timeout')))},15000);wsPending.set(id,{resolve,reject,timer});ws.send(JSON.stringify({jsonrpc:'2.0',id,method,params}))})}
+let wallet,account,endpoint,proof={chainId:4735490,checks:[]};const el=id=>document.getElementById(id);const log=s=>el('output').textContent+=s+'\n';
+async function rpc(method,params=[]){const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error('HTTP '+response.status);const data=await response.json();if(data.error)throw Error(JSON.stringify(data.error));return data.result}
+async function requireChain(){const accounts=await wallet.request({method:'eth_accounts'});if(account&&accounts[0]?.toLowerCase()!==account.toLowerCase())throw Error(T('Account cambiato'));if(await wallet.request({method:'eth_chainId'})!=='0x484202')throw Error(T('Rete diversa dalla testnet: operazione interrotta'))}
+el('connect').onclick=async()=>{el('connect').disabled=true;el('run').disabled=true;try{endpoint=new URL(el('url').value);if(endpoint.protocol!=='https:')throw Error(T('Serve HTTPS'));endpoint=endpoint.href;await discoverWallets();const selected=walletEntries[Number(el('wallet-select').value)];wallet=selected?.provider;if(!wallet)throw Error(T('missing'));if(await rpc('eth_chainId')!=='0x484202')throw Error(T('Chain ID RPC non valido'));await wallet.request({method:'wallet_addEthereumChain',params:[{chainId:'0x484202',chainName:'HashBurst HVM Testnet',nativeCurrency:{name:'Test HBT',symbol:'tHBT',decimals:18},rpcUrls:[endpoint]}]});await wallet.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x484202'}]});[account]=await wallet.request({method:'eth_requestAccounts'});if(!account)throw Error(T('missingAccount'));await requireChain();log(T('Account testnet: ')+account);if(BigInt(await rpc('eth_getBalance',[account,'latest']))===0n)throw Error(T('Finanzia questo account sulla testnet e premi di nuovo Collega'));proof.account=account;proof.endpoint=endpoint;el('run').disabled=false}catch(e){log('STOP: '+e.message)}finally{el('connect').disabled=false}};
+async function transaction(tx,label){await requireChain();const gas=await rpc('eth_estimateGas',[{from:account,...tx}]);const hash=await wallet.request({method:'eth_sendTransaction',params:[{from:account,...tx,gas}]});log(label+': '+hash);(proof.submitted||=[]).push({label,hash});const until=Date.now()+180000;while(Date.now()<until){const receipt=await rpc('eth_getTransactionReceipt',[hash]);if(receipt){if(receipt.status!=='0x1')throw Error(label+' reverted');const block=await rpc('eth_getBlockByNumber',[receipt.blockNumber,false]);if(block.hash!==receipt.blockHash)throw Error(T('Receipt/block mismatch'));proof.checks.push({label,hash,receipt});return receipt}await new Promise(r=>setTimeout(r,2000))}throw Error(T('Attesa receipt scaduta; conservare hash e non reinviare alla cieca'))}
+el('run').onclick=async()=>{el('run').disabled=true;el('connect').disabled=true;el('wallet-select').disabled=true;el('refresh').disabled=true;try{await openWS();const headsID=await wsrpc('eth_subscribe',['newHeads']);await transaction({to:account,value:'0x1'},'transfer');const deploy=await transaction({data:'0x600b600c600039600b6000f3602a60005560006000a000'},'deploy');if(!deploy.contractAddress)throw Error(T('Contract address assente'));const logsID=await wsrpc('eth_subscribe',['logs',{address:deploy.contractAddress}]);const call=await transaction({to:deploy.contractAddress,data:'0x'},'call');if(BigInt(await rpc('eth_getStorageAt',[deploy.contractAddress,'0x0','latest']))!==42n)throw Error(T('Storage mismatch'));const logs=await rpc('eth_getLogs',[{blockHash:call.blockHash,address:deploy.contractAddress}]);if(!logs.some(l=>l.transactionHash===call.transactionHash))throw Error(T('Log assente'));const until=Date.now()+20000;while(Date.now()<until&&!events.some(e=>e.subscription===logsID&&e.result.transactionHash===call.transactionHash))await new Promise(r=>setTimeout(r,250));const logEvent=events.find(e=>e.subscription===logsID&&e.result.transactionHash===call.transactionHash);const headEvent=events.find(e=>e.subscription===headsID&&e.result.hash===call.blockHash);if(!logEvent||!headEvent||logEvent.result.blockHash!==call.blockHash)throw Error(T('Subscription/receipt mismatch'));if(!await wsrpc('eth_unsubscribe',[headsID])||!await wsrpc('eth_unsubscribe',[logsID]))throw Error(T('Unsubscribe failed'));proof.websocket={head:headEvent,log:logEvent,unsubscribed:true};proof.completedAt=new Date().toISOString();proof.result='METAMASK_TESTNET_MANUAL_CANARY_OK';log(proof.result);el('download').disabled=false}catch(e){proof.error=e.message;log('STOP: '+e.message);el('download').disabled=false}finally{if(ws)ws.close();log(T('finished'))}};
+el('download').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(proof,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='hvm-metamask-public-proof.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+
+const messages={
+ it:{intro:'Collaudo MetaMask sulla testnet 4735490. tHBT è la valuta nativa di prova: la t significa testnet. Il test richiede tre conferme: trasferimento di 1 wei a sé stessi, deploy e chiamata di un contratto. Non usa chiavi dei validatori.',connect:'Collega MetaMask alla testnet',run:'Esegui le tre transazioni testnet',download:'Scarica prova pubblica',wallet:'Wallet rilevato',refresh:'Rileva wallet',missing:'Nessun provider wallet rilevato nella pagina. Controlla estensione, profilo del browser e autorizzazioni del sito; poi ricarica.',missingAccount:'Nessun account autorizzato',none:'Nessun wallet rilevato',found:'Wallet rilevati: ',finished:'Sessione conclusa. Scarica la prova; in caso di errore conserva gli hash prima di ripetere il test.'},
+ en:{intro:'MetaMask acceptance test on testnet 4735490. tHBT is the native test currency: t stands for testnet. Three confirmations are required: a 1 wei self-transfer, contract deployment and a contract call. Validator keys are not used.',connect:'Connect MetaMask to testnet',run:'Run the three testnet transactions',download:'Download public proof',wallet:'Detected wallet',refresh:'Discover wallets',missing:'No wallet provider detected on this page. Check the extension, browser profile and site permissions, then reload.',missingAccount:'No authorized account',none:'No wallet detected',found:'Detected wallets: ',finished:'Session complete. Download the proof; on failure, preserve transaction hashes before repeating the test.'}
+};
+messages.it["Account cambiato"]="Account cambiato";messages.en["Account cambiato"]="Account changed";
+messages.it["Rete diversa dalla testnet: operazione interrotta"]="Rete diversa dalla testnet: operazione interrotta";messages.en["Rete diversa dalla testnet: operazione interrotta"]="Wrong network: testnet required";
+messages.it["Serve HTTPS"]="Serve HTTPS";messages.en["Serve HTTPS"]="HTTPS is required";
+messages.it["Chain ID RPC non valido"]="Chain ID RPC non valido";messages.en["Chain ID RPC non valido"]="Invalid RPC chain ID";
+messages.it["Account testnet: "]="Account testnet: ";messages.en["Account testnet: "]="Testnet account: ";
+messages.it["Finanzia questo account sulla testnet e premi di nuovo Collega"]="Finanzia questo account sulla testnet e premi di nuovo Collega";messages.en["Finanzia questo account sulla testnet e premi di nuovo Collega"]="Fund this account on testnet, then click Connect again";
+messages.it["Contract address assente"]="Contract address assente";messages.en["Contract address assente"]="Missing contract address";
+messages.it["Storage mismatch"]="Storage mismatch";messages.en["Storage mismatch"]="Storage mismatch";
+messages.it["Log assente"]="Log assente";messages.en["Log assente"]="Missing contract log";
+messages.it["Subscription/receipt mismatch"]="Subscription/receipt mismatch";messages.en["Subscription/receipt mismatch"]="Subscription/receipt mismatch";
+messages.it["Unsubscribe failed"]="Unsubscribe failed";messages.en["Unsubscribe failed"]="Unsubscribe failed";
+messages.it["Attesa receipt scaduta; conservare hash e non reinviare alla cieca"]="Attesa receipt scaduta; conservare hash e non reinviare alla cieca";messages.en["Attesa receipt scaduta; conservare hash e non reinviare alla cieca"]="Receipt timeout; keep the transaction hash and do not blindly resubmit";
+messages.it["Receipt/block mismatch"]="Receipt/block mismatch";messages.en["Receipt/block mismatch"]="Receipt/block mismatch";
+messages.it["WebSocket timeout"]="WebSocket timeout";messages.en["WebSocket timeout"]="WebSocket timeout";
+messages.it["WebSocket failed"]="WebSocket failed";messages.en["WebSocket failed"]="WebSocket failed";
+messages.it["WebSocket closed"]="WebSocket closed";messages.en["WebSocket closed"]="WebSocket closed";
+messages.it["WS response timeout"]="WS response timeout";messages.en["WS response timeout"]="WS response timeout";
+let language='it';try{language=localStorage.getItem('hvm-language')==='en'?'en':'it'}catch{}
+function T(key){return messages[language][key]||key}
+function setLanguage(value){language=value;document.documentElement.lang=value;try{localStorage.setItem('hvm-language',value)}catch{};for(const id of ['intro','connect','run','download','refresh'])el(id).textContent=T(id);el('wallet-label').textContent=T('wallet');renderWallets()}
+const walletEntries=[];
+function addWallet(provider,name,rdns=''){
+ if(!provider||typeof provider.request!=='function')return;
+ const existing=walletEntries.find(e=>e.provider===provider);
+ if(existing){if(rdns){existing.name=name;existing.rdns=rdns}return;}
+ walletEntries.push({provider,name:String(name).slice(0,100),rdns});renderWallets();
+}
+function renderWallets(){
+ const select=el('wallet-select');const old=select.value;select.replaceChildren();
+ walletEntries.forEach((entry,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=entry.name;select.append(option)});
+ if(old!==''&&walletEntries[Number(old)])select.value=old;
+ else {const mm=walletEntries.findIndex(e=>e.rdns==='io.metamask');if(mm>=0)select.value=String(mm)}
+ el('discovery-status').textContent=walletEntries.length?T('found')+walletEntries.map(e=>e.name).join(', '):T('none');
+}
+window.addEventListener('eip6963:announceProvider',event=>{const d=event.detail;if(d?.info&&d.provider)addWallet(d.provider,d.info.name,d.info.rdns)});
+function requestWallets(){window.dispatchEvent(new Event('eip6963:requestProvider'))}
+async function discoverWallets(){
+ requestWallets();await new Promise(resolve=>setTimeout(resolve,700));
+ const legacy=window.ethereum;const candidates=Array.isArray(legacy?.providers)?[...legacy.providers,legacy]:[legacy];
+ for(const provider of candidates)if(provider)addWallet(provider,provider.isMetaMask?'MetaMask (legacy)':'Ethereum wallet (legacy)');
+ renderWallets();
+}
+el('refresh').onclick=discoverWallets;
+el('lang-it').onclick=()=>setLanguage('it');el('lang-en').onclick=()=>setLanguage('en');
+setLanguage(language);requestWallets();
+

@@ -21,13 +21,6 @@ func Run(parent context.Context, s *State) error {
 	defer listener.Close()
 	mp := blockchain.NewMempool()
 	s.Chain.SetMempool(mp)
-	p, e := blockchain.NewP2PNodeWithListenIP(s.Chain, mp, c.P2PListenIP, c.P2PPort, s.Key)
-	if e != nil {
-		return e
-	}
-	defer p.Host.Close()
-	syncer := blockchain.NewSyncer(s.Chain, mp, p.Host)
-	s.Chain.SetSyncer(syncer)
 	validator := ""
 	if s.Signer != nil {
 		validator = c.ValidatorID
@@ -42,6 +35,22 @@ func Run(parent context.Context, s *State) error {
 	if e != nil {
 		return e
 	}
+	// Restore durable signing state before any inbound or outbound chain sync
+	// can advance the head. Start is idempotent; Run below owns the timer loop.
+	// Pre-consensus observers still need networking to reach activation.
+	if c.Protocol.ConsensusEnabledAt(s.Chain.Height() + 1) {
+		if e = reactor.Start(); e != nil {
+			return fmt.Errorf("reactor before P2P: %w", e)
+		}
+	}
+	defer reactor.Stop()
+	p, e := blockchain.NewP2PNodeWithListenIP(s.Chain, mp, c.P2PListenIP, c.P2PPort, s.Key)
+	if e != nil {
+		return e
+	}
+	defer p.Host.Close()
+	syncer := blockchain.NewSyncer(s.Chain, mp, p.Host)
+	s.Chain.SetSyncer(syncer)
 	network, e := blockchain.NewLibp2pConsensusNetwork(p.Host, reactor, c.Protocol.ConsensusNetwork)
 	if e != nil {
 		return e
@@ -51,6 +60,16 @@ func Run(parent context.Context, s *State) error {
 	rpc := blockchain.NewRPCHandler(s.Chain, mp, int64(c.Protocol.ChainID))
 	rpc.SetV2Broadcaster(syncer)
 	mux := http.NewServeMux()
+	if c.Protocol.EVM != nil {
+		evmRPC, err := s.Chain.NewEthereumRPC(syncer.GossipEthereum)
+		if err != nil {
+			return err
+		}
+		defer evmRPC.Stop()
+		// Separate loopback route until the public gateway method filter is upgraded.
+		mux.Handle("/evm", http.MaxBytesHandler(evmRPC, 256<<10))
+		mux.Handle("/evm/ws", evmRPC.WebsocketHandler([]string{"http://localhost", "https://blockchainapi.one"}))
+	}
 	mux.HandleFunc("/ws", rpc.ServeReadOnlyWebSocket)
 	mux.Handle("/rpc", http.MaxBytesHandler(rpc, int64(c.Protocol.ConsensusNetwork.MaxMessageBytes)))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +80,12 @@ func Run(parent context.Context, s *State) error {
 		status, fresh := reactor.TryStatus()
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "network": "testnet", "node_id": c.NodeID, "role": c.Role, "chain_id": c.Protocol.ChainID, "config_digest": c.Pin(), "height": s.Chain.Height(), "finalized_height": s.Chain.FinalizedHeight(), "peer_id": p.Host.ID().String(), "peer_count": len(p.Host.Network().Peers()), "reactor_running": reactor.Running(), "reactor_status_fresh": fresh, "reactor": status, "transport": network.Status()})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "network": "testnet", "node_id": c.NodeID, "role": c.Role, "chain_id": c.Protocol.ChainID, "config_digest": c.Pin(), "evm_activation_height": func() uint64 {
+			if c.Protocol.EVM != nil {
+				return c.Protocol.EVM.ActivationHeight
+			}
+			return 0
+		}(), "height": s.Chain.Height(), "finalized_height": s.Chain.FinalizedHeight(), "peer_id": p.Host.ID().String(), "peer_count": len(p.Host.Network().Peers()), "reactor_running": reactor.Running(), "reactor_status_fresh": fresh, "reactor": status, "transport": network.Status()})
 	})
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	errs := make(chan error, 2)

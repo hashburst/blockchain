@@ -20,14 +20,14 @@ export OUT
 for c in bash go jq curl sha256sum awk sed grep seq; do command -v "$c" >/dev/null || { echo "ERROR: missing $c" >&2; exit 1; }; done
 GV="$(GOTOOLCHAIN=local go version | awk '{print $3}')"
 if [ "$GV" != "go1.25.7" ]; then
-  echo "ERROR: Phase 3E requires Go 1.25.7 exactly; found $GV" >&2
+  echo "ERROR: HVM Network requires Go 1.25.7 exactly; found $GV" >&2
   exit 1
 fi
 if [ "$MODE" = netns ]; then
   [ "$(id -u)" = 0 ] || { echo "ERROR: MODE=netns requires root" >&2; exit 1; }
   for c in ip tc; do command -v "$c" >/dev/null || { echo "ERROR: missing $c" >&2; exit 1; }; done
 fi
-[ -f "$ROOT/devnet/hvm-network/cmd/node/main.go" ] || { echo "ERROR: Phase 3E harness missing from source tree" >&2; exit 1; }
-[ -f "$ROOT/go.mod" ] || { echo "ERROR: run from extracted Phase 3E source tree" >&2; exit 1; }
+[ -f "$ROOT/devnet/hvm-network/cmd/node/main.go" ] || { echo "ERROR: HVM Network harness missing from source tree" >&2; exit 1; }
+[ -f "$ROOT/go.mod" ] || { echo "ERROR: run from extracted HVM Network source tree" >&2; exit 1; }
 
 echo "HVM_NETWORK_PREFLIGHT_OK mode=$MODE nodes=$NODES go=$GV out=$OUT"

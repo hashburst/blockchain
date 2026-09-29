@@ -55,7 +55,7 @@ func TestHVMNetworkChainSyncAdvancesRunningConsensusReactor(t *testing.T) {
 		t.Fatalf("initial reactor height=%d want=%d", got, nextHeight)
 	}
 
-	// Reproduce the real Phase 3E race at the authoritative chain boundary: a
+	// Reproduce the real HVM Network race at the authoritative chain boundary: a
 	// QC-finalized block reaches this process through chain sync before the
 	// consensus-finalized envelope. TryExtendOrAdopt must advance both the chain
 	// and the attached running pacemaker; callers must not need a second hook.

@@ -79,8 +79,14 @@ func (c NetworkConfig) TimeoutFor(step BFTStep, round uint64) time.Duration {
 	default:
 		base = c.ProposalTimeout
 	}
-	// Linear backoff is deterministic and bounded by MaxRound. It avoids a
-	// network-wide tight loop when one or more validators are offline.
+	// Cap the backoff independently of the monotonically increasing round.
+	if round > c.MaxRound {
+		round = c.MaxRound
+	}
+	const maxDuration = time.Duration(1<<63 - 1)
+	if c.RoundTimeoutDelta > 0 && round > uint64((maxDuration-base)/c.RoundTimeoutDelta) {
+		return maxDuration
+	}
 	return base + time.Duration(round)*c.RoundTimeoutDelta
 }
 

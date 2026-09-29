@@ -1,0 +1,38 @@
+HVM Network pacemaker recovery — 2026-09-27
+Base: 3eda4d8f09b0ebe260d9ff2c01ae387994bf7d13
+Toolchain: Go 1.25.7 linux/amd64, CGO_ENABLED=0, GOMAXPROCS=2
+
+Observed incident: archive evm-recovery-7t7ydz1x.zip, 4045 files.
+All five nodes reported finalized height 51473 and eventually round 64/PREVOTE.
+Two validators retained the same round-0 certified value. v3/v4 had no lock.
+The archived common-height proofs returned one block hash across 1270 replies.
+
+Before/after regression:
+TestTestnetRoundExhaustionMixedLocksRecoverAndFinalize
+- Original reactor/recovery code via Go overlay: FAIL, recovery exhausted consensus rounds.
+- Patched runtime: PASS. Two persistent locked snapshots at round 64 and two
+  unlocked snapshots at round 256 reopen and finalize the original certified value.
+  This uses isolated local fixtures, not the public database.
+
+Additional targeted tests:
+- Progress beyond round 64 without quorum; no spurious finality; restart above 130.
+- Authenticated f+1 catch-up across the future-message window.
+- Single signer cannot advance the reactor or grow the round-change cache.
+- Invalid round-change signature rejected.
+- Terminal timeout error exits Run and clears running status.
+- Backoff cap and duration overflow.
+- Existing persistent recovery, journal, double-sign and EVM tests retained.
+
+Validation completed:
+- Full hvm-network Go suite, uncached: PASS.
+- Full evm/execution Go suite, uncached: PASS.
+- Five Python package guard tests: PASS.
+- Python syntax: PASS.
+- Dashboard JavaScript syntax: PASS.
+- Patch applied to fetched live dashboard HTML in scratch: PASS.
+- Linux amd64 static runtime build: PASS.
+
+Not performed: new race-detector run, actual VPS update/restart, PHP/nginx
+validation on the target, browser MetaMask confirmations, mainnet activation.
+The installer performs target PHP/nginx/HTTPS checks after a backup.
+Local tests are not certification of the live deployment.
