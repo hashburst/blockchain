@@ -327,6 +327,9 @@ func (r *ConsensusReactor) enterRoundLocked(round uint64) error {
 		// A valid network proposal won the race while the local value was building.
 		return r.acceptProposalLocked(p, true)
 	}
+	if err == ErrAPoWUnavailable {
+		return nil
+	} // wait for work; no signature or subsidy
 	if err != nil {
 		return err
 	}

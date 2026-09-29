@@ -84,7 +84,7 @@ func validateEVMEnvelope(b *Block, c ProtocolV2Config) error {
 		}
 		return nil
 	}
-	if b.EffectiveVersion() != BlockVersionEVM {
+	if b.EffectiveVersion() < BlockVersionEVM || b.EffectiveVersion() > BlockVersionAPoW {
 		return fmt.Errorf("EVM block version required")
 	}
 	size := 0
@@ -223,6 +223,10 @@ func sameEthereumSender(raw []byte, chain uint64, sender string) bool {
 }
 
 func (c ProtocolV2Config) detached() ProtocolV2Config {
+	if c.APoW != nil {
+		copy := *c.APoW
+		c.APoW = &copy
+	}
 	if c.EVM != nil {
 		copy := *c.EVM
 		c.EVM = &copy

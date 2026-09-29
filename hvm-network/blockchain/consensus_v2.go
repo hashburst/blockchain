@@ -58,7 +58,17 @@ func (bc *Blockchain) BuildConsensusProposal(proposerID string, round uint64) (*
 		return nil, fmt.Errorf("validator %s is not scheduled proposer; expected %s", proposerID, expected.ID)
 	}
 
-	rewardTX := NewSystemReward(expected.RewardAddress, bc.MiningReward)
+	beneficiary := expected.RewardAddress
+	var work *APoWProof
+	if bc.v2Config.APoWEnabledAt(nextHeight) {
+		if bc.apowWork == nil || bc.apowWork.ParentHash != latest.Hash {
+			return nil, ErrAPoWUnavailable
+		}
+		copy := *bc.apowWork
+		work = &copy
+		beneficiary = work.Beneficiary
+	}
+	rewardTX := NewSystemReward(beneficiary, bc.MiningReward)
 	txs := append([]*Transaction{rewardTX}, bc.PendingTXs...)
 	b := NewBlockV2(txs, bc.PendingTXsV2, latest.Hash, nextHeight, poHWithTicks(latest.ProofOfTime, bc.v2Config.EffectivePoHTicks()), bc.v2Config.ChainID)
 	if bc.v2Config.EVMEnabledAt(nextHeight) {
@@ -67,12 +77,16 @@ func (bc *Blockchain) BuildConsensusProposal(proposerID string, round uint64) (*
 			b.EthereumTransactions = bc.mempool.snapshotEthereum()
 		}
 	}
+	if work != nil {
+		b.Version = BlockVersionAPoW
+		b.APoW = work
+	}
 	b.AuthorValidatorID = expected.ID
 	b.ProposerID = expected.ID
 	b.ConsensusRound = round
 	b.ValidRound = -1
 	b.ValidPrevoteCertificate = nil
-	if b.Version == BlockVersionEVM {
+	if b.Version >= BlockVersionEVM {
 		bc.selectEthereum(b)
 	}
 	prepared, err := bc.prepareV2Commitments(b)
@@ -303,7 +317,14 @@ func (bc *Blockchain) validateConsensusProposal(b *Block, set consensus.Validato
 		// A quorum certified this exact content hash. The original author
 		// remains hash-bound and owns the reward across all subsequent views.
 	}
-	if err := validateRewardRecipient(b, author.RewardAddress); err != nil {
+	beneficiary := author.RewardAddress
+	if bc.v2Config.APoWEnabledAt(b.Index) {
+		if b.APoW == nil {
+			return fmt.Errorf("missing APoW proof")
+		}
+		beneficiary = b.APoW.Beneficiary
+	}
+	if err := validateRewardRecipient(b, beneficiary); err != nil {
 		return err
 	}
 	if !requireQC {
@@ -338,7 +359,7 @@ func validateRewardRecipient(b *Block, expectedReward string) error {
 	for _, tx := range b.Transactions {
 		if tx != nil && tx.IsSystem() {
 			if !wallet.AddressEqual(tx.Receiver, expectedReward) {
-				return fmt.Errorf("system reward receiver %s does not match proposer reward address %s", tx.Receiver, expectedReward)
+				return fmt.Errorf("system reward receiver %s does not match required reward address %s", tx.Receiver, expectedReward)
 			}
 			return nil
 		}
@@ -351,6 +372,10 @@ func cloneBlockForConsensus(b *Block) *Block {
 		return nil
 	}
 	out := *b
+	if b.APoW != nil {
+		copy := *b.APoW
+		out.APoW = &copy
+	}
 	out.EthereumTransactions = cloneRawTransactions(b.EthereumTransactions)
 	out.Transactions = append([]*Transaction(nil), b.Transactions...)
 	out.TransactionsV2 = make([]*protocolv2.TransactionV2, 0, len(b.TransactionsV2))
