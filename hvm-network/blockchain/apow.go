@@ -21,6 +21,7 @@ var ErrAPoWUnavailable = errors.New("APoW work not available for current parent"
 // APoWConfig is a consensus change, disabled when absent. Parameters must be
 // identical in every validator's pinned configuration before activation.
 type APoWConfig struct {
+	GasLimit         uint64 `json:"gas_limit,omitempty"` // zero inherits original EVM limit; otherwise activates with APoW
 	ActivationHeight uint64 `json:"activation_height"`
 	InitialBits      uint8  `json:"initial_bits"`
 	MinBits          uint8  `json:"min_bits"`
@@ -39,6 +40,9 @@ func (c ProtocolV2Config) validateAPoWConfig() error {
 	}
 	if a.ActivationHeight == 0 || a.ActivationHeight == DisabledActivationHeight || !c.EVMEnabledAt(int(a.ActivationHeight)) || !c.ConsensusEnabledAt(int(a.ActivationHeight)) {
 		return fmt.Errorf("APoW requires explicit EVM and BFT activation")
+	}
+	if a.GasLimit != 0 && (a.GasLimit < c.EVM.GasLimit || a.GasLimit > 30_000_000) {
+		return fmt.Errorf("APoW gas limit must retain/increase original limit within 30000000")
 	}
 	if a.MinBits < 1 || a.MaxBits > 240 || a.MinBits > a.InitialBits || a.InitialBits > a.MaxBits || a.Window < 2 || a.Window > 100000 || a.TargetSeconds < 1 || a.TargetSeconds > 86400 {
 		return fmt.Errorf("invalid APoW retarget parameters")
@@ -242,4 +246,16 @@ func cloneAPoW(p *APoWProof) *APoWProof {
 	}
 	copy := *p
 	return &copy
+}
+
+// EVMGasLimitAt preserves historic execution and GASLIMIT semantics. Never
+// overwrite EVM.GasLimit to increase capacity on an already executed chain.
+func (c ProtocolV2Config) EVMGasLimitAt(height int) uint64 {
+	if c.EVM == nil {
+		return 0
+	}
+	if c.APoWEnabledAt(height) && c.APoW.GasLimit != 0 {
+		return c.APoW.GasLimit
+	}
+	return c.EVM.GasLimit
 }

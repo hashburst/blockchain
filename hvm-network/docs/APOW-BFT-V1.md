@@ -86,8 +86,16 @@ choose measured difficulty/timing parameters; define and test a configuration-pi
 migration preserving recovery locks and signing journals; test four real validators
 plus observer under loss and restart; check fixed-height agreement, rewards and
 EVM execution; then publish a separate mainnet manifest. Existing configuration
-pins must not be rewritten manually. No migration command is supplied here: the
-existing EVM-only migration must not be reused for APoW.
+pins must not be rewritten manually. The dedicated testnet-only `--migrate-apow`
+command verifies both configurations and replays the candidate under an exclusive
+state lock; it records an immutable intent and can resume the same pin/config
+transition. It preserves chain data, signing journals and the recovery snapshot.
+The existing EVM-only migration must not be reused for APoW.
+
+An optional `apow.gas_limit` activates with APoW; historical gas semantics retain
+`evm.gas_limit`. Replacing that historic value is rejected by migration. The
+2,000,000-gas strict fixture is a tested experimental capacity, not an approved
+mainnet setting. See `deploy/testnet/apow/README_IT.md` for the live preflight.
 
 Founder allocation, faucet policy, supply schedule and legacy economic migration
 are separate consensus/economic decisions, not implicitly executed by this patch.
