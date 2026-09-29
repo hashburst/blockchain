@@ -38,6 +38,10 @@ func run() int {
 		log.Printf("config: %v", e)
 		return 1
 	}
+	if c.Network != "testnet" {
+		log.Print("testnet executable refuses another network")
+		return 1
+	}
 	s, e := testnet.Prepare(c, *provision)
 	if e != nil {
 		log.Printf("state: %v", e)

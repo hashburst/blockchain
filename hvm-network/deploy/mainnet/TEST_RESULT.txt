@@ -1,0 +1,6 @@
+Go 1.25.7
+go test ./... -count=1: PASS
+go test -race ./internal/testnet ./internal/bootstrap ./internal/evmgateway ./blockchain -count=1: PASS
+go build ./cmd/hashburst-mainnet: PASS
+Mainnet profile isolation and testnet bootstrap rejection tests: PASS
+Scope: local runtime foundation/regression tests, not live mainnet or production bootstrap validation.

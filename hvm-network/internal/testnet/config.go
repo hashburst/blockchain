@@ -55,14 +55,19 @@ func Load(path string) (Config, error) {
 	return c, c.Validate()
 }
 func (c Config) Validate() error {
-	if c.Protocol.EVM != nil && c.Protocol.ChainID != 4735490 {
+	if c.Network == "testnet" && c.Protocol.EVM != nil && c.Protocol.ChainID != 4735490 {
 		return fmt.Errorf("testnet EVM requires chain ID 4735490; mainnet uses a separate runtime configuration")
+	}
+	if c.Network == "mainnet" {
+		if err := c.validateMainnetProfile(); err != nil {
+			return err
+		}
 	}
 	if c.P2PKeyFile == "" {
 		return fmt.Errorf("P2P key path required")
 	}
-	if c.Schema != 1 || c.Network != "testnet" || strings.TrimSpace(c.NodeID) == "" {
-		return fmt.Errorf("explicit schema 1, testnet and node_id required")
+	if c.Schema != 1 || (c.Network != "testnet" && c.Network != "mainnet") || strings.TrimSpace(c.NodeID) == "" {
+		return fmt.Errorf("explicit schema 1, testnet/mainnet and node_id required")
 	}
 	if c.Role != "observer" && c.Role != "validator" {
 		return fmt.Errorf("role must be observer or validator")
@@ -133,4 +138,31 @@ func (c Config) Pin() string {
 	}{c.Network, c.GenesisHash, c.CheckpointHeight, c.CheckpointHash, c.Protocol})
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
+}
+
+// Mainnet has a separate on-disk namespace and listeners. Existing testnet
+// pins cannot be relabelled: the pin covers Network, ChainID and the checkpoint.
+func (c Config) validateMainnetProfile() error {
+	if c.Protocol.ChainID != 4735489 || c.Protocol.EVM == nil {
+		return fmt.Errorf("mainnet requires chain ID 4735489 and explicit EVM configuration")
+	}
+	if c.DataDir != "/var/lib/hashburst-hvm-mainnet" && c.DataDir != "/var/lib/hashburst-hvm-mainnet-ingress" {
+		return fmt.Errorf("mainnet requires its dedicated state directory")
+	}
+	keyRoot := "/etc/hashburst-hvm-mainnet/"
+	if c.Role == "observer" {
+		keyRoot = "/etc/hashburst-hvm-mainnet-ingress/"
+	}
+	for _, p := range []string{c.P2PKeyFile, c.ConsensusKeyFile} {
+		if p != "" && (filepath.Clean(p) != p || !strings.HasPrefix(p, keyRoot)) {
+			return fmt.Errorf("mainnet requires separate canonical key paths")
+		}
+	}
+	if (c.Role == "observer") != (c.DataDir == "/var/lib/hashburst-hvm-mainnet-ingress") {
+		return fmt.Errorf("mainnet role/state directory mismatch")
+	}
+	if c.RPCListen != "127.0.0.1:18019" || c.P2PPort != 31317 {
+		return fmt.Errorf("mainnet requires dedicated RPC 18019 and P2P 31317")
+	}
+	return nil
 }
