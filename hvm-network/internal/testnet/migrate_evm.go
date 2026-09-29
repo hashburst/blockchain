@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -31,12 +32,23 @@ func diskPin(c Config) []byte {
 	return []byte(c.Pin() + "\n" + c.NodeID + "\n" + c.PeerID + "\n" + c.ValidatorID + "\n")
 }
 func digestFile(p string) (string, error) {
-	b, e := os.ReadFile(p)
+	st, e := os.Lstat(p)
 	if e != nil {
 		return "", e
 	}
-	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:]), nil
+	if !st.Mode().IsRegular() {
+		return "", fmt.Errorf("not a regular evidence file: %s", p)
+	}
+	f, e := os.Open(p)
+	if e != nil {
+		return "", e
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, e = io.Copy(h, f); e != nil {
+		return "", e
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 func validateEVMTransition(old, next Config) error {
 	if e := old.Validate(); e != nil {
@@ -102,7 +114,11 @@ func atomicReplace(path string, data []byte) error {
 // MigrateEVM can resume the pin/config two-file transition after interruption.
 // Runtime startup fails closed between those writes. Repeating with the SAME
 // candidate resumes; a different candidate cannot overwrite the evidence.
-func MigrateEVM(configPath, nextPath string) error {
+func MigrateEVM(configPath, nextPath string) error { return migrateConfig(configPath, nextPath, false) }
+
+// MigrateAPoW is testnet-only and cannot alter legacy rules, identities or funds.
+func MigrateAPoW(configPath, nextPath string) error { return migrateConfig(configPath, nextPath, true) }
+func migrateConfig(configPath, nextPath string, apow bool) error {
 	configPath, e := filepath.Abs(configPath)
 	if e != nil {
 		return e
@@ -115,7 +131,13 @@ func MigrateEVM(configPath, nextPath string) error {
 	if e != nil {
 		return e
 	}
-	evidencePath := filepath.Join(current.DataDir, "evm-activation-intent.json")
+	intentName := "evm-activation-intent.json"
+	validate := validateEVMTransition
+	if apow {
+		intentName = "apow-activation-intent.json"
+		validate = validateAPoWTransition
+	}
+	evidencePath := filepath.Join(current.DataDir, intentName)
 	old := current
 	var evidence migrationEvidence
 	raw, e := os.ReadFile(evidencePath)
@@ -142,7 +164,7 @@ func MigrateEVM(configPath, nextPath string) error {
 			return fmt.Errorf("configuration changed outside migration")
 		}
 	}
-	if e = validateEVMTransition(old, next); e != nil {
+	if e = validate(old, next); e != nil {
 		return e
 	}
 	pinPath := filepath.Join(current.DataDir, "runtime.pin")
@@ -168,7 +190,11 @@ func MigrateEVM(configPath, nextPath string) error {
 		return nil
 	}
 	height := state.Chain.Height()
-	if uint64(height)+EVMActivationMargin >= next.Protocol.EVM.ActivationHeight {
+	activation := next.Protocol.EVM.ActivationHeight
+	if apow {
+		activation = next.Protocol.APoW.ActivationHeight
+	}
+	if uint64(height) >= activation || activation-uint64(height) <= EVMActivationMargin {
 		return fmt.Errorf("activation must be more than %d blocks ahead of local height %d", EVMActivationMargin, height)
 	}
 	log.Printf("HVM_MIGRATION_CANDIDATE_BEGIN height=%d", height)
@@ -183,7 +209,17 @@ func MigrateEVM(configPath, nextPath string) error {
 	}
 	log.Print("HVM_MIGRATION_CANDIDATE_VALIDATED")
 	journals := map[string]string{}
-	for _, name := range []string{"consensus-votes.jsonl", "consensus-bft-signatures.jsonl"} {
+	protected := []string{"consensus-votes.jsonl", "consensus-bft-signatures.jsonl"}
+	if apow {
+		protected = append(protected, "blockchain.dat", "blockchain.idx")
+		path := filepath.Join(next.DataDir, "consensus-recovery.json")
+		if _, err := os.Lstat(path); err == nil {
+			protected = append(protected, "consensus-recovery.json")
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+	}
+	for _, name := range protected {
 		h, e := digestFile(filepath.Join(next.DataDir, name))
 		if e != nil {
 			return e

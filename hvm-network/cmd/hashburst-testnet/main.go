@@ -16,10 +16,23 @@ func run() int {
 	provision := flag.Bool("provision", false, "pin an existing prepared testnet checkpoint; do not start")
 	check := flag.Bool("check", false, "validate pinned state and keys; do not start")
 	migration := flag.String("migrate-evm", "", "offline: migrate pinned testnet to this candidate config; safely resume the same transition")
+	apowMigration := flag.String("migrate-apow", "", "offline: schedule APoW and optional future gas capacity; preserve existing state")
 	flag.Parse()
 	if *path == "" || (*provision && *check) {
 		log.Print("--config required; --provision and --check are exclusive")
 		return 2
+	}
+	if *apowMigration != "" {
+		if *migration != "" || *provision || *check {
+			log.Print("APoW migration excludes other actions")
+			return 2
+		}
+		if e := testnet.MigrateAPoW(*path, *apowMigration); e != nil {
+			log.Printf("APoW migration: %v", e)
+			return 1
+		}
+		log.Print("HVM_APOW_CONFIG_MIGRATION_OK_NO_SERVICE_STARTED")
+		return 0
 	}
 	if *migration != "" {
 		if *provision || *check {

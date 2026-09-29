@@ -32,11 +32,12 @@ func TestHBTStrictContractsOnHVM(t *testing.T) {
 		t.Fatal(err)
 	}
 	st, from, b := fixture(t)
+	b.GasLimit = 2000000
 	key, _ := crypto.HexToECDSA(privateTestKey)
 	nonce := uint64(0)
 	transact := func(to *common.Address, data []byte) *types.Receipt {
 		t.Helper()
-		tx := types.NewTx(&types.DynamicFeeTx{ChainID: big.NewInt(int64(TestnetID)), Nonce: nonce, To: to, Gas: 3000000, GasFeeCap: big.NewInt(3), GasTipCap: big.NewInt(1), Data: data})
+		tx := types.NewTx(&types.DynamicFeeTx{ChainID: big.NewInt(int64(TestnetID)), Nonce: nonce, To: to, Gas: 2000000, GasFeeCap: big.NewInt(3), GasTipCap: big.NewInt(1), Data: data})
 		tx, e := types.SignTx(tx, types.NewCancunSigner(big.NewInt(int64(TestnetID))), key)
 		if e != nil {
 			t.Fatal(e)

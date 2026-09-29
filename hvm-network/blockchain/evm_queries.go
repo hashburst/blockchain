@@ -110,7 +110,7 @@ func (a *EthereumNodeAPI) FeeHistory(count hexutil.Uint64, newest rpc.BlockNumbe
 		b := a.bc.Blocks[h]
 		base := new(big.Int).SetUint64(a.bc.v2Config.EVM.BaseFeeWei)
 		fees = append(fees, hexutil.Big(*base))
-		ratios = append(ratios, float64(b.EVMGasUsed)/float64(a.bc.v2Config.EVM.GasLimit))
+		ratios = append(ratios, float64(b.EVMGasUsed)/float64(a.bc.v2Config.EVMGasLimitAt(b.Index)))
 		type weighted struct {
 			tip *big.Int
 			gas uint64

@@ -50,6 +50,15 @@ func (bc *Blockchain) recoveryConfigMatches(s *consensusRecovery) bool {
 		return true
 	}
 	cfg := bc.v2Config.detached()
+	// A future APoW schedule preserves all previous rules exactly. Accept only
+	// the exact predecessor digest, and only below its activation height.
+	if cfg.ChainID == 4735490 && cfg.APoW != nil && s.Height < cfg.APoW.ActivationHeight {
+		previous := cfg.detached()
+		previous.APoW = nil
+		if s.ConfigHash == recoveryProtocolHash(previous) {
+			return true
+		}
+	}
 	if cfg.ChainID != 4735490 || cfg.EVM == nil || s.Height >= cfg.EVM.ActivationHeight {
 		return false
 	}

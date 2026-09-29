@@ -32,7 +32,7 @@ func (bc *Blockchain) ethereumHeader(b *Block) *types.Header {
 			}
 		}
 	}
-	return &types.Header{ParentHash: common.HexToHash(b.PrevHash), UncleHash: types.EmptyUncleHash, Coinbase: bc.ethereumContext(b, bc.Blocks).Coinbase, Root: common.HexToHash(b.EVMStateRoot), TxHash: types.DeriveSha(txs, trie.NewStackTrie(nil)), ReceiptHash: common.HexToHash(b.EVMReceiptsRoot), Bloom: bloom, Difficulty: new(big.Int), Number: big.NewInt(int64(b.Index)), GasLimit: bc.v2Config.EVM.GasLimit, GasUsed: b.EVMGasUsed, Time: uint64(b.Timestamp.Unix()), Extra: []byte("HVM Network"), BaseFee: new(big.Int).SetUint64(bc.v2Config.EVM.BaseFeeWei)}
+	return &types.Header{ParentHash: common.HexToHash(b.PrevHash), UncleHash: types.EmptyUncleHash, Coinbase: bc.ethereumContext(b, bc.Blocks).Coinbase, Root: common.HexToHash(b.EVMStateRoot), TxHash: types.DeriveSha(txs, trie.NewStackTrie(nil)), ReceiptHash: common.HexToHash(b.EVMReceiptsRoot), Bloom: bloom, Difficulty: new(big.Int), Number: big.NewInt(int64(b.Index)), GasLimit: bc.v2Config.EVMGasLimitAt(b.Index), GasUsed: b.EVMGasUsed, Time: uint64(b.Timestamp.Unix()), Extra: []byte("HVM Network"), BaseFee: new(big.Int).SetUint64(bc.v2Config.EVM.BaseFeeWei)}
 }
 func (bc *Blockchain) publishEthereumFinalizedLocked() {
 	if bc.evmSubscriptions == nil || bc.state.evm == nil || len(bc.Blocks) == 0 {
