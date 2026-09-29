@@ -489,3 +489,9 @@ The node imports it for mempool admission, account settlement,
 BFT block commitments and replay. Testnet activation and scoped wallet acceptance passed; mainnet activation remains pending its separate deployment.
 The PHP files and Solidity examples in this folder are historical application
 artifacts, not the implementation of the Ethereum execution engine.
+
+The [HBT strict candidate profile](strict/README.md) contains pinned Solidity
+examples and real HVM execution tests. Its current templates exceed the existing
+200000 testnet block gas limit; publication requires an explicit gas-limit rollout.
+The [APoW + PoH + BFT proposal](../hvm-network/docs/APOW-BFT-V1.md) is a separately
+activation-gated consensus change and does not modify Ethereum ABI semantics.

@@ -1,0 +1,12 @@
+const fs=require('node:fs'), solc=require('solc'), assert=require('node:assert/strict');
+assert(solc.version().startsWith('0.8.30+'));
+const input={language:'Solidity',sources:{'HBTStrict.sol':{content:fs.readFileSync('HBTStrict.sol','utf8')}},settings:{optimizer:{enabled:true,runs:200},evmVersion:'cancun',outputSelection:{'*':{'*':['abi','evm.bytecode.object','evm.deployedBytecode.object','evm.methodIdentifiers']}}}};
+const out=JSON.parse(solc.compile(JSON.stringify(input),{import:path=>({contents:fs.readFileSync('node_modules/'+path,'utf8')})}));
+for(const e of out.errors||[]) if(e.severity==='error') throw Error(e.formattedMessage);
+const result={compiler:solc.version(),openzeppelin:'5.4.0',evmVersion:'cancun',contracts:{}};
+for(const [name,c] of Object.entries(out.contracts['HBTStrict.sol'])) result.contracts[name]={abi:c.abi,bytecode:c.evm.bytecode.object,selectors:c.evm.methodIdentifiers,codeDepositGasLowerBound:c.evm.deployedBytecode.object.length/2*200};
+assert.equal(result.contracts.HBT20Strict.selectors['transfer(address,uint256)'],'a9059cbb');
+assert.equal(result.contracts.HBT721Strict.selectors['supportsInterface(bytes4)'],'01ffc9a7');
+fs.writeFileSync('artifacts.json',JSON.stringify(result,null,2)+'\n');
+console.log('STRICT_COMPILATION_OK; native gas currency remains HBT');
+for(const [name,c] of Object.entries(result.contracts))console.log(name+' code-deposit gas lower bound='+c.codeDepositGasLowerBound);

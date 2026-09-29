@@ -39,7 +39,7 @@ func (bc *Blockchain) publishEthereumFinalizedLocked() {
 		return
 	}
 	b := bc.Blocks[len(bc.Blocks)-1]
-	if b.Version != BlockVersionEVM || b.FinalityCertificate == nil {
+	if b.Version < BlockVersionEVM || b.FinalityCertificate == nil {
 		return
 	}
 	var logs []*types.Log
@@ -71,7 +71,7 @@ func (a *EthereumNodeAPI) GetBlockByNumber(n rpc.BlockNumber, full bool) (map[st
 		return nil, nil
 	}
 	b := a.bc.Blocks[index]
-	if b.Version != BlockVersionEVM {
+	if b.Version < BlockVersionEVM {
 		return nil, fmt.Errorf("block predates EVM activation")
 	}
 	data, err := json.Marshal(a.bc.ethereumHeader(b))

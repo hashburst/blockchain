@@ -60,6 +60,9 @@ func Run(parent context.Context, s *State) error {
 	rpc := blockchain.NewRPCHandler(s.Chain, mp, int64(c.Protocol.ChainID))
 	rpc.SetV2Broadcaster(syncer)
 	mux := http.NewServeMux()
+	if c.Protocol.APoW != nil {
+		mux.Handle("/apow", s.Chain.APoWHandler(network.BroadcastAPoW))
+	}
 	if c.Protocol.EVM != nil {
 		evmRPC, err := s.Chain.NewEthereumRPC(syncer.GossipEthereum)
 		if err != nil {

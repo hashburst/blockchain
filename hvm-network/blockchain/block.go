@@ -13,10 +13,11 @@ import (
 // old blocks leave Version=0; EffectiveVersion treats that as legacy V1.
 // Phase 3B V2 blocks add native/HVM/receipt commitments and TransactionV2.
 type Block struct {
-	EthereumTransactions    [][]byte `json:",omitempty"`
-	EVMStateRoot            string   `json:",omitempty"`
-	EVMReceiptsRoot         string   `json:",omitempty"`
-	EVMGasUsed              uint64   `json:",omitempty"`
+	APoW                    *APoWProof `json:",omitempty"`
+	EthereumTransactions    [][]byte   `json:",omitempty"`
+	EVMStateRoot            string     `json:",omitempty"`
+	EVMReceiptsRoot         string     `json:",omitempty"`
+	EVMGasUsed              uint64     `json:",omitempty"`
 	Version                 uint16
 	ProtocolChainID         uint64
 	Index                   int
@@ -32,7 +33,7 @@ type Block struct {
 	ReceiptsRoot            string
 	ValidatorSetRoot        string
 	ValidatorStateRoot      string
-	AuthorValidatorID       string // block-content author/reward owner; committed in block hash
+	AuthorValidatorID       string // BFT content author; APoW beneficiary is separately committed
 	ProposerID              string // current BFT round proposer; consensus metadata, not block hash
 	ConsensusRound          uint64
 	ValidRound              int64
@@ -167,10 +168,21 @@ func (b *Block) generateV2Hash() string {
 		c.putString(b.EVMReceiptsRoot)
 		c.putUint64(b.EVMGasUsed)
 	}
+	if b.EffectiveVersion() >= BlockVersionAPoW {
+		c.putString("HASHBURST_APOW_BLOCK_V1")
+		if b.APoW != nil {
+			h := b.APoW.Digest()
+			c.putString(hex.EncodeToString(h[:]))
+			c.putString(b.APoW.Signature)
+		} else {
+			c.putString("")
+			c.putString("")
+		}
+	}
 	// Phase 3D deliberately excludes current-round proposer and round from the
 	// block/content hash. A valid block may be safely re-proposed in a later BFT
 	// round without changing its identity. AuthorValidatorID remains committed so
-	// reward ownership cannot be rewritten during a view change.
+	// content authorship cannot be rewritten during a view change.
 	// FinalityCertificate deliberately does not enter the proposal hash. Votes
 	// sign this hash; including the certificate would create a circular hash.
 
