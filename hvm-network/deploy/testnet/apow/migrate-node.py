@@ -153,7 +153,10 @@ def main(p):
  if action=='job':
   for name in ('FAILED.json','DONE.json'):
    if (directory/name).exists():return {'file':name,'result':read(directory/name)}
-  return {'job':properties('hvm-apow-migrate-'+pid[:16]+'.service')}
+  if not (directory/'LAUNCHED.json').exists():return {'not_submitted':True}
+  job=properties('hvm-apow-migrate-'+pid[:16]+'.service')
+  if job.get('LoadState')=='not-found':return {'lost_job_after_intent':True}
+  return {'job':job}
  if action=='gate':return local_gate(directory,cfg,unit,plan)
  if action=='start-gate':
   if (directory/'START_AUTHORIZED').exists():
