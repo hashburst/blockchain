@@ -1,0 +1,34 @@
+name: HVM release review
+on:
+  push:
+    branches: [feat/hvm-apow-strict]
+    paths: ['.github/workflows/hvm-release-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: db5d103c68ed6ebeb4db9938afa9f86e7c2deb87
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - run: go -C hvm-network test ./... -count=1
+      - run: go -C hvm-network test -race ./internal/testnet ./internal/bootstrap ./internal/evmgateway ./blockchain -count=1
+      - run: go -C hvm-network build ./cmd/hashburst-mainnet
+  apow_candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - run: go -C hvm-network test ./... -count=1
+      - run: go -C hvm-network test -race ./blockchain ./internal/testnet -run 'APoW|Recovery' -count=1
