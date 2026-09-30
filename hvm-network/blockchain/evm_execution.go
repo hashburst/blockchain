@@ -84,7 +84,7 @@ func validateEVMEnvelope(b *Block, c ProtocolV2Config) error {
 		}
 		return nil
 	}
-	if b.EffectiveVersion() != BlockVersionEVM {
+	if b.EffectiveVersion() < BlockVersionEVM || b.EffectiveVersion() > BlockVersionAPoW {
 		return fmt.Errorf("EVM block version required")
 	}
 	size := 0
@@ -117,7 +117,7 @@ func (bc *Blockchain) ethereumContext(b *Block, ancestors []*Block) execution.Bl
 			break
 		}
 	}
-	return execution.Block{Number: uint64(b.Index), Time: uint64(b.Timestamp.Unix()), Hash: common.HexToHash(b.Hash), ParentHash: common.HexToHash(b.PrevHash), Coinbase: coinbase, Random: common.HexToHash(b.PrevHash), GasLimit: bc.v2Config.EVM.GasLimit, BaseFee: new(big.Int).SetUint64(bc.v2Config.EVM.BaseFeeWei), HashAt: func(h uint64) common.Hash {
+	return execution.Block{Number: uint64(b.Index), Time: uint64(b.Timestamp.Unix()), Hash: common.HexToHash(b.Hash), ParentHash: common.HexToHash(b.PrevHash), Coinbase: coinbase, Random: common.HexToHash(b.PrevHash), GasLimit: bc.v2Config.EVMGasLimitAt(b.Index), BaseFee: new(big.Int).SetUint64(bc.v2Config.EVM.BaseFeeWei), HashAt: func(h uint64) common.Hash {
 		if h >= uint64(len(ancestors)) {
 			return common.Hash{}
 		}
@@ -223,6 +223,10 @@ func sameEthereumSender(raw []byte, chain uint64, sender string) bool {
 }
 
 func (c ProtocolV2Config) detached() ProtocolV2Config {
+	if c.APoW != nil {
+		copy := *c.APoW
+		c.APoW = &copy
+	}
 	if c.EVM != nil {
 		copy := *c.EVM
 		c.EVM = &copy

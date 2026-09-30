@@ -1,0 +1,5 @@
+__pycache__/
+apow-preflight-*/
+apow-preflight-*.tar.gz
+hashburst-testnet
+hvm-apow-miner

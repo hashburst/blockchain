@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "status": "draft_not_activatable",
+  "network": "mainnet",
+  "chain_id": 4735489,
+  "preserve_chain_ids": [
+    1337,
+    4735490
+  ],
+  "native_asset": {
+    "name": "HashBurst Coin",
+    "symbol": "HBT",
+    "asset_type": "native_coin",
+    "native_units_per_hbt": "100000000",
+    "evm_wei_per_hbt": "1000000000000000000"
+  },
+  "founder_allocation": {
+    "address": "0xd1Da8D04D767685e53440DbC56803aF350A65333",
+    "hbt": "1000000000",
+    "native_units": "100000000000000000",
+    "authority": "user instruction; no allocation executed",
+    "faucet_is_subset": true,
+    "faucet_budget_hbt": null
+  },
+  "block_reward": {
+    "hbt": "50",
+    "native_units": "5000000000",
+    "recipient": "beneficiary bound by valid work signature",
+    "condition": "one subsidy per finalized APoW block",
+    "emission_schedule_after_initial_reward": null
+  },
+  "legacy_migration": {
+    "mode": "verified_import_with_legacy_spending_freeze",
+    "snapshot_height": null,
+    "snapshot_hash": null,
+    "mapping_manifest_sha256": null,
+    "source_spendability_policy": "Freeze canonical legacy spending at the agreed snapshot boundary; enforcement and evidence required before mainnet import",
+    "founder_allocation_additive_or_included": "additive"
+  },
+  "apow": {
+    "activation_height": null,
+    "initial_bits": null,
+    "min_bits": null,
+    "max_bits": null,
+    "window": null,
+    "target_seconds": null
+  },
+  "validator_manifest_sha256": null,
+  "genesis_checkpoint_sha256": null,
+  "protocol_manifest_sha256": null,
+  "activation_blockers": [
+    "live APoW acceptance and reward conservation",
+    "emission schedule and faucet budget",
+    "measured difficulty, gas and validator parameters",
+    "separate identities and shared checkpoint",
+    "mainnet restart and wallet acceptance",
+    "implement and demonstrate canonical legacy spending freeze",
+    "supply source snapshot, ownership mapping and total-supply reconciliation"
+  ],
+  "decisions_confirmed": {
+    "date": "2026-09-30",
+    "legacy_import_with_spending_freeze": true,
+    "founder_billion_additive_to_imported_balances": true
+  }
+}

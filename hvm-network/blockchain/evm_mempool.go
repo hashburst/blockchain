@@ -123,7 +123,7 @@ func (bc *Blockchain) selectEthereum(b *Block) {
 		return
 	} // prepareV2Commitments reports the native execution error.
 	st := base.state.evm.db
-	remaining := bc.v2Config.EVM.GasLimit
+	remaining := bc.v2Config.EVMGasLimitAt(b.Index)
 	for _, raw := range candidates {
 		tx, _, err := execution.Decode(raw, bc.v2Config.ChainID)
 		if err != nil || tx.Gas() > remaining {

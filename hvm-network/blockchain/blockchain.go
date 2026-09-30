@@ -19,6 +19,7 @@ import (
 // Protocol V2/HVM projections. The chain remains the source of truth; native
 // HBT state, HVM state and receipts are deterministic projections of blocks.
 type Blockchain struct {
+	apowWork         *APoWProof // guarded by mu; never durable signing state
 	evmSubscriptions *execution.Subscriptions
 	evmReadHistory   *evmReadHistory
 	Blocks           []*Block
@@ -339,6 +340,15 @@ func ValidateBlockAgainstConfig(prev *Block, b *Block, miningReward float64, cfg
 	if cfg.EVMEnabledAt(b.Index) {
 		expectedVersion = BlockVersionEVM
 	}
+	if cfg.APoWEnabledAt(b.Index) {
+		expectedVersion = BlockVersionAPoW
+		if miningReward != DefaultMiningReward {
+			return fmt.Errorf("APoW v1 requires the fixed 50 HBT subsidy")
+		}
+	}
+	if err := validateAPoWEnvelope(prev, b, cfg); err != nil {
+		return err
+	}
 	if err := validateEVMEnvelope(b, cfg); err != nil {
 		return err
 	}
@@ -348,7 +358,7 @@ func ValidateBlockAgainstConfig(prev *Block, b *Block, miningReward float64, cfg
 	if !v2Enabled && b.EffectiveVersion() >= BlockVersionV2 {
 		return fmt.Errorf("blocco V2 prima dell'activation height")
 	}
-	if b.EffectiveVersion() > BlockVersionEVM {
+	if b.EffectiveVersion() > BlockVersionAPoW {
 		return fmt.Errorf("versione blocco non supportata %d", b.EffectiveVersion())
 	}
 
