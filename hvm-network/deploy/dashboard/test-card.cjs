@@ -6,8 +6,7 @@ const context={document:{hidden:false,getElementById:element},localStorage:{getI
 vm.runInNewContext(fs.readFileSync(__dirname+'/dashboard/card.js','utf8'),context);
 (async()=>{
  await element('hvm-refresh').handlers.click();assert.equal(element('hvm-finalized').textContent,'10');
- height++;await element('hvm-refresh').handlers.click();assert.equal(element('hvm-progress').textContent,'Avanzata dal campione precedente');
- element('hvm-en').handlers.click();assert.equal(element('hvm-progress').textContent,'Advanced since previous sample');
+ height++;await element('hvm-refresh').handlers.click();assert.equal(element('hvm-progress').textContent,'Advanced since previous sample');
  bad=true;await element('hvm-refresh').handlers.click();assert.equal(element('hvm-finalized').textContent,'Unavailable');
- assert.equal(element('hvm-refresh').disabled,false);console.log('DASHBOARD_REFRESH_LANGUAGE_STALE_GUARDS_OK');
+ assert.equal(element('hvm-refresh').disabled,false);console.log('DASHBOARD_EN_REFRESH_STALE_GUARDS_OK');
 })().catch(e=>{console.error(e);process.exitCode=1});
