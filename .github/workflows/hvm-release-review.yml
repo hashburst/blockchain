@@ -2,7 +2,7 @@ name: HVM release review
 on:
   push:
     branches: [feat/hvm-apow-strict]
-    paths: ['.github/workflows/hvm-release-review.yml']
+    paths: ['.github/workflows/hvm-release-review.yml', 'hvm-network/deploy/release/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,3 +32,85 @@ jobs:
           cache-dependency-path: hvm-network/go.sum
       - run: go -C hvm-network test ./... -count=1
       - run: go -C hvm-network test -race ./blockchain ./internal/testnet -run 'APoW|Recovery' -count=1
+  wallet_macos:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - run: go -C hvm-network test -race ./wallet ./protocolv2 ./cmd/hashburst-wallet
+      - run: python3 hvm-network/deploy/wallet/test_prompt.py
+      - run: python3 hvm-network/deploy/release/test_install.py
+  packages:
+    needs: [foundation, apow_candidate, wallet_macos]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux-amd64, linux-arm64, darwin-amd64, darwin-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - run: python3 hvm-network/deploy/release/test_install.py
+      - name: Assemble source-bound release candidate
+        env:
+          TARGET: ${{ matrix.target }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GOOS="${TARGET%-*}" GOARCH="${TARGET#*-}" CGO_ENABLED=0
+          bundle="HashBurst-HVM-v0.4.0-rc.1-${TARGET}"
+          mkdir "$bundle"
+          for command in hashburst-wallet hashburst-testnet hashburst-mainnet hvm-apow-miner; do
+            go -C hvm-network build -trimpath -o "$GITHUB_WORKSPACE/$bundle/$command" "./cmd/$command"
+          done
+          cp hvm-network/deploy/wallet/prompt.py "$bundle/"
+          cp hvm-network/deploy/wallet/README.md "$bundle/WALLET.md"
+          cp hvm-network/deploy/mainnet/economics.draft.json "$bundle/"
+          cp hvm-network/deploy/RELEASE-GATES.md "$bundle/"
+          cp hvm-network/deploy/release/{install-tools.sh,RELEASE_NOTES.md} "$bundle/"
+          printf '%s\n' "$GITHUB_SHA" > "$bundle/SOURCE_COMMIT"
+          printf '%s\n' "$TARGET" > "$bundle/TARGET"
+          printf '%s\n' 'RELEASE CANDIDATE. MAINNET NOT ACTIVE. APoW LIVE ACCEPTANCE PENDING.' > "$bundle/STATUS.txt"
+          (cd "$bundle" && sha256sum * > SHA256SUMS)
+          tar -czf "$bundle.tar.gz" "$bundle"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: HashBurst-HVM-v0.4.0-rc.1-*.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+  publish_prerelease:
+    needs: packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish immutable prerelease assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag='hvm-network-v0.4.0-rc.1'
+          if gh release view "$tag" >/dev/null 2>&1 || gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo 'Release already exists; never overwrite a published candidate.'
+            exit 1
+          fi
+          (cd release-assets && sha256sum *.tar.gz > SHA256SUMS)
+          cp hvm-network/deploy/release/RELEASE_NOTES.md release-assets/NOTES.md
+          printf '\nSource commit: %s\nValidation run: https://github.com/%s/actions/runs/%s\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> release-assets/NOTES.md
+          gh release create "$tag" release-assets/*.tar.gz release-assets/SHA256SUMS --target "$GITHUB_SHA" --prerelease --title 'HVM Network v0.4.0-rc.1 — wallet and APoW candidate' --notes-file release-assets/NOTES.md
