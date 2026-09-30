@@ -55,3 +55,38 @@ func TestExclusivePrivateOutput(t *testing.T) {
 		t.Fatal("public key file allowed")
 	}
 }
+
+func TestCreateEncryptedOnly(t *testing.T) {
+	dir := t.TempDir()
+	os.Chmod(dir, 0700)
+	path := filepath.Join(dir, "wallet.json")
+	oldArgs, oldStdin := os.Args, os.Stdin
+	defer func() { os.Args = oldArgs; os.Stdin = oldStdin }()
+	r, w, e := os.Pipe()
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer r.Close()
+	w.WriteString("test-password-long-enough\n")
+	w.Close()
+	os.Stdin = r
+	os.Args = []string{"hashburst-wallet", "create", "--chain-id", "4735490", "--out", path}
+	if e = run(); e != nil {
+		t.Fatal(e)
+	}
+	b, e := readPrivate(path)
+	if e != nil {
+		t.Fatal(e)
+	}
+	key, e := wallet.DecryptV3(b, "test-password-long-enough")
+	if e != nil || !wallet.IsValidAddress(key.Address()) {
+		t.Fatal("restore failed", e)
+	}
+	if _, e = wallet.DecryptV3(b, "incorrect-password"); e == nil {
+		t.Fatal("wrong password accepted")
+	}
+	entries, e := os.ReadDir(dir)
+	if e != nil || len(entries) != 1 {
+		t.Fatal("unexpected plaintext or extra output", e)
+	}
+}

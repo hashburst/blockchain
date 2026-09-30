@@ -50,3 +50,16 @@ signing journals. Do not run provision against an already pinned directory.
 
 No mainnet service, DNS, firewall, public endpoint or genesis is activated by
 this change. The dashboard explicitly marks mainnet inactive.
+
+## Economic draft recorded 2026-09-30
+
+`economics.draft.json` records the user's one-billion-HBT founder allocation and
+50-HBT finalized APoW reward. It is not a genesis input and is not accepted as an
+activation manifest. Faucet funds are a subset of founder funds, not an additional
+issuance. Testnet coins are economically separate and never imported as mainnet
+funds. Unlimited test funding is a replenishment policy, not an infinite integer.
+
+Legacy migration remains unresolved: preserving spendable balances on 1337 while
+copying them to mainnet creates independently spendable assets. A snapshot alone
+does not prevent this. Source locking/retirement or an explicitly independent
+asset policy, mapping and supply reconciliation must be specified before import.
