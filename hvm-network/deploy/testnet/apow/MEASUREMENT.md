@@ -1,6 +1,7 @@
 # Four-miner calibration before APoW migration
 
-Run `python3 measure-all.py` from the Mac. Only five SSH authentications are
+Run `python3 measure-all.py --stage-report /path/apow-stage-results.tar.gz` from the Mac.
+The staging report stays local; do not commit operational reports to GitHub. Only five SSH authentications are
 needed; scripts run through those sessions and no binary is uploaded.
 Requires the exact v0.4.0-rc.1 runtime and miner staged on the five nodes.
 
