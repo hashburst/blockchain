@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
@@ -23,9 +24,10 @@ func readBlock(dir string, height uint64) (*blockchain.Block, error) {
 		return nil, e
 	}
 	defer idx.Close()
+	reader := bufio.NewReaderSize(idx, 65536)
 	var entry [20]byte
 	for {
-		if _, e = io.ReadFull(idx, entry[:]); e != nil {
+		if _, e = io.ReadFull(reader, entry[:]); e != nil {
 			return nil, e
 		}
 		h := binary.BigEndian.Uint64(entry[:8])

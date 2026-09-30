@@ -6,7 +6,7 @@ R=Path(__file__).resolve().parent
 def module(name):
  spec=importlib.util.spec_from_file_location(name,R/(name+'.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 pre=module('preflight');measure=module('measure-all')
-SOURCE=pre.SOURCE+'\ninspect=main\n'+(R/'stage-node.py').read_text()+'\n'+(R/'migrate-node.py').read_text()
+SOURCE=pre.SOURCE+'\ninspect=main\n'+(R/'stage-node.py').read_text()+'\nstage_dispatch=main\nUPLOAD_NAMES.add("hvm-apow-audit")\n'+(R/'migrate-node.py').read_text()
 worker_source=SOURCE+"\nif __name__=='__main__':\n import sys\n if len(sys.argv)!=3 or sys.argv[1]!='--worker':raise SystemExit('worker arguments required')\n worker(sys.argv[2])\n"
 ns={'__name__':'coordinator_rules'};exec(SOURCE,ns)
 def measurement(path):
@@ -23,7 +23,7 @@ def measurement(path):
  proofs=entries['final-commitments.json'];pre.compare(proofs,proofs[0]['height'])
  return entries['progress.json']
 def main():
- parser=argparse.ArgumentParser();parser.add_argument('action',choices=['plan','migrate','jobs','start','verify','restart','restart-check']);parser.add_argument('--plan',default='activation-plan.json');parser.add_argument('--measurement');parser.add_argument('--timeout',type=int,default=14400);args=parser.parse_args()
+ parser=argparse.ArgumentParser();parser.add_argument('action',choices=['plan','migrate','jobs','start','verify','restart','restart-check','audit','miners','closeout']);parser.add_argument('--plan',default='activation-plan.json');parser.add_argument('--measurement');parser.add_argument('--timeout',type=int,default=14400);args=parser.parse_args()
  planpath=Path(args.plan).resolve();sessions=[]
  try:
   for host,node in pre.TARGETS:
@@ -82,6 +82,40 @@ def main():
    # Every remote must independently pass before ANY start is authorized.
    persist('offline-gates',batch('start-gate'));persist('install',batch('install'));persist('start',batch('start'))
    print('FIVE_NODE_START_REQUESTS_MINERS_NOT_STARTED');return
+  if args.action=='closeout':
+   rows=batch('status');pre.validate_rows(rows);h=min(r['height'] for r in rows)
+   proofs=batch('commitment',height=h);pre.compare(proofs,h)
+   recovery=sessions[3].call({'action':'restart-check','node_id':'hvm-testnet-v4','plan':plan,'_timeout':50})
+   results=batch('finalize');persist('closeout',{'agreement':proofs,'recovery':recovery,'services':results,'mainnet_activated':False})
+   print('APOW_TESTNET_ACCEPTANCE_COMPLETE_MAINNET_NOT_ACTIVATED');return
+  if args.action=='miners':
+   rows=batch('status');pre.validate_rows(rows)
+   for r in rows:
+    if r['binary_sha256']!=ns['BIN_SHA'] or r['protocol'].get('apow')!=plan['activation']:raise ValueError('five migrated ready nodes required')
+   h=min(r['height'] for r in rows);pre.compare(batch('commitment',height=h),h)
+   miner=module('miner-service');sha='32e62dc2a41d16c0ea472f5aa69e53f0a752cc13c1c9ca61c5e25af7a9998cdc'
+   text=miner.unit(Path('/opt/hashburst-apow-miner')/sha/'hvm-apow-miner')
+   results=[]
+   for s,(_,node) in zip(sessions[:4],pre.TARGETS[:4]):results.append(s.call({'action':'miner-start','node_id':node,'plan':plan,'miner_sha256':sha,'unit_text':text,'_timeout':50}))
+   persist('miners',results);print('FOUR_MINERS_STARTED_BY_EXPLICIT_OPERATOR_COMMAND');return
+  if args.action=='audit':
+   binary=R/'hvm-apow-audit';expected=hashlib.sha256(binary.read_bytes()).hexdigest()
+   declared=json.loads((R/'audit-release.json').read_text())['sha256']
+   if expected!=declared:raise ValueError('audit binary checksum')
+   uploader=module('stage-all')
+   for s,(_,node) in zip(sessions,pre.TARGETS):
+    remote=s.call({'action':'prepare-upload'})
+    uploader.upload_file(s,remote,binary)
+    s.call({'action':'install-audit','node_id':node,'plan':plan,'upload':remote,'sha256':expected,'_timeout':50})
+   # Two full retarget windows, from the first APoW height. Read-only.
+   proofs=[]
+   for s,(_,node) in zip(sessions,pre.TARGETS):
+    print('AUDIT='+node,flush=True)
+    proofs.append(s.call({'action':'audit','node_id':node,'plan':plan,'height':plan['activation']['activation_height'],'count':64,'_timeout':600}))
+   for i in range(64):
+    pre.compare([p[i]['commitment'] for p in proofs],plan['activation']['activation_height']+i)
+    if len({json.dumps({k:v for k,v in p[i]['audit'].items() if k!='certificate'},sort_keys=True) for p in proofs})!=1:raise ValueError('reward proof differs between nodes')
+   persist('rewards',proofs);print('FIVE_NODE_64_FINALIZED_APOW_REWARDS_OK_50_HBT_EACH');return
   if args.action=='restart':
    rows=batch('status');pre.validate_rows(rows);h=min(r['height'] for r in rows)
    if h<plan['activation']['activation_height']+64:raise ValueError('two APoW windows must finalize before restart')
@@ -97,7 +131,8 @@ def main():
     h=min(r['height'] for r in rows);proofs=batch('commitment',height=h);pre.compare(proofs,h)
     if args.action=='restart-check':
      result=sessions[3].call({'action':'restart-check','node_id':'hvm-testnet-v4','plan':plan,'_timeout':50});persist('restart-check',result)
-    if all(r['height']>first[r['node_id']] for r in rows):
+    waiting_for_work=args.action=='verify' and all(r['height']==plan['activation']['activation_height']-1 for r in rows)
+    if waiting_for_work or all(r['height']>first[r['node_id']] for r in rows):
      persist('agreement',proofs);persist('progress',rows);print('FIVE_NODE_AGREEMENT_AND_PROGRESS_OK height='+str(h));print('REWARD_AUDIT_REQUIRED' if h>=plan['activation']['activation_height'] else 'MINERS_MAY_BE_STARTED_MANUALLY');return
    except Exception as e:
     if any(s.broken for s in sessions):raise

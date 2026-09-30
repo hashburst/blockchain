@@ -21,7 +21,11 @@ def save(path,obj):
  tmp.chmod(0o600);os.link(tmp,path);tmp.unlink()
 def read(path):return json.loads(Path(path).read_text())
 def properties(unit):
- return dict(x.split('=',1) for x in command('systemctl','show',unit,'--property=LoadState,ActiveState,SubState,MainPID,Result,ExecMainStatus,User,Group,NoExecPaths,ExecPaths,RootDirectory,RootImage,FragmentPath').splitlines() if '=' in x)
+ args=['systemctl','show',unit,'--property=LoadState,ActiveState,SubState,MainPID,Result,ExecMainStatus,User,Group,NoExecPaths,ExecPaths,RootDirectory,RootImage,FragmentPath']
+ result=subprocess.run(args,capture_output=True,text=True,timeout=25)
+ data=dict(x.split('=',1) for x in result.stdout.splitlines() if '=' in x)
+ if result.returncode and data.get('LoadState')!='not-found':raise RuntimeError('systemctl show failed: '+result.stderr)
+ return data
 def validate_plan(plan):
  if set(plan)!={'schema','chain_id','activation','binary_sha256','nodes','common_height','commitments'} or plan['schema']!=1 or plan['chain_id']!=4735490 or plan['binary_sha256']!=BIN_SHA:raise ValueError('invalid plan')
  a=dict(plan['activation']);height=a.pop('activation_height',None)
@@ -50,7 +54,7 @@ def check_snapshot(cfg,snapshot):
  if fingerprints(cfg)!=snapshot:raise ValueError('stopped state or journal changed')
 def guard_text(directory):
  return '[Service]\nRestart=no\nExecStartPre=/usr/bin/test -f '+str(directory/'START_AUTHORIZED')+'\n'
-def start_text(cfg):return '[Service]\nExecStart=\nExecStart='+str(BIN)+' --config '+str(cfg)+'\n'
+def start_text(cfg):return '[Service]\nExecStart=\nExecStart='+str(BIN)+' --config '+str(cfg)+'\nExecPaths='+str(BIN)+'\n'
 def local_gate(directory,cfg,unit,plan):
  stopped(unit)
  result=read(directory/'DONE.json')
@@ -78,7 +82,9 @@ def worker(directory):
   save(directory/'FAILED.json',{'error':str(e),'plan':record['plan']});raise
 
 def main(p):
- action=p['action'];node=p['node_id'];unit,cfg=paths(node)
+ action=p['action']
+ if action=='prepare-upload' or action.startswith('upload-'):return stage_dispatch(p)
+ node=p['node_id'];unit,cfg=paths(node)
  if os.geteuid()!=0:raise ValueError('root required')
  if 'inet '+TARGETS[node]+'/' not in command('ip','-4','addr','show'):raise ValueError('wrong host')
  if action in ('status','commitment'):return inspect(p)
@@ -94,8 +100,9 @@ def main(p):
    if before[key]!=expected[key]:raise ValueError('live baseline changed: '+key)
   if current['protocol'].get('apow') or plan['activation']['activation_height']-before['height']<=1500:raise ValueError('activation too close or configured')
   if sha(BIN)!=BIN_SHA or BIN.is_symlink():raise ValueError('candidate binary mismatch')
-  # Do not weaken or guess execution allowlists: reject before stopping anything.
-  if any(props.get(k) for k in ('NoExecPaths','ExecPaths','RootDirectory','RootImage')):raise ValueError('runtime execution sandbox needs an explicit compatible release path; no changes made')
+  # Root remapping needs an explicit path mapping. Existing NoExecPaths and
+  # all other hardening remain; only the exact verified binary is added to ExecPaths.
+  if any(props.get(k) for k in ('RootDirectory','RootImage')):raise ValueError('runtime execution sandbox needs an explicit compatible release path; no changes made')
   user=props.get('User')
   if not user or user=='root':raise ValueError('dedicated runtime account required')
   probe=subprocess.run(['runuser','-u',user,'--',str(BIN),'--help'],capture_output=True,timeout=10)
@@ -112,6 +119,7 @@ def main(p):
  if read(directory/'plan.json')!=plan:raise ValueError('remote plan differs')
  if action=='stop':
   if (directory/'START_AUTHORIZED').exists():raise ValueError('start already authorized; refuse another stop')
+  if drop.is_symlink() or guard.is_symlink() or release.is_symlink():raise ValueError('symlinked systemd override')
   drop.mkdir(mode=0o755,exist_ok=True)
   text=guard_text(directory)
   if guard.exists() and guard.read_text()!=text:raise ValueError('different migration guard')
@@ -136,7 +144,9 @@ def main(p):
   script=directory/'worker.py'
   # SOURCE contains this module plus inspected shared helpers, never key contents.
   if script.exists() and script.read_text()!=p['worker_source']:raise ValueError('worker source changed')
-  script.write_text(p['worker_source']);script.chmod(0o600)
+  if not script.exists():
+   with script.open('x') as f:f.write(p['worker_source']);f.flush();os.fsync(f.fileno())
+   script.chmod(0o600)
   save(directory/'LAUNCHED.json',{'plan':pid})
   command('systemd-run','--unit='+job,'--property=Type=oneshot','--property=RemainAfterExit=yes','--property=TimeoutStartSec=infinity','--property=Restart=no','/usr/bin/python3',str(script),'--worker',str(directory))
   return {'launched':job}
@@ -165,6 +175,49 @@ def main(p):
   save(directory/'START_AUTHORIZED',{'plan':pid})
   command('systemctl','start','--no-block',unit)
   return {'started':True}
+ if action=='miner-start':
+  if node.endswith('ingress'):raise ValueError('observer never mines')
+  current=inspect({'action':'status','node_id':node})
+  if current['binary_sha256']!=BIN_SHA or current['protocol'].get('apow')!=plan['activation']:raise ValueError('runtime/profile mismatch')
+  binary=Path('/opt/hashburst-apow-miner')/p['miner_sha256']/'hvm-apow-miner'
+  if sha(binary)!=p['miner_sha256'] or Path('/etc/systemd/system/hashburst-apow-miner.service').read_text()!=p['unit_text']:raise ValueError('miner binary/unit differs')
+  command('systemctl','enable','--now','hashburst-apow-miner.service')
+  return {'miner_start_requested':True,'node_id':node}
+ if action=='install-audit':
+  uploaded=Path(p['upload'])/'hvm-apow-audit';expected=p['sha256']
+  if not re.fullmatch('[0-9a-f]{64}',expected) or str(uploaded.parent) not in UPLOAD_DIRS or sha(uploaded)!=expected:raise ValueError('auditor upload mismatch')
+  destination=Path('/opt/hashburst-apow-audit')/expected
+  destination.mkdir(parents=True,mode=0o755,exist_ok=True)
+  binary=destination/'hvm-apow-audit'
+  if binary.exists():
+   if binary.is_symlink() or sha(binary)!=expected:raise ValueError('auditor collision')
+  else:
+   with uploaded.open('rb') as src,binary.open('xb') as dst:shutil.copyfileobj(src,dst);dst.flush();os.fsync(dst.fileno())
+   binary.chmod(0o755)
+  save(directory/'AUDITOR.json',{'sha256':expected,'path':str(binary)})
+  return {'installed':True}
+ if action=='audit':
+  info=read(directory/'AUDITOR.json')
+  if sha(info['path'])!=info['sha256']:raise ValueError('auditor changed')
+  cfg_data=read(cfg);health=inspect({'action':'status','node_id':node})
+  start=p['height'];count=p.get('count',1)
+  if type(start)is not int or type(count)is not int or not 1<=count<=64 or start<plan['activation']['activation_height'] or start+count-1>health['height']:raise ValueError('audit range not finalized/APoW')
+  results=[]
+  for h in range(start,start+count):
+   result=json.loads(command(info['path'],'--data-dir',cfg_data['data_dir'],'--height',str(h)))
+   commitment=inspect({'action':'commitment','height':h})
+   if result['height']!=h or result['hash']!=commitment['hash'] or result['certificate']!=commitment['certificate']:raise ValueError('audited block differs from finalized commitment')
+   results.append({'audit':result,'commitment':commitment})
+  if start==plan['activation']['activation_height'] and count==64:save(directory/'AUDIT_OK.json',{'plan':pid,'first':start,'count':count})
+  return results
+ if action=='finalize':
+  if read(directory/'AUDIT_OK.json')!={'plan':pid,'first':plan['activation']['activation_height'],'count':64}:raise ValueError('reward audit incomplete')
+  current=inspect({'action':'status','node_id':node})
+  if current['protocol'].get('apow')!=plan['activation'] or current['binary_sha256']!=BIN_SHA:raise ValueError('runtime changed')
+  if guard.exists():
+   if guard.is_symlink() or guard.read_text()!=guard_text(directory):raise ValueError('guard changed')
+   guard.unlink();command('systemctl','daemon-reload')
+  return {'restart_policy_restored':True,'no_restart':True}
  if action=='restart-proof':
   if (directory/'RESTART_REQUESTED.json').exists():raise ValueError('restart already requested; use restart-check')
   before=inspect({'action':'status','node_id':node})
@@ -177,5 +230,19 @@ def main(p):
  if action=='restart-check':
   verify_protected(read(directory/'RESTART_PREFIX.json'));before=read(directory/'RESTART_BEFORE.json');after=inspect({'action':'status','node_id':node})
   if after['height']<=before['height'] or after['peer_id']!=before['peer_id'] or after['binary_sha256']!=BIN_SHA:raise ValueError('restart recovery not ready')
-  return {'recovered':True,'node_id':node,'height':after['height']}
+  cfg_data=read(cfg);journal=Path(cfg_data['data_dir'])/'consensus-bft-signatures.jsonl'
+  prefix=read(directory/'RESTART_PREFIX.json')[str(journal)]['size'];found=None
+  with journal.open('rb') as f:
+   f.seek(prefix)
+   for line in f:
+    if not line.endswith(b'\n'):break
+    vote=json.loads(line)
+    if vote.get('step')!='PRECOMMIT' or vote.get('height',0)<=before['height'] or vote.get('height',0)>after['height'] or not vote.get('block_hash'):continue
+    proof=inspect({'action':'commitment','height':vote['height']})
+    if proof['hash']!=vote['block_hash']:continue
+    for signed in proof['certificate'].get('votes',[]):
+     if all(signed.get(k)==vote.get(k) for k in ('chain_id','height','round','block_hash','validator_set_root','validator_id','signature')):found=vote;break
+    if found:break
+  if not found:raise ValueError('new finalized precommit by restarted validator not yet observed')
+  return {'recovered':True,'node_id':node,'height':after['height'],'new_precommit_in_finalized_certificate':found}
  raise ValueError('unknown lifecycle action')
