@@ -1,0 +1,64 @@
+name: HVM native wallet candidate
+on:
+  push:
+    branches: [feat/hvm-apow-strict]
+    paths: ['hvm-network/wallet/**', 'hvm-network/cmd/hashburst-wallet/**', 'hvm-network/deploy/wallet/**', 'hvm-network/deploy/mainnet/**', '.github/workflows/hvm-wallet.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - run: go -C hvm-network test -race ./wallet ./protocolv2 ./cmd/hashburst-wallet
+      - run: go -C hvm-network build ./cmd/hashburst-wallet
+      - run: python3 -m py_compile hvm-network/deploy/wallet/prompt.py
+      - run: python3 hvm-network/deploy/wallet/test_prompt.py
+  candidates:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux-amd64, linux-arm64, darwin-amd64, darwin-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - name: Build candidate tools, without network activation
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          export GOOS="${TARGET%-*}" GOARCH="${TARGET#*-}" CGO_ENABLED=0
+          mkdir -p candidate
+          for command in hashburst-wallet hashburst-testnet hashburst-mainnet hvm-apow-miner; do
+            go -C hvm-network build -trimpath -o "$GITHUB_WORKSPACE/candidate/$command" "./cmd/$command"
+          done
+          cp hvm-network/deploy/wallet/prompt.py candidate/
+          cp hvm-network/deploy/wallet/README.md candidate/WALLET.md
+          cp hvm-network/deploy/mainnet/economics.draft.json candidate/
+          printf '%s\n' "$GITHUB_SHA" > candidate/SOURCE_COMMIT
+          printf '%s\n' 'CANDIDATE ONLY. No approved mainnet manifest, no automatic activation.' 'CPU reference miner only; GPU/ASIC/Stratum not implemented.' 'Cross-compiled node binaries are not live-network acceptance evidence.' > candidate/STATUS.txt
+          (cd candidate && sha256sum hashburst-* hvm-apow-miner prompt.py WALLET.md economics.draft.json SOURCE_COMMIT STATUS.txt > SHA256SUMS)
+          tar -czf "HashBurst-candidate-${TARGET}.tar.gz" candidate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HashBurst-candidate-${{ matrix.target }}
+          path: HashBurst-candidate-${{ matrix.target }}.tar.gz
+          retention-days: 30
+          if-no-files-found: error

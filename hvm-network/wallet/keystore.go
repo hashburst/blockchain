@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -153,6 +154,9 @@ func DecryptV3(data []byte, password string) (*Wallet, error) {
 		if !ok {
 			return 0, fmt.Errorf("kdfparams.%s non è un numero", key)
 		}
+		if f < 1 || f > 262144 || math.Trunc(f) != f {
+			return 0, fmt.Errorf("invalid bounded integer KDF parameter %s", key)
+		}
 		return int(f), nil
 	}
 	n, err := getInt("n")
@@ -172,6 +176,9 @@ func DecryptV3(data []byte, password string) (*Wallet, error) {
 		return nil, err
 	}
 
+	if dklen != 32 || n < 4096 || n > StandardScryptN || n&(n-1) != 0 || r > 8 || p > 4 || uint64(n)*uint64(r)*128 > 256*1024*1024 || uint64(n)*uint64(r)*uint64(p) > 8388608 {
+		return nil, errors.New("unsupported or excessive scrypt parameters")
+	}
 	saltStr, _ := ks.Crypto.KDFParams["salt"].(string)
 	salt, err := hex.DecodeString(saltStr)
 	if err != nil {
@@ -190,6 +197,9 @@ func DecryptV3(data []byte, password string) (*Wallet, error) {
 		return nil, fmt.Errorf("mac non esadecimale: %w", err)
 	}
 
+	if len(salt) < 16 || len(salt) > 64 || len(iv) != aes.BlockSize || len(ciphertext) != 32 || len(wantMAC) != 32 {
+		return nil, errors.New("invalid keystore field length")
+	}
 	derived, err := scrypt.Key([]byte(password), salt, n, r, p, dklen)
 	if err != nil {
 		return nil, fmt.Errorf("scrypt: %w", err)

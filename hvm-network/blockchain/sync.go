@@ -48,6 +48,7 @@ type syncMessage struct {
 }
 
 type blockWire struct {
+	APoW                    *APoWProof                    `json:"apow,omitempty"`
 	EthereumTransactions    [][]byte                      `json:"ethereum_transactions,omitempty"`
 	EVMStateRoot            string                        `json:"evm_state_root,omitempty"`
 	EVMReceiptsRoot         string                        `json:"evm_receipts_root,omitempty"`
@@ -104,7 +105,7 @@ func blockToWire(b *Block) *blockWire {
 		txsV2 = append(txsV2, tx.Clone())
 	}
 	return &blockWire{
-		EthereumTransactions: cloneRawTransactions(b.EthereumTransactions), EVMStateRoot: b.EVMStateRoot, EVMReceiptsRoot: b.EVMReceiptsRoot, EVMGasUsed: b.EVMGasUsed,
+		APoW: cloneAPoW(b.APoW), EthereumTransactions: cloneRawTransactions(b.EthereumTransactions), EVMStateRoot: b.EVMStateRoot, EVMReceiptsRoot: b.EVMReceiptsRoot, EVMGasUsed: b.EVMGasUsed,
 		Version: b.Version, ProtocolChainID: b.ProtocolChainID, Index: b.Index, TimestampNs: b.Timestamp.UnixNano(),
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: b.PrevHash, Hash: b.Hash, ProofOfWork: b.ProofOfWork, ProofOfTime: b.ProofOfTime,
@@ -124,7 +125,7 @@ func (bw *blockWire) toBlock() *Block {
 		txsV2 = append(txsV2, tx.Clone())
 	}
 	return &Block{
-		EthereumTransactions: cloneRawTransactions(bw.EthereumTransactions), EVMStateRoot: bw.EVMStateRoot, EVMReceiptsRoot: bw.EVMReceiptsRoot, EVMGasUsed: bw.EVMGasUsed,
+		APoW: cloneAPoW(bw.APoW), EthereumTransactions: cloneRawTransactions(bw.EthereumTransactions), EVMStateRoot: bw.EVMStateRoot, EVMReceiptsRoot: bw.EVMReceiptsRoot, EVMGasUsed: bw.EVMGasUsed,
 		Version: bw.Version, ProtocolChainID: bw.ProtocolChainID, Index: bw.Index, Timestamp: time.Unix(0, bw.TimestampNs).UTC(),
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: bw.PrevHash, Hash: bw.Hash, ProofOfWork: bw.ProofOfWork, ProofOfTime: bw.ProofOfTime,

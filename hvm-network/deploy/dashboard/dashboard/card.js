@@ -1,4 +1,4 @@
-// HVM_NETWORK_CARD_V2
+// HVM_NETWORK_CARD_V3
 (() => {
   'use strict';
   const root = document.getElementById('view-hvm');

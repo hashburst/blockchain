@@ -50,3 +50,18 @@ signing journals. Do not run provision against an already pinned directory.
 
 No mainnet service, DNS, firewall, public endpoint or genesis is activated by
 this change. The dashboard explicitly marks mainnet inactive.
+
+## Economic draft recorded 2026-09-30
+
+`economics.draft.json` records the user's one-billion-HBT founder allocation and
+50-HBT finalized APoW reward. It is not a genesis input and is not accepted as an
+activation manifest. Faucet funds are a subset of founder funds, not an additional
+issuance. Testnet coins are economically separate and never imported as mainnet
+funds. Unlimited test funding is a replenishment policy, not an infinite integer.
+
+The user confirmed verified legacy import with a canonical legacy spending
+freeze on 2026-09-30. The founder billion is additional to imported balances.
+This is a decision, not proof that a freeze occurred. Source height/hash, address
+ownership mapping, enforcement on legacy nodes and supply reconciliation remain
+required. An API shutdown or database copy alone cannot enforce the freeze.
+Independently operated old forks cannot be erased by a mainnet migration.

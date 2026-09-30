@@ -13,6 +13,7 @@ const (
 	BlockVersionLegacy uint16 = 1
 	BlockVersionV2     uint16 = 2
 	BlockVersionEVM    uint16 = 3
+	BlockVersionAPoW   uint16 = 4
 
 	// DisabledActivationHeight is deliberately impossible for a practical chain
 	// height. Phase 3B ships Protocol V2 dark: production behavior remains V1
@@ -26,6 +27,7 @@ const (
 // values are provisional while ActivationHeight is disabled; before testnet or
 // mainnet activation they must be frozen in a versioned protocol release.
 type ProtocolV2Config struct {
+	APoW                      *APoWConfig             `json:"apow,omitempty"`
 	EVM                       *EVMConfig              `json:"evm,omitempty"`
 	ChainID                   uint64                  `json:"chain_id"`
 	ActivationHeight          uint64                  `json:"activation_height"`
@@ -97,6 +99,9 @@ func (c ProtocolV2Config) EffectivePoHTicks() int {
 }
 
 func (c ProtocolV2Config) Validate() error {
+	if err := c.validateAPoWConfig(); err != nil {
+		return err
+	}
 	if err := c.validateEVMConfig(); err != nil {
 		return err
 	}

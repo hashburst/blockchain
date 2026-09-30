@@ -44,6 +44,7 @@ const (
 )
 
 type consensusWireMessage struct {
+	APoW        *APoWProof                       `json:"apow,omitempty"`
 	Type        string                           `json:"type"`
 	Proposal    *ConsensusProposal               `json:"proposal,omitempty"`
 	Prevote     *consensus.Prevote               `json:"prevote,omitempty"`
@@ -220,6 +221,11 @@ func (n *Libp2pConsensusNetwork) handleStream(s network.Stream) {
 
 func (n *Libp2pConsensusNetwork) dispatch(msg consensusWireMessage) error {
 	switch msg.Type {
+	case "apow":
+		if msg.APoW == nil {
+			return fmt.Errorf("missing APoW payload")
+		}
+		return n.reactor.bc.SubmitAPoW(*msg.APoW)
 	case consensusMsgProposal:
 		if msg.Proposal == nil {
 			return fmt.Errorf("proposal payload missing")
@@ -352,4 +358,8 @@ func (n *Libp2pConsensusNetwork) BroadcastConsensusFinalized(v *Block) error {
 	}
 	copyBlock := cloneBlockForConsensus(v)
 	return n.broadcast(consensusWireMessage{Type: consensusMsgFinalized, Finalized: copyBlock})
+}
+
+func (n *Libp2pConsensusNetwork) BroadcastAPoW(p APoWProof) error {
+	return n.broadcast(consensusWireMessage{Type: "apow", APoW: &p})
 }
