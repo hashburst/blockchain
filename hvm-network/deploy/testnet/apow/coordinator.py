@@ -73,6 +73,8 @@ def main():
    deadline=time.monotonic()+args.timeout
    while True:
     rows=batch('job');persist('jobs',rows)
+    if any(r.get('not_submitted') for r in rows):raise ValueError('some jobs were not submitted; resume migrate with the SAME plan')
+    if any(r.get('lost_job_after_intent') for r in rows):raise ValueError('job disappeared after its launch intent; inspect systemd and remote logs before retrying')
     if any(r.get('file')=='FAILED.json' or r.get('job',{}).get('ActiveState')=='failed' for r in rows):raise ValueError('offline job failed; inspect remote migration.log; no start')
     if all(r.get('file')=='DONE.json' for r in rows):
      persist('offline-gates',batch('gate'));print('FIVE_OFFLINE_MIGRATIONS_VERIFIED_NO_NODE_STARTED');return
