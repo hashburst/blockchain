@@ -65,7 +65,10 @@ def measure(request):
  identity=subprocess.check_output(['runuser','-u','hashburst-apow-miner','--',str(MINER),'--key-file',str(KEY),'--identity-only'],text=True,timeout=10).strip()
  match=re.fullmatch('APOW_MINER_ADDRESS=(0x[0-9a-fA-F]{40})',identity)
  if not match:raise ValueError('unexpected miner identity')
- address=match[1];samples=[]
+ address=match[1]
+ if address.lower()!=request['miner_address'].lower():raise ValueError('miner address differs from verified staging report')
+ verify_protected(request['protected_prefixes'])
+ samples=[]
  for bits in (14,16,18,18,18,18):
   # A random parent with height 1 is not a job from the live chain.
   job={'chain_id':4735490,'height':1,'parent_hash':secrets.token_hex(32),'poh':0,'bits':bits,'epoch_start':0,'nonce':0}
