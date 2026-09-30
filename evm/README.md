@@ -2,7 +2,7 @@
 
 The Solidity and PHP examples in this folder are design material, not an executable EVM implementation or evidence of wallet compatibility.
 
-The maintained runtime lives in [`../hvm-network/`](../hvm-network/). The deployed runtime runs native HVM contracts; this development branch also integrates the EVM execution adapter with HashBurst consensus and account state. See [compatibility gates](../hvm-network/deploy/testnet/HVM_COMPATIBILITY_GATES.md) for the Ethereum transaction, gas, receipt/log, WebSocket subscription and MetaMask acceptance requirements. The deployed read-only WebSocket RPC does not implement subscriptions; the development EVM route now has finalized newHeads/logs subscription tests.
+The maintained runtime lives in [`../hvm-network/`](../hvm-network/). Native HVM and EVM execution are active on testnet 4735490. The funded MetaMask canary and public receipt/log/WebSocket verification passed on 29 September 2026; see [testnet evidence](../hvm-network/review/testnet-closeout/README.md). Mainnet remains inactive. Historical examples below are not independent compatibility evidence.
 
 Testnet chain ID: 4735490. Legacy: 1337, unchanged. Mainnet: 4735489, activation pending separate configuration and acceptance.
 
@@ -485,8 +485,7 @@ This framework will enable the Hashburst Blockchain to support complex smart con
 ## HVM Network execution development
 
 The executable Go adapter and its tests are in [execution](execution/README.md).
-The development node imports it for mempool admission, account settlement,
-BFT block commitments and replay. Production activation remains disabled until
-the documented rollout and wallet acceptance gates pass.
+The node imports it for mempool admission, account settlement,
+BFT block commitments and replay. Testnet activation and scoped wallet acceptance passed; mainnet activation remains pending its separate deployment.
 The PHP files and Solidity examples in this folder are historical application
 artifacts, not the implementation of the Ethereum execution engine.
