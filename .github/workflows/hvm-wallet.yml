@@ -23,6 +23,7 @@ jobs:
       - run: go -C hvm-network test -race ./wallet ./protocolv2 ./cmd/hashburst-wallet
       - run: go -C hvm-network build ./cmd/hashburst-wallet
       - run: python3 -m py_compile hvm-network/deploy/wallet/prompt.py
+      - run: python3 hvm-network/deploy/wallet/test_prompt.py
   candidates:
     needs: test
     runs-on: ubuntu-latest
