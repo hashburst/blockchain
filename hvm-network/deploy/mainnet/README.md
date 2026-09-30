@@ -59,7 +59,9 @@ activation manifest. Faucet funds are a subset of founder funds, not an addition
 issuance. Testnet coins are economically separate and never imported as mainnet
 funds. Unlimited test funding is a replenishment policy, not an infinite integer.
 
-Legacy migration remains unresolved: preserving spendable balances on 1337 while
-copying them to mainnet creates independently spendable assets. A snapshot alone
-does not prevent this. Source locking/retirement or an explicitly independent
-asset policy, mapping and supply reconciliation must be specified before import.
+The user confirmed verified legacy import with a canonical legacy spending
+freeze on 2026-09-30. The founder billion is additional to imported balances.
+This is a decision, not proof that a freeze occurred. Source height/hash, address
+ownership mapping, enforcement on legacy nodes and supply reconciliation remain
+required. An API shutdown or database copy alone cannot enforce the freeze.
+Independently operated old forks cannot be erased by a mainnet migration.
