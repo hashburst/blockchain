@@ -21,8 +21,18 @@ jobs:
         with:
           node-version: '22'
       - run: |
+          python3 hvm-network/deploy/testnet/apow/test_measure.py
           python3 hvm-network/deploy/testnet/apow/test_stage.py
           python3 hvm-network/deploy/testnet/apow/test_miner_service.py
           python3 hvm-network/deploy/testnet/apow/test_preflight.py
           python3 hvm-network/deploy/dashboard/test-dashboard.py
           node hvm-network/deploy/dashboard/test-card.cjs
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - name: Exercise the real Go miner against isolated measurement endpoint
+        working-directory: hvm-network
+        run: |
+          go build -o "$RUNNER_TEMP/hvm-apow-miner" ./cmd/hvm-apow-miner
+          HVM_MINER_TEST_BINARY="$RUNNER_TEMP/hvm-apow-miner" python3 deploy/testnet/apow/test_measure_miner.py
