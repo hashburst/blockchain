@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Five-node read-only gate then immutable staging. No migration or restart."""
-import argparse,concurrent.futures,hashlib,importlib.util,json,subprocess,tarfile,tempfile,time
+import argparse,base64,concurrent.futures,hashlib,importlib.util,json,tarfile,tempfile,time
 from pathlib import Path
 R=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('preflight',R/'preflight.py');pre=importlib.util.module_from_spec(spec);spec.loader.exec_module(pre)
@@ -18,6 +18,22 @@ def unpack_release(archive,out):
   for name,m in members.items():
    (out/Path(name).name).write_bytes(tar.extractfile(m).read())
    (out/Path(name).name).chmod(0o755)
+def upload_file(session,remote,path):
+ size=path.stat().st_size;expected=hashlib.sha256(path.read_bytes()).hexdigest()
+ base={'upload':remote,'name':path.name,'_timeout':60}
+ result=session.call(dict(base,action='upload-begin',size=size,sha256=expected))
+ if result.get('offset')!=0:raise ValueError('unexpected upload start')
+ offset=0;last=time.monotonic()
+ with path.open('rb') as f:
+  for chunk in iter(lambda:f.read(262144),b''):
+   reply=session.call(dict(base,action='upload-chunk',offset=offset,data=base64.b64encode(chunk).decode('ascii')))
+   offset+=len(chunk)
+   if reply.get('offset')!=offset:raise ValueError('upload acknowledgement mismatch')
+   if time.monotonic()-last>=10:
+    print('UPLOAD_PROGRESS='+path.name+' '+str(offset)+'/'+str(size),flush=True);last=time.monotonic()
+ result=session.call(dict(base,action='upload-end'))
+ if result.get('sha256')!=expected or result.get('size')!=size:raise ValueError('remote upload verification failed')
+ print('UPLOAD_VERIFIED='+path.name,flush=True)
 def main():
  p=argparse.ArgumentParser();p.add_argument('--release',required=True);a=p.parse_args()
  out=Path(tempfile.mkdtemp(prefix='apow-stage-results-',dir=R));sessions=[]
@@ -48,7 +64,7 @@ def main():
     remote=s.call({'action':'prepare-upload'})
     if not remote.startswith('/root/hvm-apow-stage-') or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/-_' for c in remote):raise ValueError('invalid remote upload directory')
     print('UPLOAD_AND_STAGE='+node,flush=True)
-    subprocess.run(['scp','-o','ControlMaster=no','-o','ControlPath=none',*[str(x) for x in sorted(upload.iterdir())],'root@'+host+':'+remote+'/'],check=True,timeout=600)
+    for path in sorted(upload.iterdir()):upload_file(s,remote,path)
     result=s.call({'action':'stage','node_id':node,'upload':remote,'manifest':manifest,'_timeout':180})
     (out/(node+'.json')).write_text(json.dumps(result,indent=2)+'\n');print('APOW_CANDIDATE_STAGED='+node,flush=True)
    final=rows();pre.validate_rows(final)
