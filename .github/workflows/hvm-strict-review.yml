@@ -1,0 +1,27 @@
+name: HVM strict contract review
+on:
+  push:
+    branches: [feat/hvm-apow-strict]
+    paths: ['.github/workflows/hvm-strict-review.yml', 'evm/strict/**', 'evm/execution/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  strict:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: evm/execution/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+        working-directory: evm/strict
+      - run: npm run build
+        working-directory: evm/strict
+      - run: git diff --exit-code -- evm/strict/artifacts.json
+      - run: go -C evm/execution test ./... -count=1
