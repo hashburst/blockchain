@@ -32,8 +32,9 @@ and contract intent before authorization. HBT coin balances and token balances
 must not be summed or substituted; native accounting uses 10^8 units per HBT,
 whereas the existing EVM representation uses 10^18 wei per HBT.
 
-Implemented: encrypted creation/import/unlock and native transfer draft signing.
-Pending: integrated submission/receipt manager, HBT-20/HBT-721 ABI interactions,
+Implemented: encrypted creation/import/unlock, native transfer draft preparation,
+signing, explicit one-attempt submission and read-only receipt checking.
+Pending: HBT-20/HBT-721 ABI interactions,
 local desktop UI, Windows ACL-backed key custody and end-to-end user tests.
 Keys are exported as encrypted keystores for self-custody, not uploaded to a
 public dashboard. Existing founder/miner/validator keys must remain separate.

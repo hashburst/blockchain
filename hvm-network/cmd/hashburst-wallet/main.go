@@ -1,4 +1,4 @@
-// hashburst-wallet is an offline custody and native-transfer signer. No RPC client.
+// hashburst-wallet separates local custody/signing from explicit public RPC commands.
 package main
 
 import (
@@ -77,9 +77,12 @@ func decodeTransfer(raw []byte, chain uint64, address string) (*protocolv2.Trans
 }
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("commands: create, encrypt, verify, sign-transfer; use command --help")
+		return errors.New("commands: create, encrypt, verify, sign-transfer, prepare-transfer, submit-transfer, receipt; use command --help")
 	}
 	cmd := os.Args[1]
+	if cmd == "prepare-transfer" || cmd == "submit-transfer" || cmd == "receipt" {
+		return nodeCommand(cmd, os.Args[2:])
+	}
 	f := flag.NewFlagSet(cmd, flag.ContinueOnError)
 	in := f.String("in", "", "private source file")
 	out := f.String("out", "", "new output file, never overwritten")
