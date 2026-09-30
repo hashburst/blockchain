@@ -1,0 +1,49 @@
+name: HVM staging and dashboard review
+on:
+  pull_request:
+    paths:
+      - 'hvm-network/deploy/testnet/apow/**'
+      - 'hvm-network/deploy/dashboard/**'
+      - '.github/workflows/hvm-stage-review.yml'
+  push:
+    branches: ['feat/hvm-apow-staging-dashboard-en']
+permissions:
+  contents: read
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          python3 hvm-network/deploy/testnet/apow/test_coordinator.py
+          python3 hvm-network/deploy/testnet/apow/test_measure.py
+          python3 hvm-network/deploy/testnet/apow/test_stage.py
+          python3 hvm-network/deploy/testnet/apow/test_miner_service.py
+          python3 hvm-network/deploy/testnet/apow/test_preflight.py
+          python3 hvm-network/deploy/dashboard/test-dashboard.py
+          node hvm-network/deploy/dashboard/test-card.cjs
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - name: Exercise the real Go miner against isolated measurement endpoint
+        working-directory: hvm-network
+        run: |
+          go build -o "$RUNNER_TEMP/hvm-apow-miner" ./cmd/hvm-apow-miner
+          HVM_MINER_TEST_BINARY="$RUNNER_TEMP/hvm-apow-miner" python3 deploy/testnet/apow/test_measure_miner.py
+
+      - name: Test and build read-only reward auditor
+        working-directory: hvm-network
+        run: |
+          go test ./cmd/hvm-apow-audit
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$RUNNER_TEMP/hvm-apow-audit" ./cmd/hvm-apow-audit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hvm-apow-audit-linux-amd64
+          path: ${{ runner.temp }}/hvm-apow-audit
