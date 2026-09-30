@@ -148,7 +148,7 @@ def main(p):
    with script.open('x') as f:f.write(p['worker_source']);f.flush();os.fsync(f.fileno())
    script.chmod(0o600)
   save(directory/'LAUNCHED.json',{'plan':pid})
-  command('systemd-run','--unit='+job,'--property=Type=oneshot','--property=RemainAfterExit=yes','--property=TimeoutStartSec=infinity','--property=Restart=no','/usr/bin/python3',str(script),'--worker',str(directory))
+  command('systemd-run','--no-block','--unit='+job,'--property=Type=oneshot','--property=RemainAfterExit=yes','--property=TimeoutStartSec=infinity','--property=Restart=no','/usr/bin/python3',str(script),'--worker',str(directory))
   return {'launched':job}
  if action=='job':
   for name in ('FAILED.json','DONE.json'):
