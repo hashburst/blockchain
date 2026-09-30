@@ -45,6 +45,10 @@ class Guards(unittest.TestCase):
   with tempfile.TemporaryDirectory() as t:
    p=Path(t)/'record';g['save'](p,{'a':1});g['save'](p,{'a':1})
    with self.assertRaises(ValueError):g['save'](p,{'a':2})
+ def test_systemd_job_launch_never_waits_on_ssh(self):
+  source=(R/'migrate-node.py').read_text()
+  self.assertIn("command('systemd-run','--no-block',",source)
+  self.assertIn("'--property=TimeoutStartSec=infinity'",source)
  def test_worker_survives_transport_source_compile(self):compile(m.worker_source,'worker','exec')
  def test_worker_failure_does_not_write_done(self):
   with tempfile.TemporaryDirectory() as t:
