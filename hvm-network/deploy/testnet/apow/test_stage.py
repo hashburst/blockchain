@@ -1,4 +1,4 @@
-import hashlib,importlib.util,json,tempfile,unittest,tarfile,io
+import base64,hashlib,importlib.util,json,tempfile,unittest,tarfile,io,sys
 from pathlib import Path
 from unittest.mock import patch
 R=Path(__file__).resolve().parent
@@ -46,4 +46,45 @@ class StagingGuards(unittest.TestCase):
    with self.assertRaisesRegex(ValueError,'wrong host'):node.stage({'node_id':'hvm-testnet-v1'})
  def test_remote_combined_source_compiles(self):
   compile(client.pre.SOURCE+'\ninspect=main\n'+(R/'stage-node.py').read_text(),'remote','exec')
+class UploadGuards(unittest.TestCase):
+ def setUp(self):
+  self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name)
+  node.UPLOAD_DIRS.add(str(self.root));self.base={'upload':str(self.root),'name':'hashburst-testnet'}
+ def tearDown(self):
+  node.UPLOAD_DIRS.discard(str(self.root));node.UPLOADS.clear();self.tmp.cleanup()
+ def begin(self,body=b'abc'):
+  return node.transfer(dict(self.base,action='upload-begin',size=len(body),sha256=hashlib.sha256(body).hexdigest()))
+ def chunk(self,body=b'abc',offset=0):
+  return node.transfer(dict(self.base,action='upload-chunk',offset=offset,data=base64.b64encode(body).decode()))
+ def test_complete_checksum_verified(self):
+  self.begin();self.chunk();r=node.transfer(dict(self.base,action='upload-end'))
+  self.assertEqual(r['size'],3);self.assertEqual((self.root/'hashburst-testnet').read_bytes(),b'abc')
+ def test_interrupted_upload_not_published(self):
+  self.begin(b'abcdef');self.chunk()
+  with self.assertRaises(ValueError):node.transfer(dict(self.base,action='upload-end'))
+  self.assertFalse((self.root/'hashburst-testnet').exists())
+ def test_wrong_checksum_not_published(self):
+  self.begin();self.chunk(b'xyz')
+  with self.assertRaises(ValueError):node.transfer(dict(self.base,action='upload-end'))
+  self.assertFalse((self.root/'hashburst-testnet').exists())
+ def test_duplicate_chunk_refused(self):
+  self.begin(b'abcdef');self.chunk()
+  with self.assertRaises(ValueError):self.chunk()
+  self.assertEqual((self.root/'hashburst-testnet.part').read_bytes(),b'abc')
+ def test_path_traversal_refused(self):
+  for value in ('../wallet.key','/etc/passwd'):
+   with self.assertRaises(ValueError):node.transfer(dict(self.base,name=value,action='upload-begin'))
+ def test_no_overwrite_existing_final(self):
+  self.begin();self.chunk();(self.root/'hashburst-testnet').write_bytes(b'keep')
+  with self.assertRaises(FileExistsError):node.transfer(dict(self.base,action='upload-end'))
+  self.assertEqual((self.root/'hashburst-testnet').read_bytes(),b'keep')
+ def test_chunked_transfer_over_actual_runner_pipe(self):
+  source=(R/'stage-node.py').read_text().replace("dir='/root'",'dir='+repr(str(self.root)))
+  session=client.pre.transport.Session([sys.executable,'-u','-c',client.pre.transport.RUNNER],source)
+  try:
+   remote=session.call({'action':'prepare-upload'})
+   path=self.root/'hashburst-testnet';body=b'transport-test'*100000;path.write_bytes(body)
+   client.upload_file(session,remote,path)
+   self.assertEqual((Path(remote)/path.name).read_bytes(),body)
+  finally:session.close()
 if __name__=='__main__':unittest.main()

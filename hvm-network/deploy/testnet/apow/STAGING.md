@@ -7,7 +7,7 @@ Use stage-all.py on the Mac with the unmodified Linux amd64 release archive:
 
 The archive SHA256 is pinned in the script. Only the two named regular binaries
 are extracted; archive paths and symlinks are not extracted. Password prompts
-belong to SSH/scp. Host key verification is retained. No password is stored.
+belong to the five dedicated SSH sessions. Host key verification is retained. No password is stored.
 
 Before changes, all four validators and the observer must agree at one finalized
 height and show progress. Certificates must be present; this Python comparison
@@ -47,3 +47,18 @@ founder allocation to 0xd1Da8D04D767685e53440DbC56803aF350A65333. Faucet allocat
 is a subset of that founder budget. Neither a snapshot nor that freeze has been
 implemented by this staging operation. Legacy 1337 and active testnet 4735490
 are not rewritten here.
+
+## Transport fix v0.4.2
+
+File transfers use the existing authenticated SSH runner rather than a second
+scp connection. Each 256 KiB chunk requires the exact next offset; incomplete
+or checksum-mismatching files remain .part files in the fresh staging directory.
+Only a completed SHA256-verified file is published, without overwriting an
+existing file. A transport failure stops the run without replaying a mutation.
+A new invocation performs fresh five-node gates and uses a new upload directory.
+Already staged exact runtime/miner releases and miner identities are reused.
+This does not require deleting any old staging directory or restarting v1.
+
+Tests include transfer through the actual runner stdin/stdout protocol, interrupted
+transfers, hash mismatches, duplicate chunks, traversal and overwrite rejection.
+No live VPS transfer is claimed by these local tests.

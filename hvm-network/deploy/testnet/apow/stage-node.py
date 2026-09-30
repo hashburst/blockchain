@@ -1,5 +1,5 @@
 """Stage immutable binaries and a stopped miner; called over dedicated SSH."""
-import hashlib, json, os, platform, shutil, subprocess
+import base64, hashlib, json, os, platform, shutil, subprocess, re
 from pathlib import Path
 TARGETS={'hvm-testnet-v1':'77.90.188.153','hvm-testnet-v2':'77.90.188.154','hvm-testnet-v3':'77.90.188.155','hvm-testnet-v4':'77.90.188.157','hvm-testnet-ingress':'64.31.4.9'}
 def digest(path,size=None):
@@ -64,10 +64,49 @@ def stage(request):
  after=inspect({'action':'status','node_id':node})
  if after['binary_sha256']!=before['binary_sha256'] or after['pin_sha256']!=before['pin_sha256']:raise ValueError('running release or pin changed during staging')
  return {'node_id':node,'candidate_binary':str(binary),'candidate_sha256':manifest['hashburst-testnet'],'running_binary_sha256':after['binary_sha256'],'height':after['height'],'protected_prefixes':proofs,'miner':miner,'service_restarted':False,'apow_activated':False}
+# Uploads are confined to fresh directories created by this SSH session.
+UPLOAD_DIRS=set()
+UPLOADS={}
+UPLOAD_NAMES={'hashburst-testnet','hvm-apow-miner','miner-service.py','miner-release.json','stage-manifest.json'}
+def transfer(request):
+ directory=request['upload'];name=request['name'];action=request['action']
+ if directory not in UPLOAD_DIRS or name not in UPLOAD_NAMES:raise ValueError('unregistered upload path')
+ root=Path(directory)
+ if root.is_symlink() or not root.is_dir():raise ValueError('upload directory replaced')
+ path=root/name;part=root/(name+'.part');key=(directory,name)
+ if action=='upload-begin':
+  size=request['size'];expected=request['sha256']
+  if type(size) is not int or not 0<size<=200_000_000 or not re.fullmatch('[0-9a-f]{64}',expected):raise ValueError('invalid upload metadata')
+  if key in UPLOADS or path.exists() or path.is_symlink():raise ValueError('upload already exists')
+  with part.open('xb'):pass
+  part.chmod(0o600)
+  UPLOADS[key]={'size':size,'sha256':expected,'offset':0}
+  return {'offset':0}
+ if key not in UPLOADS:raise ValueError('upload not begun')
+ state=UPLOADS[key]
+ if part.is_symlink() or not part.is_file() or part.stat().st_size!=state['offset']:raise ValueError('partial upload changed')
+ if action=='upload-chunk':
+  encoded=request['data']
+  if not isinstance(encoded,str) or len(encoded)>350000:raise ValueError('oversized upload chunk')
+  data=base64.b64decode(encoded,validate=True)
+  if request['offset']!=state['offset'] or not 0<len(data)<=262144 or state['offset']+len(data)>state['size']:raise ValueError('upload offset/length mismatch')
+  with part.open('ab') as f:f.write(data)
+  state['offset']+=len(data)
+  return {'offset':state['offset']}
+ if action=='upload-end':
+  if state['offset']!=state['size'] or digest(part)!=state['sha256']:raise ValueError('upload size/checksum mismatch')
+  with part.open('rb') as f:os.fsync(f.fileno())
+  os.link(part,path)  # exclusive publication: never replace another file
+  part.unlink();del UPLOADS[key]
+  return {'size':path.stat().st_size,'sha256':digest(path)}
+ raise ValueError('unknown upload action')
 def main(request):
  if request['action'] in ('status','commitment'):return inspect(request)
  if request['action']=='prepare-upload':
   import tempfile
-  return tempfile.mkdtemp(prefix='hvm-apow-stage-',dir='/root')
+  directory=tempfile.mkdtemp(prefix='hvm-apow-stage-',dir='/root')
+  UPLOAD_DIRS.add(directory)
+  return directory
+ if request['action'].startswith('upload-'):return transfer(request)
  if request['action']=='stage':return stage(request)
  raise ValueError('unknown action')
