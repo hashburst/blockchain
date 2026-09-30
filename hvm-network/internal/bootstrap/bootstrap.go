@@ -42,8 +42,8 @@ type Options struct {
 }
 
 func CheckChain(id uint64) error {
-	if id == 0 || id == 1337 || id > math.MaxInt64 {
-		return fmt.Errorf("explicit non-legacy chain ID in 1..MaxInt64 required; 1337 is reserved for legacy")
+	if id == 0 || id == 1337 || id == 4735489 || id > math.MaxInt64 {
+		return fmt.Errorf("explicit non-legacy chain ID in 1..MaxInt64 required; 1337 is reserved for legacy and 4735489 requires a separate mainnet bootstrap")
 	}
 	return nil
 }
