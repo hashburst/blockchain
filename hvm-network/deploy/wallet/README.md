@@ -40,3 +40,24 @@ Validation is pending execution of the Go tests in a Go 1.25.7 environment.
 The HVM native wallet candidate GitHub workflow runs those tests on branch push;
 a workflow definition is not evidence that its run succeeded.
 Do not migrate production custody or sign transfers using an unvalidated build.
+
+## Direct encrypted creation
+
+The `create` command generates a fresh secp256k1 key and writes only the verified
+password-encrypted keystore. It prints the public address and chain ID, creates
+no allocation and sends no transaction. A seed phrase is not generated. Restore
+requires both this keystore and its password; test restoration before funding.
+
+On Linux or macOS, create a private directory, then use the interactive wrapper:
+
+```
+mkdir -m 700 wallet-testnet
+python3 prompt.py create --binary ./hashburst-wallet --chain-id 4735490 --out wallet-testnet/wallet.json
+```
+
+Use a different output directory and chain ID 4735489 for mainnet. Keystore V3 is
+network-neutral; chain enforcement occurs during signing, not inside the key file.
+No browser download or server custody is involved. Native transfer signing only;
+token ABI interaction and integrated node submission remain separate work.
+Windows custody refuses operations until a Windows ACL backend is implemented.
+Do not bypass that guard by assuming chmod has POSIX semantics on Windows.

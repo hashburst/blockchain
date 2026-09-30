@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -76,7 +77,7 @@ func decodeTransfer(raw []byte, chain uint64, address string) (*protocolv2.Trans
 }
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("commands: encrypt, verify, sign-transfer; use command --help")
+		return errors.New("commands: create, encrypt, verify, sign-transfer; use command --help")
 	}
 	cmd := os.Args[1]
 	f := flag.NewFlagSet(cmd, flag.ContinueOnError)
@@ -88,10 +89,13 @@ func run() error {
 	if e := f.Parse(os.Args[2:]); e != nil {
 		return e
 	}
-	if cmd != "encrypt" && cmd != "verify" && cmd != "sign-transfer" {
+	if cmd != "create" && cmd != "encrypt" && cmd != "verify" && cmd != "sign-transfer" {
 		return errors.New("unknown command")
 	}
-	if !wallet.IsValidAddress(*expected) || (*chain != 4735490 && *chain != 4735489) {
+	if runtime.GOOS == "windows" {
+		return errors.New("Windows custody requires a reviewed ACL backend; no key read or created")
+	}
+	if (cmd != "create" && !wallet.IsValidAddress(*expected)) || (*chain != 4735490 && *chain != 4735489) {
 		return errors.New("explicit valid address and supported chain ID required")
 	}
 	// Password delivered via anonymous stdin pipe by prompt.py, never argv/environment.
@@ -103,12 +107,17 @@ func run() error {
 	if len(password) < 12 || len(password) > 4096 {
 		return errors.New("password must contain 12 to 4096 bytes")
 	}
-	raw, e := readPrivate(*in)
-	if e != nil {
-		return e
+	var raw []byte
+	if cmd != "create" {
+		raw, e = readPrivate(*in)
+		if e != nil {
+			return e
+		}
 	}
 	var w *wallet.Wallet
-	if cmd == "encrypt" {
+	if cmd == "create" {
+		w, e = wallet.NewWallet()
+	} else if cmd == "encrypt" {
 		w, e = wallet.FromPrivateKeyHex(strings.TrimSpace(string(raw)))
 	} else {
 		w, e = wallet.DecryptV3(raw, password)
@@ -116,11 +125,11 @@ func run() error {
 	if e != nil {
 		return e
 	}
-	if !strings.EqualFold(w.Address(), *expected) {
+	if cmd != "create" && !strings.EqualFold(w.Address(), *expected) {
 		return errors.New("key does not match expected address")
 	}
 	switch cmd {
-	case "encrypt":
+	case "create", "encrypt":
 		b, e := w.EncryptV3(password, wallet.StandardScryptN, wallet.StandardScryptR, wallet.StandardScryptP)
 		if e != nil {
 			return e
@@ -140,7 +149,11 @@ func run() error {
 		if e != nil || check.Address() != w.Address() {
 			return errors.New("saved keystore verification failed")
 		}
-		fmt.Println("ENCRYPTED_KEYSTORE_VERIFIED_PLAINTEXT_RETAINED")
+		if cmd == "create" {
+			fmt.Println("ENCRYPTED_WALLET_CREATED_NO_PLAINTEXT_KEY_WRITTEN_NO_ALLOCATION")
+		} else {
+			fmt.Println("ENCRYPTED_KEYSTORE_VERIFIED_PLAINTEXT_RETAINED")
+		}
 	case "verify":
 		fmt.Println("KEYSTORE_UNLOCK_AND_ADDRESS_OK")
 	case "sign-transfer":
