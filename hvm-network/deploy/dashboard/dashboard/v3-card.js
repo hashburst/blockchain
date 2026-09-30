@@ -1,14 +1,18 @@
-// HVM_NETWORK_CARD_V4_EN
+// HVM_NETWORK_CARD_V3
 (() => {
   'use strict';
   const root = document.getElementById('view-hvm');
   const el = id => document.getElementById('hvm-' + id);
-  let lang = 'en', previous = null, sample = null, progress = 'first', busy = false, error = '', rpcOK = false, sampledAt = '';
+  let lang = 'it', previous = null, sample = null, progress = 'first', busy = false, error = '', rpcOK = false, sampledAt = '';
+  try { lang = localStorage.getItem('hvm-language') === 'en' ? 'en' : 'it'; } catch (_) {}
   const words = {
+    it: {unknown:'Non verificato', first:'Primo campione; aggiorna per confrontare', advanced:'Avanzata dal campione precedente', same:'Nessun avanzamento dal campione precedente', decreased:'Altezza diminuita: verificare', responding:'Observer rispondente', stopped:'Reactor fermo', stale:'Stato dettagliato non disponibile', unavailable:'Non disponibile', running:'In esecuzione', pending:'In attesa', activated:'Altezza di attivazione finalizzata', rpc:'RPC testnet rispondente', time:'Ultimo campione'},
     en: {unknown:'Not checked', first:'First sample; refresh to compare', advanced:'Advanced since previous sample', same:'No advancement since previous sample', decreased:'Height decreased: investigate', responding:'Observer responding', stopped:'Reactor stopped', stale:'Detailed status unavailable', unavailable:'Unavailable', running:'Running', pending:'Pending', activated:'Activation height finalized', rpc:'Testnet RPC responding', time:'Last sample'}
   };
   function render() {
     root.lang = lang;
+    root.querySelectorAll('[data-hvm-it]').forEach(n => { n.textContent = n.getAttribute('data-hvm-' + lang); });
+    el('it').setAttribute('aria-pressed', String(lang === 'it')); el('en').setAttribute('aria-pressed', String(lang === 'en'));
     const t = words[lang];
     el('status').textContent = error ? t.unavailable + ': ' + error : sample ? t.responding : t.unknown;
     el('time').textContent = sampledAt ? t.time + ': ' + sampledAt : '';
@@ -39,6 +43,9 @@
     } catch (e) { error = e.message; sample = null; previous = null; }
     finally { busy = false; el('refresh').disabled = false; render(); }
   }
+  for (const value of ['it','en']) el(value).addEventListener('click', () => {
+    lang = value; try { localStorage.setItem('hvm-language', lang); } catch (_) {} render();
+  });
   document.getElementById('nav-hvm').addEventListener('click', refresh);
   el('refresh').addEventListener('click', refresh);
   setInterval(() => { if (root.classList.contains('active') && !document.hidden) refresh(); }, 30000);

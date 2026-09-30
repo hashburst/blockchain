@@ -32,8 +32,8 @@ measure mining difficulty, verify reward execution and fixed-height agreement,
 and pass a single-validator restart and EVM/MetaMask regression. The passing
 baseline preflight alone does not satisfy these gates.
 
-Mainnet 4735489 remains unprovisioned. A founder public address for the approved
-1,000,000,000 HBT allocation is still required. Legacy balance migration requires
-a specified snapshot and a verified freeze/lock/burn policy preventing duplicate
-spendable balances, or an explicit decision for an independent mainnet without
-legacy import. A testnet account is not implicitly a mainnet allocation recipient.
+Mainnet 4735489 remains unprovisioned. The confirmed founder address is
+0xd1Da8D04D767685e53440DbC56803aF350A65333. The approved policy is a verified
+legacy import with canonical legacy spending freeze and an additional
+1,000,000,000 HBT founder allocation, including the faucet budget.
+See STAGING.md for the first five-node deployment step and the remaining gates.

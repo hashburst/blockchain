@@ -1,0 +1,25 @@
+  <div class="view" id="view-hvm">
+    <div class="section">
+      <div class="section-header"><div><div class="section-title">HVM Network</div><div class="section-sub" data-hvm-it="Stato dell'observer pubblico testnet. Aggiornamento ogni 30 secondi quando la scheda è visibile." data-hvm-en="Public testnet observer status. Refreshes every 30 seconds while this tab is visible."></div></div>
+      <div><button class="btn" id="hvm-it" type="button">Italiano</button> <button class="btn" id="hvm-en" type="button">English</button> <button class="btn" id="hvm-refresh" type="button" data-hvm-it="Aggiorna" data-hvm-en="Refresh"></button></div></div>
+      <p id="hvm-status" role="status"></p><p id="hvm-time"></p>
+      <table><tbody>
+        <tr><th data-hvm-it="Rete" data-hvm-en="Network"></th><td>HashBurst HVM Testnet</td></tr>
+        <tr><th>Chain ID</th><td>4735490 (0x484202)</td></tr>
+        <tr><th data-hvm-it="Altezza finalizzata" data-hvm-en="Finalized height"></th><td id="hvm-finalized"></td></tr>
+        <tr><th data-hvm-it="Avanzamento" data-hvm-en="Progress"></th><td id="hvm-progress"></td></tr>
+        <tr><th data-hvm-it="Peer dell'observer" data-hvm-en="Observer peers"></th><td id="hvm-peers"></td></tr>
+        <tr><th>Reactor</th><td id="hvm-reactor"></td></tr>
+        <tr><th data-hvm-it="Attivazione EVM" data-hvm-en="EVM activation"></th><td id="hvm-activation"></td></tr>
+        <tr><th>JSON-RPC</th><td><code>https://blockchainapi.one/api/hashburst/hvm/testnet/evm</code><br><span id="hvm-rpc"></span></td></tr>
+        <tr><th>WebSocket</th><td><code>wss://blockchainapi.one/api/hashburst/hvm/testnet/evm/ws</code></td></tr>
+        <tr><th>Legacy</th><td data-hvm-it="1337" data-hvm-en="1337"></td></tr>
+        <tr><th>Mainnet</th><td data-hvm-it="4735489 — non attiva; pubblicazione separata" data-hvm-en="4735489 — not active; separate publication"></td></tr>
+      </tbody></table>
+      <p data-hvm-it="Collaudo testnet del 29 settembre 2026: trasferimento, deploy, chiamata, receipt, log e notifiche WebSocket verificati. Il risultato riguarda questo collaudo, non ogni funzionalità EVM o wallet." data-hvm-en="Testnet acceptance on 29 September 2026: transfer, deployment, call, receipts, logs and WebSocket notifications verified. The result covers this test, not every EVM or wallet feature."></p>
+      <p data-hvm-it="APoW: preflight dei quattro validatori e observer superato all'altezza 113007, con avanzamento a 113011. Attivazione APoW non attestata da questa scheda." data-hvm-en="APoW: four-validator and observer preflight passed at height 113007, advancing to 113011. This panel does not attest APoW activation."></p>
+      <p data-hvm-it="Wallet HashBurst: HBT è il coin nativo; i token sono gestiti dai contratti. I wallet del fondatore testnet e mainnet sono separati. Il nuovo strumento di custodia cifrata e firma offline è in sviluppo; nessuna chiave deve essere caricata su questa pagina." data-hvm-en="HashBurst Wallet: HBT is the native coin; tokens are managed by contracts. Founder testnet and mainnet wallets are separate. The new encrypted custody and offline signing tool is under development; never upload a private key to this page."></p>
+      <p><a href="/hvm-testnet-metamask/" data-hvm-it="Apri il collaudo MetaMask testnet" data-hvm-en="Open the MetaMask testnet test"></a></p>
+      <p class="section-sub" data-hvm-it="Questi dati descrivono un observer senza firma, non attestano da soli lo stato dei quattro validatori. Nessuna transazione viene inviata da questa scheda." data-hvm-en="These data describe a non-signing observer and do not alone establish the status of all four validators. This panel sends no transactions."></p>
+    </div>
+  </div>

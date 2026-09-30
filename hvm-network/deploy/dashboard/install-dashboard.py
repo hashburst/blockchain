@@ -7,7 +7,13 @@ PAGE=Path('/var/www/blockchainapi.one/public/hashburst/index.php')
 VHOST=Path('/etc/nginx/sites-available/blockchainapi.one.conf')
 SNIPPET=Path('/etc/nginx/snippets/hvm-network-status.conf')
 def patch(text):
- if 'HVM_NETWORK_CARD_V3' in text:return text
+ if 'HVM_NETWORK_CARD_V4_EN' in text:return text
+ if 'HVM_NETWORK_CARD_V3' in text:
+  for name in ('card.html','card.js'):
+   old=(R/'dashboard'/('v3-'+name)).read_text()
+   if text.count(old)!=1:raise RuntimeError('existing V3 panel differs; retained')
+   text=text.replace(old,(R/'dashboard'/name).read_text(),1)
+  return text
  if 'HVM_NETWORK_CARD_V2' in text:
   for name in ('card.html','card.js'):
    old=(R/'dashboard'/('previous-'+name)).read_text()
@@ -50,7 +56,7 @@ def main():
     body=run('curl','--noproxy','*','--resolve','blockchainapi.one:443:127.0.0.1','-fsS','--max-time','20','https://blockchainapi.one/api/hashburst/hvm/testnet/network')
     if json.loads(body).get('chain_id')!=4735490:raise RuntimeError('network endpoint mismatch')
     page=run('curl','--noproxy','*','--resolve','blockchainapi.one:443:127.0.0.1','-fsS','--max-time','20','https://blockchainapi.one/hashburst/')
-    if 'HVM_NETWORK_CARD_V3' not in page or 'id="nav-hvm"' not in page:raise RuntimeError('dashboard not updated')
+    if 'HVM_NETWORK_CARD_V4_EN' not in page or 'id="nav-hvm"' not in page:raise RuntimeError('dashboard not updated')
     print('HVM_DASHBOARD_LOCAL_VERIFIED');return
    except Exception:
     if attempt==14:raise

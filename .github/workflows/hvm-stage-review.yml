@@ -1,0 +1,28 @@
+name: HVM staging and dashboard review
+on:
+  pull_request:
+    paths:
+      - 'hvm-network/deploy/testnet/apow/**'
+      - 'hvm-network/deploy/dashboard/**'
+      - '.github/workflows/hvm-stage-review.yml'
+  push:
+    branches: ['feat/hvm-apow-staging-dashboard-en']
+permissions:
+  contents: read
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          python3 hvm-network/deploy/testnet/apow/test_stage.py
+          python3 hvm-network/deploy/testnet/apow/test_miner_service.py
+          python3 hvm-network/deploy/testnet/apow/test_preflight.py
+          python3 hvm-network/deploy/dashboard/test-dashboard.py
+          node hvm-network/deploy/dashboard/test-card.cjs
