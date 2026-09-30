@@ -1,0 +1,20 @@
+name: HVM native wallet candidate
+on:
+  push:
+    branches: [feat/hvm-apow-strict]
+    paths: ['hvm-network/wallet/**', 'hvm-network/cmd/hashburst-wallet/**', 'hvm-network/deploy/wallet/**', '.github/workflows/hvm-wallet.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - run: go -C hvm-network test -race ./wallet ./protocolv2 ./cmd/hashburst-wallet
+      - run: go -C hvm-network build ./cmd/hashburst-wallet

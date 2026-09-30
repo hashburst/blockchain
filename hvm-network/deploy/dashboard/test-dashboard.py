@@ -15,4 +15,13 @@ class PatchTests(unittest.TestCase):
   with self.assertRaises(RuntimeError):m.patch(self.source()+'<button id="nav-hvm"></button>')
  def test_duplicate_anchor_refused(self):
   with self.assertRaises(RuntimeError):m.patch(self.source()+'</main>')
+ def test_known_previous_version_upgrade(self):
+  text=m.patch(self.source())
+  for name in ('card.html','card.js'):
+   text=text.replace((R/'dashboard'/name).read_text(),(R/'dashboard'/('previous-'+name)).read_text())
+  updated=m.patch(text)
+  self.assertIn('HVM_NETWORK_CARD_V3',updated)
+  self.assertNotIn('HVM_NETWORK_CARD_V2',updated)
+  self.assertIn('nonce="preserved"',updated)
+  self.assertEqual(m.patch(updated),updated)
 if __name__=='__main__':unittest.main()
