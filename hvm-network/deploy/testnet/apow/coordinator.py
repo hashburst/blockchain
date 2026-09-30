@@ -133,7 +133,7 @@ def main():
      result=sessions[3].call({'action':'restart-check','node_id':'hvm-testnet-v4','plan':plan,'_timeout':50});persist('restart-check',result)
     waiting_for_work=args.action=='verify' and all(r['height']==plan['activation']['activation_height']-1 for r in rows)
     if waiting_for_work or all(r['height']>first[r['node_id']] for r in rows):
-     persist('agreement',proofs);persist('progress',rows);print('FIVE_NODE_AGREEMENT_AND_PROGRESS_OK height='+str(h));print('REWARD_AUDIT_REQUIRED' if h>=plan['activation']['activation_height'] else 'MINERS_MAY_BE_STARTED_MANUALLY');return
+     persist('agreement',proofs);persist('progress',rows);print(('FIVE_NODE_READY_AT_ACTIVATION_BARRIER height=' if waiting_for_work else 'FIVE_NODE_AGREEMENT_AND_PROGRESS_OK height=')+str(h));print('REWARD_AUDIT_REQUIRED' if h>=plan['activation']['activation_height'] else 'MINERS_MAY_BE_STARTED_MANUALLY');return
    except Exception as e:
     if any(s.broken for s in sessions):raise
     print('READINESS_WAIT '+str(e),flush=True)
