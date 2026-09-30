@@ -6,6 +6,20 @@ spec=importlib.util.spec_from_file_location('coordinator',R/'coordinator.py');m=
 g=m.ns
 class Guards(unittest.TestCase):
  def plan(self):return {'schema':1,'chain_id':4735490,'activation':dict(g['PROFILE'],activation_height=5000),'binary_sha256':g['BIN_SHA'],'nodes':[{'node_id':n,'height':1000} for _,n in m.pre.TARGETS],'common_height':1000,'commitments':[]}
+ def test_missing_job_is_not_a_command_failure(self):
+  import subprocess
+  reply=subprocess.CompletedProcess([],1,'LoadState=not-found\nActiveState=inactive\nMainPID=0\n','')
+  with patch('subprocess.run',return_value=reply):self.assertEqual(g['properties']('missing')['LoadState'],'not-found')
+ def test_service_query_error_is_not_missing_job(self):
+  import subprocess
+  reply=subprocess.CompletedProcess([],1,'','bus unavailable')
+  with patch('subprocess.run',return_value=reply):
+   with self.assertRaises(RuntimeError):g['properties']('unit')
+ def test_exact_binary_execution_exception_only(self):
+  text=g['start_text'](Path('/etc/example/node.json'))
+  self.assertIn('ExecPaths='+str(g['BIN']),text)
+  self.assertNotIn('NoExecPaths=',text)
+  self.assertNotIn('ProtectSystem=',text)
  def test_valid_plan(self):self.assertEqual(len(g['validate_plan'](self.plan())),64)
  def test_reject_other_chain(self):
   p=self.plan();p['chain_id']=4735489
