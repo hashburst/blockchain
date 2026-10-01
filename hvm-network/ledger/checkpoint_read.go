@@ -1,0 +1,56 @@
+package ledger
+
+import (
+	"bytes"
+	"compress/gzip"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/binary"
+	"errors"
+	"io"
+	"os"
+)
+
+// ReadCheckpoint authenticates before decompression and bounds expanded bytes.
+// The payload must additionally bind chain ID, configuration, finalized block and
+// state roots, and node identity. This local HMAC is not peer bootstrap authority.
+func ReadCheckpoint(path string, key [32]byte, maxBytes int) (uint64, []byte, error) {
+	if maxBytes <= 0 || maxBytes > 64<<20 {
+		return 0, nil, errors.New("invalid budget")
+	}
+	f, e := os.Open(path)
+	if e != nil {
+		return 0, nil, e
+	}
+	defer f.Close()
+	data, e := io.ReadAll(io.LimitReader(f, int64(maxBytes)+(1<<20)+53))
+	if e != nil {
+		return 0, nil, e
+	}
+	if len(data) < 52 || len(data) > maxBytes+(1<<20)+52 || string(data[:4]) != "HBC2" {
+		return 0, nil, errors.New("invalid checkpoint frame")
+	}
+	body, tag := data[:len(data)-32], data[len(data)-32:]
+	m := hmac.New(sha256.New, key[:])
+	m.Write(body)
+	if !hmac.Equal(m.Sum(nil), tag) {
+		return 0, nil, errors.New("checkpoint authentication failed")
+	}
+	n := binary.LittleEndian.Uint64(body[12:20])
+	if n > uint64(maxBytes) {
+		return 0, nil, errors.New("checkpoint expansion exceeds budget")
+	}
+	z, e := gzip.NewReader(bytes.NewReader(body[20:]))
+	if e != nil {
+		return 0, nil, e
+	}
+	defer z.Close()
+	b, e := io.ReadAll(io.LimitReader(z, int64(n)+1))
+	if e != nil {
+		return 0, nil, e
+	}
+	if uint64(len(b)) != n {
+		return 0, nil, errors.New("checkpoint size mismatch")
+	}
+	return binary.LittleEndian.Uint64(body[4:12]), b, nil
+}
