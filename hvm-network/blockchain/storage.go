@@ -12,6 +12,7 @@ package blockchain
 
 import (
 	"bytes"
+ "bufio"
 	"encoding/binary"
 	"encoding/gob"
 	"fmt"
@@ -215,9 +216,11 @@ func (s *ChainStorage) LoadAll() ([]*Block, error) {
 	defer f.Close()
 
 	blocks := []*Block{}
+ reader := bufio.NewReaderSize(f, 256<<10)
+ var data []byte
 	for {
 		sizeBuf := make([]byte, 4)
-		if _, err := io.ReadFull(f, sizeBuf); err != nil {
+		if _, err := io.ReadFull(reader, sizeBuf); err != nil {
 			if err == io.EOF {
 				break
 			}
@@ -225,8 +228,9 @@ func (s *ChainStorage) LoadAll() ([]*Block, error) {
 		}
 		size := binary.BigEndian.Uint32(sizeBuf)
 
-		data := make([]byte, size)
-		if _, err := io.ReadFull(f, data); err != nil {
+		if size == 0 || size > 64<<20 { return nil, fmt.Errorf("invalid block frame size %d", size) }
+ if cap(data) < int(size) { data = make([]byte, size) } else { data = data[:size] }
+		if _, err := io.ReadFull(reader, data); err != nil {
 			return nil, fmt.Errorf("read data: %w", err)
 		}
 
