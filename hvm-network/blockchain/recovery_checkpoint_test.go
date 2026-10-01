@@ -9,6 +9,9 @@ import (
  "testing"
  "time"
  "runtime"
+ "context"
+ "reflect"
+ "hashburst/wallet"
 
  "github.com/ethereum/go-ethereum/common"
  "github.com/ethereum/go-ethereum/core/types"
@@ -28,7 +31,10 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  key,err:=crypto.ToECDSA(s.vals[0].operator.PrivateKeyBytes());if err!=nil{t.Fatal(err)}
  nonce:=n.state.Sequence(sender.Hex())
  // Contract stores 42 in slot zero, returns it on call; nonempty code/storage must survive.
- init,_:=hex.DecodeString("602a600055600b6011600039600b6000f360005460005260206000f3")
+ code,_:=hex.DecodeString("60005460005260006000a060206000f3")
+ prefix,_:=hex.DecodeString("602a600055")
+ init:=append(prefix,[]byte{0x60,byte(len(code)),0x60,17,0x60,0,0x39,0x60,byte(len(code)),0x60,0,0xf3}...)
+ init=append(init,code...)
  tx:=types.NewTx(&types.DynamicFeeTx{ChainID:new(big.Int).SetUint64(cfg.ChainID),Nonce:nonce,Gas:200000,GasFeeCap:big.NewInt(3),GasTipCap:big.NewInt(1),Data:init})
  tx,err=types.SignTx(tx,types.NewCancunSigner(new(big.Int).SetUint64(cfg.ChainID)),key);if err!=nil{t.Fatal(err)}
  raw,_:=tx.MarshalBinary()
@@ -36,6 +42,10 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  finalizeEVMFixture(t,s)
  contract:=crypto.CreateAddress(sender,nonce)
  if n.state.evm.db.GetState(contract,common.Hash{})!=common.BigToHash(big.NewInt(42)){t.Fatal("fixture storage missing")}
+ call:=types.NewTx(&types.DynamicFeeTx{ChainID:new(big.Int).SetUint64(cfg.ChainID),Nonce:nonce+1,To:&contract,Gas:100000,GasFeeCap:big.NewInt(3),GasTipCap:big.NewInt(1)})
+ call,err=types.SignTx(call,types.NewCancunSigner(new(big.Int).SetUint64(cfg.ChainID)),key);if err!=nil{t.Fatal(err)}
+ callRaw,_:=call.MarshalBinary();for _,node:=range s.nodes{if _,err=node.AdmitEthereum(callRaw);err!=nil{t.Fatal(err)}}
+ finalizeEVMFixture(t,s)
  if err=n.saveRecoveryCheckpoint(n.Height(),n.state,n.hvmEngine,n.validators,n.receipts);err!=nil{t.Fatal(err)}
  for i:=0;i<768;i++{finalizeEVMFixture(t,s)}
  if err=n.saveRecoveryCheckpoint(n.Height(),n.state,n.hvmEngine,n.validators,n.receipts);err!=nil{t.Fatal(err)}
@@ -53,6 +63,8 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  if !bytes.Equal(fast.state.evm.db.GetCode(contract),n.state.evm.db.GetCode(contract))||fast.state.evm.db.GetState(contract,common.Hash{})!=common.BigToHash(big.NewInt(42)){t.Fatal("contract checkpoint mismatch")}
  receipt,_:=fast.ethereumReceiptLocked(tx.Hash());original,_:=n.ethereumReceiptLocked(tx.Hash())
  if receipt==nil||receipt.Status!=1||receipt.TxHash!=original.TxHash||receipt.GasUsed!=original.GasUsed||receipt.ContractAddress!=original.ContractAddress||receipt.BlockHash!=original.BlockHash{t.Fatal("receipt lost across checkpoint")}
+ callReceipt,_:=fast.ethereumReceiptLocked(call.Hash());originalCall,_:=n.ethereumReceiptLocked(call.Hash())
+ if callReceipt==nil||len(callReceipt.Logs)!=1||!reflect.DeepEqual(callReceipt.Logs,originalCall.Logs){t.Fatal("checkpoint log metadata mismatch")}
  if _,e:=fast.evmReadHistory.snapshot(fast.Blocks[len(fast.Blocks)-256]);e!=nil{t.Fatal(e)}
  t.Setenv("HVM_FULL_REPLAY","1");runtime.GC();runtime.ReadMemStats(&m0);start=time.Now();full:=open();fullTime:=time.Since(start)
  runtime.ReadMemStats(&m1);fullAlloc:=m1.TotalAlloc-m0.TotalAlloc
@@ -88,4 +100,25 @@ func TestRecoveryCheckpointKeyPermissionsAndIndexBounds(t *testing.T) {
  if _,err=checkpointKey(dir,false);err==nil{t.Fatal("public key mode accepted")}
  os.Remove(path);os.Symlink(filepath.Join(dir,"elsewhere"),path)
  if _,err=checkpointKey(dir,true);err==nil{t.Fatal("symlink accepted")}
+}
+
+func TestRecoveryCheckpointAPoWBothNetworks(t *testing.T) {
+ for _,chainID:=range []uint64{4735490,4735489}{
+  cfg:=apowTestConfig();cfg.ChainID=chainID
+  s:=setupPhase3DChainsWithConfig(t,cfg);n:=s.nodes[0];n.storage.durable=true
+  os.WriteFile(filepath.Join(n.storage.dir,"runtime.pin"),[]byte("apow-fixture"),0600)
+  miner,err:=wallet.NewWallet();if err!=nil{t.Fatal(err)}
+  for i:=0;i<270;i++{
+   job,e:=n.APoWJob();if e!=nil{t.Fatal(e)}
+   ctx,cancel:=context.WithTimeout(context.Background(),5*time.Second)
+   proof,e:=MineAPoW(ctx,*job,miner,miner.Address());cancel();if e!=nil{t.Fatal(e)}
+   for _,node:=range s.nodes{if e=node.SubmitAPoW(*proof);e!=nil{t.Fatal(e)}}
+   b:=finalizeEVMFixture(t,s)
+   if e=validateRewardRecipient(b,miner.Address());e!=nil||b.Transactions[0].Amount!=50{t.Fatal("reward mismatch",e)}
+   if i==0{if e=n.saveRecoveryCheckpoint(b.Index,n.state,n.hvmEngine,n.validators,n.receipts);e!=nil{t.Fatal(e)}}
+  }
+  recovered,e:=OpenExistingBlockchainWithRecovery(n.storage.dir,n.v2Config,n.Blocks[0].Hash,6,n.Blocks[6].Hash);if e!=nil{t.Fatal(e)}
+  if recovered.RecoveryStatus().Mode!="incremental"||recovered.state.Root()!=n.state.Root()||recovered.state.evm.root!=n.state.evm.root{t.Fatal("APoW incremental recovery mismatch")}
+  if recovered.state.BalanceUnits(miner.Address())!=270*50*AmountScale{t.Fatal("APoW emission mismatch")}
+ }
 }

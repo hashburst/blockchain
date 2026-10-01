@@ -177,7 +177,7 @@ func exportCheckpointEVM(p *evmProjection, b *Block, chainID uint64) (*checkpoin
  if err=it.Error();err!=nil{return nil,err}
  for h:=p.history;h!=nil;h=h.previous{
   entry:=checkpointEthHistory{}
-  for _,receipt:=range h.receipts{encoded,e:=json.Marshal(receipt);if e!=nil{return nil,e};entry.Receipts=append(entry.Receipts,encoded)}
+  for _,receipt:=range h.receipts{copyReceipt:=*receipt;if copyReceipt.Logs==nil{copyReceipt.Logs=[]*types.Log{}};encoded,e:=json.Marshal(&copyReceipt);if e!=nil{return nil,e};entry.Receipts=append(entry.Receipts,encoded)}
   for _,tx:=range h.transactions{raw,e:=tx.MarshalBinary();if e!=nil{return nil,e};entry.Transactions=append(entry.Transactions,raw)}
   out.History=append(out.History,entry)
  }
