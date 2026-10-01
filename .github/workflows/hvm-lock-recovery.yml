@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.7'
@@ -62,9 +64,14 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.7'
           cache-dependency-path: hvm-network/go.sum
-      - run: go -C hvm-network test ./blockchain ./wallet ./internal/testnet ./cmd/hashburst-wallet
+      - name: Test runtime and wallet with canonical temporary paths
+        run: |
+          export TMPDIR="$(cd "$RUNNER_TEMP" && pwd -P)"
+          go -C hvm-network test ./blockchain ./wallet ./internal/testnet ./cmd/hashburst-wallet
       - run: go -C hvm-network build ./cmd/hashburst-testnet ./cmd/hashburst-mainnet ./cmd/hashburst-wallet
