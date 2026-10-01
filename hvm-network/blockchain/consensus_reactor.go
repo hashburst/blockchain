@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -15,6 +16,9 @@ import (
 // ConsensusProposal is the signed Phase 3D network envelope. The block hash is
 // a content hash: current proposer/round and certificates are metadata and do
 // not change it during a safe view change.
+// ErrProposalLockConflict is a rejected value, not a reactor lifecycle failure.
+var ErrProposalLockConflict = errors.New("proposal conflicts with retained lock")
+
 type ConsensusProposal struct {
 	Header consensus.ProposalHeader `json:"header"`
 	Block  *Block                   `json:"block"`
@@ -288,7 +292,7 @@ func (r *ConsensusReactor) enterRoundLocked(round uint64) error {
 	// A proposal may have arrived before f+1 round-change messages let us catch
 	// up. Process it now that the pacemaker has entered the round.
 	if p, ok := r.proposals[round]; ok {
-		return r.acceptProposalLocked(p, true)
+		return r.acceptRoundProposalLocked(p)
 	}
 
 	set := r.bc.CurrentValidatorSet(r.height)
@@ -307,6 +311,17 @@ func (r *ConsensusReactor) enterRoundLocked(round uint64) error {
 	validRound := r.validRound
 	validBlock := cloneBlockForConsensus(r.validBlock)
 	validQC := clonePrevoteQC(r.validQC)
+	// A newer QC may be known before its block arrives. Do not build a fresh
+	// value in that gap while holding a lock: repropose the retained certified
+	// value, or wait for the proposal timeout if it is not available yet.
+	if validBlock == nil && r.lockedRound >= 0 {
+		validRound = r.lockedRound
+		validBlock = cloneBlockForConsensus(r.lockedBlock)
+		validQC = clonePrevoteQC(r.lockedQC)
+		if validBlock == nil || validQC == nil || uint64(validRound) >= round {
+			return nil
+		}
+	}
 
 	r.mu.Unlock()
 	var block *Block
@@ -325,7 +340,7 @@ func (r *ConsensusReactor) enterRoundLocked(round uint64) error {
 	}
 	if p, ok := r.proposals[round]; ok {
 		// A valid network proposal won the race while the local value was building.
-		return r.acceptProposalLocked(p, true)
+		return r.acceptRoundProposalLocked(p)
 	}
 	if err == ErrAPoWUnavailable {
 		return nil
@@ -334,6 +349,14 @@ func (r *ConsensusReactor) enterRoundLocked(round uint64) error {
 		return err
 	}
 
+	// The lock may have changed while building outside the mutex. Recheck
+	// before recording a proposal signature or broadcasting the value.
+	if err := r.proposalSafetyLocked(block, set); err != nil {
+		if errors.Is(err, ErrProposalLockConflict) {
+			return nil
+		}
+		return err
+	}
 	if err := r.persistRecoveryLocked(round); err != nil {
 		return err
 	}
@@ -348,6 +371,39 @@ func (r *ConsensusReactor) enterRoundLocked(round uint64) error {
 		_ = r.transport.BroadcastConsensusProposal(proposal)
 	}
 	return r.acceptProposalLocked(proposal, true)
+}
+
+// acceptRoundProposalLocked handles a previously buffered proposal after a
+// view change. A lock conflict keeps the proposal deadline armed so the normal
+// nil-prevote/round-change path advances. Persistence/signing errors propagate.
+func (r *ConsensusReactor) acceptRoundProposalLocked(p ConsensusProposal) error {
+	err := r.acceptProposalLocked(p, true)
+	if errors.Is(err, ErrProposalLockConflict) {
+		return nil
+	}
+	return err
+}
+
+func (r *ConsensusReactor) proposalSafetyLocked(block *Block, set consensus.ValidatorSet) error {
+	safeErr := consensus.SafeProposal(r.lockedRound, r.lockedHash, block.Hash, block.ValidRound, block.ValidPrevoteCertificate, set)
+	if safeErr != nil {
+		// A proposal can arrive after this node already observed a +2/3 prevote
+		// certificate for it in the same round. That certificate is stronger than
+		// the proposal envelope itself and safely justifies moving a prior lock.
+		if qc, ok := r.lookupPrevoteQCLocked(block.ConsensusRound, block.Hash); ok && int64(qc.Round) >= r.lockedRound {
+			copyQC := qc
+			if err := copyQC.Verify(set); err == nil && strings.EqualFold(copyQC.BlockHash, block.Hash) {
+				safeErr = nil
+			}
+		}
+	}
+	if safeErr != nil {
+		if r.lockedRound >= 0 && block.ValidRound < r.lockedRound && !strings.EqualFold(r.lockedHash, block.Hash) {
+			return fmt.Errorf("%w: %v", ErrProposalLockConflict, safeErr)
+		}
+		return fmt.Errorf("proposal violates local lock: %w", safeErr)
+	}
+	return nil
 }
 
 func (r *ConsensusReactor) HandleProposal(p ConsensusProposal) error {
@@ -381,23 +437,12 @@ func (r *ConsensusReactor) acceptProposalLocked(p ConsensusProposal, mayVote boo
 	if err := consensus.VerifyProposalHeader(h, expected); err != nil {
 		return err
 	}
+	// Reject a known lock conflict before executing native/EVM transitions.
+	if err := r.proposalSafetyLocked(p.Block, set); err != nil {
+		return err
+	}
 	if err := r.bc.ValidateConsensusProposalForVote(p.Block); err != nil {
 		return fmt.Errorf("proposal validation: %w", err)
-	}
-	safeErr := consensus.SafeProposal(r.lockedRound, r.lockedHash, p.Block.Hash, p.Block.ValidRound, p.Block.ValidPrevoteCertificate, set)
-	if safeErr != nil {
-		// A proposal can arrive after this node already observed a +2/3 prevote
-		// certificate for it in the same round. That certificate is stronger than
-		// the proposal envelope itself and safely justifies moving a prior lock.
-		if qc, ok := r.lookupPrevoteQCLocked(h.Round, p.Block.Hash); ok && int64(qc.Round) >= r.lockedRound {
-			copyQC := qc
-			if err := copyQC.Verify(set); err == nil && strings.EqualFold(copyQC.BlockHash, p.Block.Hash) {
-				safeErr = nil
-			}
-		}
-	}
-	if safeErr != nil {
-		return fmt.Errorf("proposal violates local lock: %w", safeErr)
 	}
 	r.proposals[h.Round] = ConsensusProposal{Header: h, Block: cloneBlockForConsensus(p.Block)}
 	r.blocksByHash[strings.ToLower(p.Block.Hash)] = cloneBlockForConsensus(p.Block)
