@@ -21,6 +21,7 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  s:=setupPhase3DChainsWithConfig(t,cfg);n:=s.nodes[0]
  for _,node:=range s.nodes{node.SetMempool(NewMempool())}
  n.storage.durable=true
+ if err:=os.WriteFile(filepath.Join(n.storage.dir,"runtime.pin"),[]byte("test-node-identity"),0600);err!=nil{t.Fatal(err)}
  finalizeEVMFixture(t,s)
  sender:=common.HexToAddress(s.vals[0].operator.Address())
  key,err:=crypto.ToECDSA(s.vals[0].operator.PrivateKeyBytes());if err!=nil{t.Fatal(err)}
@@ -35,6 +36,8 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  contract:=crypto.CreateAddress(sender,nonce)
  if n.state.evm.db.GetState(contract,common.Hash{})!=common.BigToHash(big.NewInt(42)){t.Fatal("fixture storage missing")}
  if err=n.saveRecoveryCheckpoint(n.Height(),n.state,n.hvmEngine,n.validators,n.receipts);err!=nil{t.Fatal(err)}
+ for i:=0;i<768;i++{finalizeEVMFixture(t,s)}
+ if err=n.saveRecoveryCheckpoint(n.Height(),n.state,n.hvmEngine,n.validators,n.receipts);err!=nil{t.Fatal(err)}
  cpHeight:=n.Height()
  for i:=0;i<300;i++{finalizeEVMFixture(t,s)}
  journal:=filepath.Join(n.storage.dir,"consensus-bft-signatures.jsonl")
@@ -45,7 +48,7 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  if fast.state.Root()!=n.state.Root()||fast.state.evm.root!=n.state.evm.root||fast.validators.Root()!=n.validators.Root()||fast.HVMStateRoot()!=n.HVMStateRoot(){t.Fatal("incremental roots differ")}
  if !bytes.Equal(fast.state.evm.db.GetCode(contract),n.state.evm.db.GetCode(contract))||fast.state.evm.db.GetState(contract,common.Hash{})!=common.BigToHash(big.NewInt(42)){t.Fatal("contract checkpoint mismatch")}
  receipt,_:=fast.ethereumReceiptLocked(tx.Hash());original,_:=n.ethereumReceiptLocked(tx.Hash())
- if receipt==nil||receipt.Status!=1||receipt.TxHash!=original.TxHash||receipt.GasUsed!=original.GasUsed{t.Fatal("receipt lost across checkpoint")}
+ if receipt==nil||receipt.Status!=1||receipt.TxHash!=original.TxHash||receipt.GasUsed!=original.GasUsed||receipt.ContractAddress!=original.ContractAddress||receipt.BlockHash!=original.BlockHash{t.Fatal("receipt lost across checkpoint")}
  if _,e:=fast.evmReadHistory.snapshot(fast.Blocks[len(fast.Blocks)-256]);e!=nil{t.Fatal(e)}
  t.Setenv("HVM_FULL_REPLAY","1");start=time.Now();full:=open();fullTime:=time.Since(start)
  if full.state.Root()!=fast.state.Root()||full.state.evm.root!=fast.state.evm.root{t.Fatal("full replay mismatch")}
