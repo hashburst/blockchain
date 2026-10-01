@@ -20,6 +20,13 @@ class Guards(unittest.TestCase):
   self.assertIn('ExecPaths='+str(g['BIN']),text)
   self.assertNotIn('NoExecPaths=',text)
   self.assertNotIn('ProtectSystem=',text)
+ def test_later_execstart_override_rejected(self):
+  with patch.dict(g,command=lambda *a:'{ path=/old/node ; argv[]=/old/node --config /etc/example/node.json ; }'):
+   with self.assertRaises(ValueError):g['check_effective_start']('unit',Path('/etc/example/node.json'))
+ def test_effective_execstart_matches(self):
+  cfg=Path('/etc/example/node.json');b=str(g['BIN'])
+  with patch.dict(g,command=lambda *a:'{ path='+b+' ; argv[]='+b+' --config '+str(cfg)+' ; }'):
+   self.assertTrue(g['check_effective_start']('unit',cfg))
  def test_valid_plan(self):self.assertEqual(len(g['validate_plan'](self.plan())),64)
  def test_reject_other_chain(self):
   p=self.plan();p['chain_id']=4735489

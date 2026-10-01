@@ -26,6 +26,14 @@ def properties(unit):
  data=dict(x.split('=',1) for x in result.stdout.splitlines() if '=' in x)
  if result.returncode and data.get('LoadState')!='not-found':raise RuntimeError('systemctl show failed: '+result.stderr)
  return data
+def check_effective_start(unit,cfg):
+ # Inspect systemd's merged command, not just the drop-in we wrote. A later
+ # historical override can otherwise silently select an incompatible binary.
+ raw=command('systemctl','show',unit,'--property=ExecStart','--value')
+ expected=str(BIN)+' --config '+str(cfg)
+ if raw.count('path=')!=1 or 'path='+str(BIN)+' ;' not in raw or 'argv[]='+expected+' ;' not in raw:
+  raise ValueError('effective ExecStart differs; retain overrides and inspect: '+raw)
+ return True
 def validate_plan(plan):
  if set(plan)!={'schema','chain_id','activation','binary_sha256','nodes','common_height','commitments'} or plan['schema']!=1 or plan['chain_id']!=4735490 or plan['binary_sha256']!=BIN_SHA:raise ValueError('invalid plan')
  a=dict(plan['activation']);height=a.pop('activation_height',None)
@@ -159,6 +167,7 @@ def main(p):
   return {'job':job}
  if action=='gate':return local_gate(directory,cfg,unit,plan)
  if action=='start-gate':
+  if release.exists():check_effective_start(unit,cfg)
   if (directory/'START_AUTHORIZED').exists():
    done=read(directory/'DONE.json')
    if done.get('ok') is not True or done.get('plan')!=pid or read(cfg)!=read(directory/'candidate.json') or sha(BIN)!=BIN_SHA or sha(Path(read(cfg)['data_dir'])/'runtime.pin')!=done['pin_sha256']:raise ValueError('started release differs')
@@ -170,8 +179,10 @@ def main(p):
   local_gate(directory,cfg,unit,plan);text=start_text(cfg)
   if release.exists() and release.read_text()!=text:raise ValueError('runtime override collision')
   release.write_text(text);release.chmod(0o644);command('systemctl','daemon-reload')
+  check_effective_start(unit,cfg)
   return {'installed':True}
  if action=='start':
+  check_effective_start(unit,cfg)
   if (directory/'START_AUTHORIZED').exists():return {'start_already_requested':True,'service':properties(unit)}
   local_gate(directory,cfg,unit,plan)
   if release.read_text()!=start_text(cfg):raise ValueError('runtime override missing')
