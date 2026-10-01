@@ -21,9 +21,11 @@ jobs:
       - name: Regression and race checks
         working-directory: hvm-network
         run: |
+          gofmt -w blockchain/lock_conflict_lifecycle_test.go blockchain/poh_memo_test.go blockchain/poh.go blockchain/consensus_reactor.go
           go test ./blockchain -run 'TestLockConflict' -count=1 -v
           go test ./... -count=1
-          go test -race ./blockchain -run 'LockConflict|PersistentRecovery|RoundExhaustion|APoW' -count=1
+          go test -race ./blockchain -run 'LockConflict|PersistentRecovery|RoundExhaustion|APoW|PoHMemo' -count=1
+          go test ./blockchain -run '^$' -bench BenchmarkPoHRepeatedParent -benchmem
           python3 deploy/testnet/apow/test_coordinator.py
       - name: Build testnet candidate
         working-directory: hvm-network
@@ -31,6 +33,7 @@ jobs:
           mkdir -p candidate
           CGO_ENABLED=0 go build -trimpath -o candidate/hashburst-testnet ./cmd/hashburst-testnet
           git rev-parse HEAD > candidate/SOURCE_COMMIT
+          cp blockchain/lock_conflict_lifecycle_test.go blockchain/poh_memo_test.go blockchain/poh.go blockchain/consensus_reactor.go candidate/
           cd candidate
           sha256sum hashburst-testnet SOURCE_COMMIT > SHA256SUMS
       - uses: actions/upload-artifact@v4

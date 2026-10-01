@@ -479,6 +479,9 @@ func (bc *Blockchain) VerifyChain() error {
 		return fmt.Errorf("genesis %s... non corrisponde a %s...", shortHash(bc.Blocks[0].Hash), shortHash(expected.Hash))
 	}
 	for i := 1; i < len(bc.Blocks); i++ {
+		if i%5000 == 0 {
+			log.Printf("HVM_CHAIN_VERIFY_PROGRESS height=%d total=%d", i, len(bc.Blocks))
+		}
 		if err := ValidateBlockAgainstConfig(bc.Blocks[i-1], bc.Blocks[i], bc.MiningReward, bc.v2Config); err != nil {
 			return fmt.Errorf("blocco #%d: %w", i, err)
 		}
