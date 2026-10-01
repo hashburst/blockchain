@@ -26,12 +26,13 @@ jobs:
         run: go test -race ./ledger ./internal/diagnostics ./blockchain -run 'Test(Segment|Frame|Cache|CheckpointFreeze|BufferedFrame|ProfileLifecycle|LedgerCodec)' -count=1
       - name: Benchmarks
         run: go test ./ledger ./blockchain -run '^$' -bench 'Benchmark(FrameRead|CacheRead|LedgerBlockCodec)$' -benchmem -count=3 | tee ledger-benchmarks.txt
-      - name: Build platforms
+      - name: Build Linux/macOS nodes and Windows primitives
         run: |
           mkdir -p ../ledger-build
           GOOS=linux GOARCH=amd64 go build -o ../ledger-build/hashburst-testnet-linux-amd64 ./cmd/hashburst-testnet
           GOOS=darwin GOARCH=arm64 go build -o ../ledger-build/hashburst-testnet-darwin-arm64 ./cmd/hashburst-testnet
-          GOOS=windows GOARCH=amd64 go build -o ../ledger-build/hashburst-testnet-windows-amd64.exe ./cmd/hashburst-testnet
+          GOOS=windows GOARCH=amd64 go test -c -o ../ledger-build/ledger-windows-amd64.test.exe ./ledger
+          GOOS=windows GOARCH=amd64 go test -c -o ../ledger-build/diagnostics-windows-amd64.test.exe ./internal/diagnostics
       - uses: actions/upload-artifact@v4
         with:
           name: ledger-diagnostics-candidate

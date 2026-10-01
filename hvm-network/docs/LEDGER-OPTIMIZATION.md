@@ -208,3 +208,12 @@ BlockStore and COW state capture, run cold/warm/crash/fault tests, and roll out 
 node at a time. Five-node common-height agreement, APoW rewards, finality progress,
 restart recovery, and MetaMask/API checks precede mainnet. Mainnet additionally
 requires separate state/identity/economics and verified legacy spending closure.
+
+## Windows node blocker
+
+Cross-compiling the complete existing node exposed Unix-only syscall.Flock in
+`evm/execution/persistence.go`. This PR does not remove or bypass that exclusion
+lock. CI builds Linux/macOS nodes and compiles the NEW ledger/diagnostics test
+executables for Windows; it does not certify a Windows full node or Windows
+filesystem durability. A separate portable locking/durability implementation
+with native Windows tests is required before a Windows node release.
