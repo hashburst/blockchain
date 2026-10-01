@@ -10,7 +10,7 @@ import (
  "time"
  "runtime"
  "context"
- "reflect"
+ "encoding/json"
  "hashburst/wallet"
 
  "github.com/ethereum/go-ethereum/common"
@@ -64,7 +64,12 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  receipt,_:=fast.ethereumReceiptLocked(tx.Hash());original,_:=n.ethereumReceiptLocked(tx.Hash())
  if receipt==nil||receipt.Status!=1||receipt.TxHash!=original.TxHash||receipt.GasUsed!=original.GasUsed||receipt.ContractAddress!=original.ContractAddress||receipt.BlockHash!=original.BlockHash{t.Fatal("receipt lost across checkpoint")}
  callReceipt,_:=fast.ethereumReceiptLocked(call.Hash());originalCall,_:=n.ethereumReceiptLocked(call.Hash())
- if callReceipt==nil||len(callReceipt.Logs)!=1||!reflect.DeepEqual(callReceipt.Logs,originalCall.Logs){t.Fatal("checkpoint log metadata mismatch")}
+ if callReceipt==nil||len(callReceipt.Logs)!=1 {t.Fatal("checkpoint log missing")}
+ // Compare the complete RPC representation: hex byte slices legitimately
+ // decode "0x" into an empty slice instead of nil. All metadata stays exact.
+ restoredLog,e:=json.Marshal(callReceipt.Logs);if e!=nil{t.Fatal(e)}
+ originalLog,e:=json.Marshal(originalCall.Logs);if e!=nil{t.Fatal(e)}
+ if !bytes.Equal(restoredLog,originalLog){t.Fatalf("checkpoint log metadata mismatch: restored=%s original=%s",restoredLog,originalLog)}
  if _,e:=fast.evmReadHistory.snapshot(fast.Blocks[len(fast.Blocks)-256]);e!=nil{t.Fatal(e)}
  t.Setenv("HVM_FULL_REPLAY","1");runtime.GC();runtime.ReadMemStats(&m0);start=time.Now();full:=open();fullTime:=time.Since(start)
  runtime.ReadMemStats(&m1);fullAlloc:=m1.TotalAlloc-m0.TotalAlloc
