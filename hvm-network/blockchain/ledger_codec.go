@@ -319,9 +319,9 @@ func (d *ledgerDecoder) Block(v *Block) {
 	v.Version = uint16(d.u16())
 	v.ProtocolChainID = uint64(d.u64())
 	{
-		v := int64(d.u64())
-		v.Index = int(v)
-		if int64(v.Index) != v {
+		indexValue := int64(d.u64())
+		v.Index = int(indexValue)
+		if int64(v.Index) != indexValue {
 			d.fail()
 		}
 	}
