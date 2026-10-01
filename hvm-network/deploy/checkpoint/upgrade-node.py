@@ -104,7 +104,7 @@ def main():
    if h['finalized_height']>first or h['finalized_height']==barrier:
     check_preserved(record,cfg,data)
     if not (state/'verified.json').exists():atomic(state/'verified.json',h)
-    print('CHECKPOINT_RUNTIME_RECOVERY_AND_JOURNAL_PREFIX_OK');print('FINALIZED_HEIGHT='+str(h['finalized_height']));return
+    print('CHECKPOINT_RUNTIME_RECOVERY_AND_JOURNAL_PREFIX_OK');print('FINALIZED_HEIGHT='+str(h['finalized_height']));print('RECOVERY='+json.dumps(h.get('recovery',{}),sort_keys=True));return
    print('WAIT finality='+str(h['finalized_height']),flush=True)
   except (OSError,ValueError) as e:print('REPLAY_WAIT '+str(e),flush=True)
   require(time.monotonic()<deadline,'readiness deadline; repeat verify only');time.sleep(15)
