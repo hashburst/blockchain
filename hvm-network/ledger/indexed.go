@@ -11,6 +11,9 @@ import (
 // these handles. Index: 16-byte header (HBI2, reserved=0, count uint64), then
 // count entries (offset uint64, frame length uint32, reserved uint32=0).
 type IndexedReader struct {
+	mu          sync.RWMutex
+	closed      bool
+	slots       chan struct{}
 	data, index *Segment
 	count       uint64
 	cache       *Cache
@@ -27,7 +30,7 @@ func OpenIndexed(dataPath, indexPath string, maxSegmentBytes int64, cacheBytes, 
 		d.Close()
 		return nil, e
 	}
-	r := &IndexedReader{data: d, index: i, cache: NewCache(cacheBytes, cacheEntries)}
+	r := &IndexedReader{data: d, index: i, cache: NewCache(cacheBytes, cacheEntries), slots: make(chan struct{}, 8)}
 	e = i.View(0, 16, func(b []byte) error {
 		if string(b[:4]) != "HBI2" || binary.LittleEndian.Uint32(b[4:8]) != 0 {
 			return errors.New("invalid index")
@@ -48,6 +51,13 @@ func OpenIndexed(dataPath, indexPath string, maxSegmentBytes int64, cacheBytes, 
 // WithPayload lazily reads a record by ordinal without materializing history.
 // The callback lifetime and immutability contract is identical to Segment.View.
 func (r *IndexedReader) WithPayload(ordinal uint64, fn func([]byte) error) error {
+	r.slots <- struct{}{}
+	defer func() { <-r.slots }()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.closed {
+		return errors.New("indexed reader closed")
+	}
 	if ordinal >= r.count {
 		return errors.New("block ordinal out of bounds")
 	}
@@ -86,6 +96,12 @@ func (r *IndexedReader) WithPayload(ordinal uint64, fn func([]byte) error) error
 	})
 }
 func (r *IndexedReader) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return nil
+	}
+	r.closed = true
 	a := r.data.Close()
 	b := r.index.Close()
 	return errors.Join(a, b)

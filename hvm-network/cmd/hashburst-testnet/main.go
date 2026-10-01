@@ -71,11 +71,14 @@ func run() int {
 		return 1
 	}
 	var s *testnet.State
-	if *provision || *check {
-		s, e = testnet.Prepare(c, *provision)
-	} else {
-		s, e = testnet.PrepareRuntime(c)
-	}
+	e = diagnostics.Phase("prepare", func() error {
+		if *provision || *check {
+			s, e = testnet.Prepare(c, *provision)
+		} else {
+			s, e = testnet.PrepareRuntime(c)
+		}
+		return e
+	})
 	if e != nil {
 		log.Printf("state: %v", e)
 		return 1
