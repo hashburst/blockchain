@@ -1,9 +1,10 @@
 name: HVM recovery checkpoint
 on:
-  push:
-    branches: ['perf/hvm-recovery-checkpoint']
   pull_request:
     paths: ['hvm-network/blockchain/recovery_checkpoint*', '.github/workflows/hvm-checkpoint.yml']
+concurrency:
+  group: hvm-checkpoint-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -19,10 +20,14 @@ jobs:
       - name: Checkpoint and full regression
         working-directory: hvm-network
         run: |
-          gofmt -w blockchain/recovery_checkpoint*.go blockchain/open_existing.go blockchain/storage.go blockchain/replay_v2.go blockchain/blockchain.go blockchain/consensus_v2.go hvm/state.go consensus/registry.go
-          go test ./blockchain -run TestRecoveryCheckpoint -count=1 -v
-          go test ./... -count=1
-          go test -race ./blockchain -run 'RecoveryCheckpoint|PersistentRecovery|LockConflict|APoW|EVMHistorical' -count=1
+          gofmt -w blockchain/recovery_checkpoint*.go blockchain/open_existing.go blockchain/storage.go blockchain/replay_v2.go blockchain/blockchain.go blockchain/consensus_v2.go hvm/state.go consensus/registry.go internal/testnet/state.go internal/testnet/run.go cmd/hashburst-testnet/main.go cmd/hashburst-mainnet/main.go
+          go test ./blockchain -run 'TestRecoveryCheckpoint|TestRecoveryIndexed' -count=1 -v -timeout 180s
+      - name: Full regression
+        working-directory: hvm-network
+        run: go test ./... -count=1 -timeout 12m
+      - name: Race and recovery safety
+        working-directory: hvm-network
+        run: go test -race ./blockchain -run 'RecoveryCheckpoint|PersistentRecovery|LockConflict|APoW|EVMHistorical' -count=1 -timeout 10m
       - name: Build candidate
         working-directory: hvm-network
         run: |
@@ -30,7 +35,15 @@ jobs:
           CGO_ENABLED=0 go build -trimpath -o candidate/hashburst-testnet ./cmd/hashburst-testnet
           CGO_ENABLED=0 go build -trimpath -o candidate/hashburst-mainnet ./cmd/hashburst-mainnet
           git rev-parse HEAD > candidate/SOURCE_COMMIT
-          cp blockchain/recovery_checkpoint*.go candidate/
+          cp deploy/checkpoint/upgrade-node.py deploy/checkpoint/README.md candidate/
+          cp deploy/testnet/apow/*.py candidate/
+          CGO_ENABLED=0 go build -trimpath -o candidate/hvm-apow-audit ./cmd/hvm-apow-audit
+          python3 - <<'PYCODE'
+          import hashlib,json,pathlib
+          p=pathlib.Path('candidate');source=(p/'SOURCE_COMMIT').read_text().strip()
+          for binary,manifest in [('hashburst-testnet','runtime-release.json'),('hvm-apow-audit','audit-release.json')]:
+              (p/manifest).write_text(json.dumps({'chain_id':4735490,'sha256':hashlib.sha256((p/binary).read_bytes()).hexdigest(),'source_commit':source},indent=2)+'\n')
+          PYCODE
           cd candidate
           sha256sum * > SHA256SUMS
       - uses: actions/upload-artifact@v4

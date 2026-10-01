@@ -268,3 +268,14 @@ func (bc *Blockchain) loadRecoveryCheckpoint() (*recoverySeed,error) {
  if err=checkEVMCommitments(b,st);err!=nil{return nil,err}
  return &recoverySeed{height:best.Height,state:st,engine:hvm.NewEngine(hs,bc.v2Config.FeePolicy),validators:validators,receipts:best.Receipts},nil
 }
+
+// RecoveryStatus reports startup work without exposing paths or cache secrets.
+type RecoveryStatus struct {
+ Mode string `json:"mode"`
+ CheckpointHeight int `json:"checkpoint_height"`
+ ReplayBlocks int `json:"replay_blocks"`
+ ElapsedMillis int64 `json:"elapsed_ms"`
+}
+func (bc *Blockchain) RecoveryStatus() RecoveryStatus {
+ bc.mu.RLock();defer bc.mu.RUnlock();return bc.recoveryStatus
+}
