@@ -23,7 +23,13 @@ def measurement(path):
  proofs=entries['final-commitments.json'];pre.compare(proofs,proofs[0]['height'])
  return entries['progress.json']
 def main():
- parser=argparse.ArgumentParser();parser.add_argument('action',choices=['plan','migrate','jobs','start','verify','restart','restart-check','audit','miners','closeout']);parser.add_argument('--plan',default='activation-plan.json');parser.add_argument('--measurement');parser.add_argument('--timeout',type=int,default=14400);args=parser.parse_args()
+ parser=argparse.ArgumentParser();parser.add_argument('action',choices=['plan','migrate','jobs','start','verify','restart','restart-check','audit','miners','closeout']);parser.add_argument('--plan',default='activation-plan.json');parser.add_argument('--measurement');parser.add_argument('--runtime-release');parser.add_argument('--timeout',type=int,default=14400);args=parser.parse_args()
+ runtime_sha=ns['BIN_SHA']
+ if args.runtime_release:
+  if args.action not in ('verify','miners','audit','restart','restart-check','closeout'):raise ValueError('runtime release cannot change a migration plan')
+  release=json.loads(Path(args.runtime_release).read_text());runtime_sha=release['sha256']
+  import re
+  if release.get('chain_id')!=4735490 or not re.fullmatch('[0-9a-f]{64}',runtime_sha):raise ValueError('invalid runtime release')
  planpath=Path(args.plan).resolve();sessions=[]
  try:
   for host,node in pre.TARGETS:
@@ -32,7 +38,7 @@ def main():
   if plan:ns['validate_plan'](plan)
   def batch(action,**extra):
    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
-    fs=[pool.submit(s.call,dict(action=action,node_id=node,plan=plan,_timeout=50,**extra)) for s,(_,node) in zip(sessions,pre.TARGETS)]
+    fs=[pool.submit(s.call,dict(action=action,node_id=node,plan=plan,runtime_sha256=runtime_sha,_timeout=50,**extra)) for s,(_,node) in zip(sessions,pre.TARGETS)]
     results=[];errors=[]
     for (_,node),f in zip(pre.TARGETS,fs):
      try:results.append(f.result())
@@ -87,18 +93,18 @@ def main():
   if args.action=='closeout':
    rows=batch('status');pre.validate_rows(rows);h=min(r['height'] for r in rows)
    proofs=batch('commitment',height=h);pre.compare(proofs,h)
-   recovery=sessions[3].call({'action':'restart-check','node_id':'hvm-testnet-v4','plan':plan,'_timeout':50})
+   recovery=sessions[3].call({'action':'restart-check','node_id':'hvm-testnet-v4','plan':plan,'runtime_sha256':runtime_sha,'_timeout':50})
    results=batch('finalize');persist('closeout',{'agreement':proofs,'recovery':recovery,'services':results,'mainnet_activated':False})
    print('APOW_TESTNET_ACCEPTANCE_COMPLETE_MAINNET_NOT_ACTIVATED');return
   if args.action=='miners':
    rows=batch('status');pre.validate_rows(rows)
    for r in rows:
-    if r['binary_sha256']!=ns['BIN_SHA'] or r['protocol'].get('apow')!=plan['activation']:raise ValueError('five migrated ready nodes required')
+    if r['binary_sha256']!=runtime_sha or r['protocol'].get('apow')!=plan['activation']:raise ValueError('five migrated ready nodes required')
    h=min(r['height'] for r in rows);pre.compare(batch('commitment',height=h),h)
    miner=module('miner-service');sha='32e62dc2a41d16c0ea472f5aa69e53f0a752cc13c1c9ca61c5e25af7a9998cdc'
    text=miner.unit(Path('/opt/hashburst-apow-miner')/sha/'hvm-apow-miner')
    results=[]
-   for s,(_,node) in zip(sessions[:4],pre.TARGETS[:4]):results.append(s.call({'action':'miner-start','node_id':node,'plan':plan,'miner_sha256':sha,'unit_text':text,'_timeout':50}))
+   for s,(_,node) in zip(sessions[:4],pre.TARGETS[:4]):results.append(s.call({'action':'miner-start','node_id':node,'plan':plan,'runtime_sha256':runtime_sha,'miner_sha256':sha,'unit_text':text,'_timeout':50}))
    persist('miners',results);print('FOUR_MINERS_STARTED_BY_EXPLICIT_OPERATOR_COMMAND');return
   if args.action=='audit':
    binary=R/'hvm-apow-audit';expected=hashlib.sha256(binary.read_bytes()).hexdigest()
@@ -122,17 +128,17 @@ def main():
    rows=batch('status');pre.validate_rows(rows);h=min(r['height'] for r in rows)
    if h<plan['activation']['activation_height']+64:raise ValueError('two APoW windows must finalize before restart')
    proofs=batch('commitment',height=h);pre.compare(proofs,h);persist('before-restart',proofs)
-   result=sessions[3].call({'action':'restart-proof','node_id':'hvm-testnet-v4','plan':plan,'_timeout':50});persist('restart',result);print('V4_RESTART_REQUESTED_ONCE');return
+   result=sessions[3].call({'action':'restart-proof','node_id':'hvm-testnet-v4','plan':plan,'runtime_sha256':runtime_sha,'_timeout':50});persist('restart',result);print('V4_RESTART_REQUESTED_ONCE');return
   deadline=time.monotonic()+args.timeout;first=None
   while True:
    try:
     rows=batch('status');pre.validate_rows(rows)
     for r in rows:
-     if r['binary_sha256']!=ns['BIN_SHA'] or r['protocol'].get('apow')!=plan['activation']:raise ValueError('wrong runtime/profile')
+     if r['binary_sha256']!=runtime_sha or r['protocol'].get('apow')!=plan['activation']:raise ValueError('wrong runtime/profile')
     if first is None:first={r['node_id']:r['height'] for r in rows}
     h=min(r['height'] for r in rows);proofs=batch('commitment',height=h);pre.compare(proofs,h)
     if args.action=='restart-check':
-     result=sessions[3].call({'action':'restart-check','node_id':'hvm-testnet-v4','plan':plan,'_timeout':50});persist('restart-check',result)
+     result=sessions[3].call({'action':'restart-check','node_id':'hvm-testnet-v4','plan':plan,'runtime_sha256':runtime_sha,'_timeout':50});persist('restart-check',result)
     waiting_for_work=args.action=='verify' and all(r['height']==plan['activation']['activation_height']-1 for r in rows)
     if waiting_for_work or all(r['height']>first[r['node_id']] for r in rows):
      persist('agreement',proofs);persist('progress',rows);print(('FIVE_NODE_READY_AT_ACTIVATION_BARRIER height=' if waiting_for_work else 'FIVE_NODE_AGREEMENT_AND_PROGRESS_OK height=')+str(h));print('REWARD_AUDIT_REQUIRED' if h>=plan['activation']['activation_height'] else 'MINERS_MAY_BE_STARTED_MANUALLY');return
