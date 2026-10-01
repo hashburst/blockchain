@@ -58,6 +58,16 @@ jobs:
         with:
           name: hvm-lock-recovery-linux-amd64
           path: hvm-network/candidate/
+      - name: Build matching reward auditor
+        working-directory: hvm-network
+        run: |
+          mkdir -p audit-artifact
+          CGO_ENABLED=0 go build -trimpath -o audit-artifact/hvm-apow-audit ./cmd/hvm-apow-audit
+          python3 -c 'import hashlib,json,pathlib,subprocess; p=pathlib.Path("audit-artifact"); (p/"audit-release.json").write_text(json.dumps({"sha256":hashlib.sha256((p/"hvm-apow-audit").read_bytes()).hexdigest(),"source_commit":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()},indent=2)+"\n")'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hvm-lock-recovery-auditor-linux-amd64
+          path: hvm-network/audit-artifact/
 
   macos:
     runs-on: macos-latest
