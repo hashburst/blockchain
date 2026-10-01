@@ -383,3 +383,17 @@ func (r *Registry) ApplyBFTDoubleSignEvidence(ev BFTDoubleSignEvidence, evidence
 	r.validators[key] = v
 	return v, slash, nil
 }
+
+// RestoreCheckpoint restores a locally authenticated projection and checks its commitment.
+// This is not a network validator-set import mechanism.
+func RestoreCheckpoint(cfg Config, values []Validator, root string) (*Registry, error) {
+ if err := cfg.Validate(); err != nil { return nil, err }
+ r := NewRegistry(cfg)
+ for _, v := range values {
+  key := strings.ToLower(v.ID)
+  if _, exists := r.validators[key]; exists { return nil, fmt.Errorf("duplicate checkpoint validator") }
+  r.validators[key] = v
+ }
+ if r.Root() != root { return nil, fmt.Errorf("checkpoint validator root mismatch") }
+ return r, nil
+}

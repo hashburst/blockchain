@@ -12,6 +12,7 @@ package blockchain
 
 import (
 	"bytes"
+ "bufio"
 	"encoding/binary"
 	"encoding/gob"
 	"fmt"
@@ -214,19 +215,38 @@ func (s *ChainStorage) LoadAll() ([]*Block, error) {
 	}
 	defer f.Close()
 
-	blocks := []*Block{}
+	var index *os.File
+ var indexReader *bufio.Reader
+ stat,err:=f.Stat();if err!=nil{return nil,err}
+ if s.durable {
+  index,err=os.Open(s.idxPath);if err!=nil{return nil,err};defer index.Close()
+  indexReader=bufio.NewReaderSize(index,64<<10)
+ }
+ var offset int64
+ blocks := []*Block{}
+ reader := bufio.NewReaderSize(f, 256<<10)
+ var data []byte
 	for {
 		sizeBuf := make([]byte, 4)
-		if _, err := io.ReadFull(f, sizeBuf); err != nil {
+		if _, err := io.ReadFull(reader, sizeBuf); err != nil {
 			if err == io.EOF {
-				break
+    if indexReader!=nil { var extra [1]byte; if _,e:=indexReader.Read(extra[:]);e!=io.EOF{return nil,fmt.Errorf("trailing chain index bytes")} }
+    break
 			}
 			return nil, fmt.Errorf("read size: %w", err)
 		}
 		size := binary.BigEndian.Uint32(sizeBuf)
 
-		data := make([]byte, size)
-		if _, err := io.ReadFull(f, data); err != nil {
+		if size == 0 || size > (64<<20)-4 { return nil, fmt.Errorf("invalid block frame size %d", size) }
+ if int64(size)>stat.Size()-offset-4{return nil,fmt.Errorf("truncated chain frame")}
+ if indexReader!=nil {
+  var rec [20]byte
+  if _,e:=io.ReadFull(indexReader,rec[:]);e!=nil{return nil,e}
+  if binary.BigEndian.Uint64(rec[:8])!=uint64(len(blocks))||binary.BigEndian.Uint64(rec[8:16])!=uint64(offset)||binary.BigEndian.Uint32(rec[16:])!=size+4{return nil,fmt.Errorf("persistent chain index mismatch")}
+ }
+ offset+=4+int64(size)
+ if cap(data) < int(size) { data = make([]byte, size) } else { data = data[:size] }
+		if _, err := io.ReadFull(reader, data); err != nil {
 			return nil, fmt.Errorf("read data: %w", err)
 		}
 

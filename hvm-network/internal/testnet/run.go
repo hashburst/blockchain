@@ -88,7 +88,7 @@ func Run(parent context.Context, s *State) error {
 				return c.Protocol.EVM.ActivationHeight
 			}
 			return 0
-		}(), "height": s.Chain.Height(), "finalized_height": s.Chain.FinalizedHeight(), "peer_id": p.Host.ID().String(), "peer_count": len(p.Host.Network().Peers()), "reactor_running": reactor.Running(), "reactor_status_fresh": fresh, "reactor": status, "transport": network.Status()})
+		}(), "recovery": s.Chain.RecoveryStatus(), "height": s.Chain.Height(), "finalized_height": s.Chain.FinalizedHeight(), "peer_id": p.Host.ID().String(), "peer_count": len(p.Host.Network().Peers()), "reactor_running": reactor.Running(), "reactor_status_fresh": fresh, "reactor": status, "transport": network.Status()})
 	})
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	errs := make(chan error, 2)
