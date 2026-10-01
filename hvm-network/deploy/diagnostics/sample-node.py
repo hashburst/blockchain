@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Read-only Linux process/cgroup sampling. No restart, signals, or key/config reads."""
-import argparse, json, pathlib, subprocess, time
+import argparse, json, pathlib, subprocess, time, os
 
 p=argparse.ArgumentParser()
 p.add_argument('--unit',default='hashburst-hvm-testnet.service')
@@ -15,7 +15,7 @@ deadline=time.monotonic()+a.seconds
 while True:
     r=subprocess.run(['systemctl','show',a.unit,'-p','MainPID','-p','ControlGroup','-p','NRestarts','-p','ActiveState'],text=True,capture_output=True,timeout=5,check=True)
     props=dict(line.split('=',1) for line in r.stdout.splitlines() if '=' in line)
-    pid=int(props.get('MainPID','0'));out={'time_ns':time.time_ns(),'monotonic_ns':time.monotonic_ns(),'service':props}
+    pid=int(props.get('MainPID','0'));out={'clock_ticks':os.sysconf('SC_CLK_TCK'),'time_ns':time.time_ns(),'monotonic_ns':time.monotonic_ns(),'service':props}
     if pid>0:
         for n in ('stat','status','io','schedstat','smaps_rollup'):
             out[n]=read(f'/proc/{pid}/{n}')

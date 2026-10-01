@@ -43,3 +43,12 @@ go tool trace ./profile/trace.pprof
 Use independent captures for the different profile kinds. No result from these
 commands is included until a real VPS capture is supplied. Do not translate a
 local microbenchmark directly into lower VPS energy use or faster finality.
+
+Summarize a capture without contacting the node:
+
+```sh
+python3 analyze-samples.py node-sample.jsonl > node-summary.json
+```
+
+The analyzer checks PID and process start time before comparing CPU counters. It
+reports unavailable measurements instead of estimating power or GC attribution.

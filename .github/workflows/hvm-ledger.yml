@@ -18,6 +18,8 @@ jobs:
         with:
           go-version: '1.25.7'
           cache-dependency-path: hvm-network/go.sum
+      - name: OS sampler regression
+        run: python3 deploy/diagnostics/test_samples.py
       - name: Full regression
         run: go test ./...
       - name: Race and codec equivalence
