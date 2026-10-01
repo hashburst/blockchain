@@ -23,7 +23,7 @@ jobs:
       - name: Full regression
         run: go test ./...
       - name: Race and codec equivalence
-        run: go test -race ./ledger ./internal/diagnostics ./blockchain -run 'Test(Segment|Frame|Cache|Checkpoint|Energy|Powercap|BufferedFrame|ProfileLifecycle|LedgerCodec)' -count=1
+        run: go test -race ./ledger ./internal/diagnostics ./blockchain -run 'Test(Segment|Frame|Cache|Checkpoint|Pair|Generation|Energy|Powercap|BufferedFrame|ProfileLifecycle|LedgerCodec)' -count=1
       - name: Benchmarks
         run: go test ./ledger ./blockchain -run '^$' -bench 'Benchmark(FrameRead|CacheRead|CheckpointRead4MiB|LedgerBlockCodec)$' -benchmem -count=3 | tee ledger-benchmarks.txt
       - name: Build Linux/macOS nodes and Windows primitives
