@@ -34,6 +34,14 @@ def check_effective_start(unit,cfg):
  if raw.count('path=')!=1 or 'path='+str(BIN)+' ;' not in raw or 'argv[]='+expected+' ;' not in raw:
   raise ValueError('effective ExecStart differs; retain overrides and inspect: '+raw)
  return True
+def expected_runtime(p,cfg):
+ value=p.get('runtime_sha256',BIN_SHA)
+ if value==BIN_SHA:return value
+ if p['action'] not in ('miner-start','finalize','restart-proof','restart-check') or not re.fullmatch('[0-9a-f]{64}',value):raise ValueError('runtime override forbidden for migration')
+ directory=Path('/var/lib/hashburst-runtime-repair')/value
+ record=read(directory/'record.json');verified=read(directory/'verified.json')
+ if record.get('sha256')!=value or record.get('node_id')!=p['node_id'] or verified.get('node_id')!=p['node_id'] or record.get('config_sha256')!=sha(cfg) or record.get('pin_sha256')!=sha(Path(read(cfg)['data_dir'])/'runtime.pin'):raise ValueError('runtime repair proof differs')
+ return value
 def validate_plan(plan):
  if set(plan)!={'schema','chain_id','activation','binary_sha256','nodes','common_height','commitments'} or plan['schema']!=1 or plan['chain_id']!=4735490 or plan['binary_sha256']!=BIN_SHA:raise ValueError('invalid plan')
  a=dict(plan['activation']);height=a.pop('activation_height',None)
@@ -192,7 +200,7 @@ def main(p):
  if action=='miner-start':
   if node.endswith('ingress'):raise ValueError('observer never mines')
   current=inspect({'action':'status','node_id':node})
-  if current['binary_sha256']!=BIN_SHA or current['protocol'].get('apow')!=plan['activation']:raise ValueError('runtime/profile mismatch')
+  if current['binary_sha256']!=expected_runtime(p,cfg) or current['protocol'].get('apow')!=plan['activation']:raise ValueError('runtime/profile mismatch')
   binary=Path('/opt/hashburst-apow-miner')/p['miner_sha256']/'hvm-apow-miner'
   if sha(binary)!=p['miner_sha256'] or Path('/etc/systemd/system/hashburst-apow-miner.service').read_text()!=p['unit_text']:raise ValueError('miner binary/unit differs')
   command('systemctl','enable','--now','hashburst-apow-miner.service')
@@ -227,7 +235,7 @@ def main(p):
  if action=='finalize':
   if read(directory/'AUDIT_OK.json')!={'plan':pid,'first':plan['activation']['activation_height'],'count':64}:raise ValueError('reward audit incomplete')
   current=inspect({'action':'status','node_id':node})
-  if current['protocol'].get('apow')!=plan['activation'] or current['binary_sha256']!=BIN_SHA:raise ValueError('runtime changed')
+  if current['protocol'].get('apow')!=plan['activation'] or current['binary_sha256']!=expected_runtime(p,cfg):raise ValueError('runtime changed')
   if guard.exists():
    if guard.is_symlink() or guard.read_text()!=guard_text(directory):raise ValueError('guard changed')
    guard.unlink();command('systemctl','daemon-reload')
@@ -235,7 +243,7 @@ def main(p):
  if action=='restart-proof':
   if (directory/'RESTART_REQUESTED.json').exists():raise ValueError('restart already requested; use restart-check')
   before=inspect({'action':'status','node_id':node})
-  if before['binary_sha256']!=BIN_SHA or before['protocol'].get('apow')!=plan['activation']:raise ValueError('wrong running candidate')
+  if before['binary_sha256']!=expected_runtime(p,cfg) or before['protocol'].get('apow')!=plan['activation']:raise ValueError('wrong running candidate')
   proof=protected(read(cfg));save(directory/'RESTART_PREFIX.json',proof)
   save(directory/'RESTART_BEFORE.json',before)
   # Intent precedes restart: after a lost SSH reply never repeat this action.
@@ -243,7 +251,7 @@ def main(p):
   command('systemctl','restart','--no-block',unit);return {'restart_requested':True}
  if action=='restart-check':
   verify_protected(read(directory/'RESTART_PREFIX.json'));before=read(directory/'RESTART_BEFORE.json');after=inspect({'action':'status','node_id':node})
-  if after['height']<=before['height'] or after['peer_id']!=before['peer_id'] or after['binary_sha256']!=BIN_SHA:raise ValueError('restart recovery not ready')
+  if after['height']<=before['height'] or after['peer_id']!=before['peer_id'] or after['binary_sha256']!=expected_runtime(p,cfg):raise ValueError('restart recovery not ready')
   cfg_data=read(cfg);journal=Path(cfg_data['data_dir'])/'consensus-bft-signatures.jsonl'
   prefix=read(directory/'RESTART_PREFIX.json')[str(journal)]['size'];found=None
   with journal.open('rb') as f:

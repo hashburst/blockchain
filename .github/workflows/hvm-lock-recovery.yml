@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'hvm-network/blockchain/**'
+      - 'hvm-network/deploy/recovery/**'
       - '.github/workflows/hvm-lock-recovery.yml'
 permissions:
   contents: read
@@ -18,6 +19,18 @@ jobs:
         with:
           go-version: '1.25.7'
           cache-dependency-path: hvm-network/go.sum
+      - name: Reproduce timeout failure on the unpatched reactor
+        working-directory: hvm-network
+        run: |
+          cp blockchain/consensus_reactor.go "$RUNNER_TEMP/patched-reactor.go"
+          git show cf443b69e01afff4eedf7172749bda256a2d5e16:hvm-network/blockchain/consensus_reactor.go > blockchain/consensus_reactor.go
+          if go test ./blockchain -run '^TestLockConflictBufferedProposalTimeoutPreservesLock$' -count=1 > "$RUNNER_TEMP/before.log" 2>&1; then
+            cat "$RUNNER_TEMP/before.log"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/before.log"
+          grep -q 'lock refusal killed timeout' "$RUNNER_TEMP/before.log"
+          cp "$RUNNER_TEMP/patched-reactor.go" blockchain/consensus_reactor.go
       - name: Regression and race checks
         working-directory: hvm-network
         run: |
@@ -27,16 +40,31 @@ jobs:
           go test -race ./blockchain -run 'LockConflict|PersistentRecovery|RoundExhaustion|APoW|PoHMemo' -count=1
           go test ./blockchain -run '^$' -bench BenchmarkPoHRepeatedParent -benchmem
           python3 deploy/testnet/apow/test_coordinator.py
+          python3 deploy/recovery/test_repair.py
       - name: Build testnet candidate
         working-directory: hvm-network
         run: |
           mkdir -p candidate
           CGO_ENABLED=0 go build -trimpath -o candidate/hashburst-testnet ./cmd/hashburst-testnet
           git rev-parse HEAD > candidate/SOURCE_COMMIT
-          cp blockchain/lock_conflict_lifecycle_test.go blockchain/poh_memo_test.go blockchain/poh.go blockchain/consensus_reactor.go candidate/
+          cp deploy/recovery/repair-node.py deploy/recovery/README_IT.md candidate/
+          cp deploy/testnet/apow/*.py candidate/
+          python3 -c 'import hashlib,json,pathlib; p=pathlib.Path("candidate"); (p/"runtime-release.json").write_text(json.dumps({"chain_id":4735490,"sha256":hashlib.sha256((p/"hashburst-testnet").read_bytes()).hexdigest(),"source_commit":(p/"SOURCE_COMMIT").read_text().strip()},indent=2)+"\n")' 
           cd candidate
-          sha256sum hashburst-testnet SOURCE_COMMIT > SHA256SUMS
+          sha256sum * > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: hvm-lock-recovery-linux-amd64
           path: hvm-network/candidate/
+
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - run: go -C hvm-network test ./blockchain ./wallet ./internal/testnet ./cmd/hashburst-wallet
+      - run: go -C hvm-network build ./cmd/hashburst-testnet ./cmd/hashburst-mainnet ./cmd/hashburst-wallet
