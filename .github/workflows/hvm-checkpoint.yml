@@ -1,0 +1,39 @@
+name: HVM recovery checkpoint
+on:
+  push:
+    branches: ['perf/hvm-recovery-checkpoint']
+  pull_request:
+    paths: ['hvm-network/blockchain/recovery_checkpoint*', '.github/workflows/hvm-checkpoint.yml']
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - name: Checkpoint and full regression
+        working-directory: hvm-network
+        run: |
+          gofmt -w blockchain/recovery_checkpoint*.go blockchain/open_existing.go blockchain/storage.go blockchain/replay_v2.go blockchain/blockchain.go blockchain/consensus_v2.go hvm/state.go consensus/registry.go
+          go test ./blockchain -run TestRecoveryCheckpoint -count=1 -v
+          go test ./... -count=1
+          go test -race ./blockchain -run 'RecoveryCheckpoint|PersistentRecovery|LockConflict|APoW|EVMHistorical' -count=1
+      - name: Build candidate
+        working-directory: hvm-network
+        run: |
+          mkdir -p candidate
+          CGO_ENABLED=0 go build -trimpath -o candidate/hashburst-testnet ./cmd/hashburst-testnet
+          CGO_ENABLED=0 go build -trimpath -o candidate/hashburst-mainnet ./cmd/hashburst-mainnet
+          git rev-parse HEAD > candidate/SOURCE_COMMIT
+          cp blockchain/recovery_checkpoint*.go candidate/
+          cd candidate
+          sha256sum * > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hvm-checkpoint-linux-amd64
+          path: hvm-network/candidate/

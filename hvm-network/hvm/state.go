@@ -92,3 +92,11 @@ func putStateBytes(b *bytes.Buffer, p []byte) {
 	b.Write(n[:])
 	b.Write(p)
 }
+
+// CheckpointValues returns an isolated projection for a locally authenticated checkpoint.
+func (s *StateDB) CheckpointValues() map[string][]byte {
+ s.mu.RLock(); defer s.mu.RUnlock()
+ out := make(map[string][]byte, len(s.kv))
+ for k,v := range s.kv { out[k] = append([]byte(nil), v...) }
+ return out
+}
