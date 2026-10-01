@@ -2,6 +2,7 @@
 import argparse, hashlib, json, os, re, shutil, subprocess, time, urllib.request
 from pathlib import Path
 R=Path(__file__).resolve().parent
+DIAG_UNIT=None
 OLD='0e597329261f9376d9c33b1fe427638fd2810bfd43ce5bd702451e785d9f339d'
 NODES=['hvm-testnet-v'+str(i) for i in range(1,5)]+['hvm-testnet-ingress']
 def require(ok,message):
@@ -36,13 +37,14 @@ def check_preserved(record,cfg,data):
  require(digest(data/'runtime.pin')==record['pin_sha256'],'identity pin changed')
  for name,p in record['journals'].items():require(digest(data/name,p['size'])==p['sha256'],'journal prefix changed: '+name)
 def main():
+ global DIAG_UNIT
  a=argparse.ArgumentParser();a.add_argument('action',choices=['install','verify']);a.add_argument('--node',required=True,choices=NODES);a.add_argument('--timeout',type=int,default=7200);args=a.parse_args()
  require(os.geteuid()==0,'run on the target VPS as root')
  release=json.loads((R/'runtime-release.json').read_text());sha=release['sha256']
  require(re.fullmatch('[0-9a-f]{64}',sha) and release['chain_id']==4735490,'invalid release manifest')
  require(digest(R/'hashburst-testnet')==sha,'candidate checksum mismatch')
  observer=args.node.endswith('ingress');stem='hashburst-hvm-testnet'+('-ingress' if observer else '')
- unit=stem+'.service';cfg=Path('/etc')/stem/'node.json';c=json.loads(cfg.read_text());data=Path(c['data_dir'])
+ unit=stem+'.service';DIAG_UNIT=unit;cfg=Path('/etc')/stem/'node.json';c=json.loads(cfg.read_text());data=Path(c['data_dir'])
  require(c['node_id']==args.node and c['network']=='testnet' and c['protocol']['chain_id']==4735490,'node/network mismatch')
  require(c['role']==('observer' if observer else 'validator'),'role mismatch')
  require(c['protocol'].get('apow') and (not observer or not c.get('consensus_key_file')),'APoW migration or non-signing observer guard failed')
@@ -108,4 +110,10 @@ def main():
   require(time.monotonic()<deadline,'readiness deadline; repeat verify only');time.sleep(15)
 if __name__=='__main__':
  try:main()
- except Exception as e:raise SystemExit('STOP: '+str(e)+'; data and journals retained; no automatic rollback')
+ except Exception as e:
+  if DIAG_UNIT:
+   try:
+    print(run('systemctl','show',DIAG_UNIT,'--property=ActiveState,SubState,MainPID,Result,ExecMainStatus'),flush=True)
+    print(run('journalctl','-u',DIAG_UNIT,'-n','40','--no-pager','-o','short-iso'),flush=True)
+   except Exception as diagnostic_error:print('DIAGNOSTIC_UNAVAILABLE: '+str(diagnostic_error),flush=True)
+  raise SystemExit('STOP: '+str(e)+'; data and journals retained; no automatic rollback')
