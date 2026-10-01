@@ -96,7 +96,7 @@ func (r *PairReader) record(n uint64) (rec IndexRecord, err error) {
 			return e
 		}
 		min := uint32(4)
-		max := uint32(MaxRecord + 4)
+		max := uint32(64 << 20) // matches existing persistent gob index gate
 		if r.format == BinaryPayload {
 			min = FrameHeader
 			max = MaxRecord + FrameHeader
