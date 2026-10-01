@@ -16,7 +16,13 @@ func (bc *Blockchain) computeProjections(blocks []*Block) (*State, *hvm.Engine, 
 	validators := consensus.NewRegistry(bc.v2Config.Validator)
 	receipts := make(map[string]hvm.Receipt)
 	confirmedNodes := make(map[string]ConfirmedNodeIdentity)
-	for _, b := range blocks {
+ start := 0
+ if seed := bc.startupSeed; seed != nil {
+  st, engine, validators, receipts = seed.state, seed.engine, seed.validators, seed.receipts
+  start = seed.height+1
+  confirmedNodes = nodeIdentityProjection(blocks[:start], bc.v2Config.ChainID)
+ }
+ for _, b := range blocks[start:] {
 		if b.Index > 0 && b.Index%5000 == 0 {
 			log.Printf("HVM_REPLAY_PROGRESS height=%d total=%d", b.Index, len(blocks))
 		}
@@ -56,6 +62,9 @@ func (bc *Blockchain) computeProjections(blocks []*Block) (*State, *hvm.Engine, 
 		for _, r := range result.receipts {
 			receipts[strings.ToLower(strings.TrimPrefix(r.TxID, "0x"))] = r
 		}
-	}
-	return st, engine, validators, receipts, history, nil
+  if bc.checkpointStartup && bc.startupSeed == nil && b.Index == len(blocks)-evmReadHistoryLimit-1 {
+   if err := bc.saveRecoveryCheckpoint(b.Index, st, engine, validators, receipts); err != nil { log.Printf("HVM_CHECKPOINT_WRITE_SKIPPED reason=%v", err) }
+  }
+ }
+ return st, engine, validators, receipts, history, nil
 }

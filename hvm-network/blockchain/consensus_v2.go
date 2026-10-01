@@ -260,6 +260,7 @@ func (bc *Blockchain) appendConsensusBlockLocked(b *Block) error {
 	}
 	bc.Blocks = append(bc.Blocks, b)
 	bc.commitV2Execution(ex)
+ bc.maybeSaveRecoveryCheckpoint()
 	bc.removeMinedFromMempool(b)
 	bc.PendingTXs = nil
 	bc.PendingTXsV2 = nil

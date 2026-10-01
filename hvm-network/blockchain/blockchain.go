@@ -19,6 +19,14 @@ import (
 // Protocol V2/HVM projections. The chain remains the source of truth; native
 // HBT state, HVM state and receipts are deterministic projections of blocks.
 type Blockchain struct {
+ recoveryStatus RecoveryStatus
+ startupSeed *recoverySeed
+ checkpointStartup bool
+ checkpointEnabled bool
+ checkpointHeight int
+ checkpointBytes int64
+ checkpointHashState []byte
+
 	apowWork         *APoWProof // guarded by mu; never durable signing state
 	evmSubscriptions *execution.Subscriptions
 	evmReadHistory   *evmReadHistory
@@ -470,7 +478,9 @@ func isHex32(s string) bool {
 	return err == nil
 }
 
-func (bc *Blockchain) VerifyChain() error {
+func (bc *Blockchain) VerifyChain() error { return bc.verifyChainFrom(1) }
+
+func (bc *Blockchain) verifyChainFrom(start int) error {
 	if len(bc.Blocks) == 0 {
 		return fmt.Errorf("catena vuota")
 	}
@@ -478,7 +488,7 @@ func (bc *Blockchain) VerifyChain() error {
 	if bc.Blocks[0].Hash != expected.Hash {
 		return fmt.Errorf("genesis %s... non corrisponde a %s...", shortHash(bc.Blocks[0].Hash), shortHash(expected.Hash))
 	}
-	for i := 1; i < len(bc.Blocks); i++ {
+	for i := start; i < len(bc.Blocks); i++ {
 		if i%5000 == 0 {
 			log.Printf("HVM_CHAIN_VERIFY_PROGRESS height=%d total=%d", i, len(bc.Blocks))
 		}

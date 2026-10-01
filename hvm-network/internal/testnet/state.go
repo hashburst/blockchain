@@ -39,7 +39,13 @@ func privateFile(path string) ([]byte, error) {
 	}
 	return os.ReadFile(path)
 }
-func Prepare(c Config, provision bool) (out *State, err error) {
+func Prepare(c Config, provision bool) (*State,error) { return prepare(c,provision,false) }
+
+// PrepareRuntime enables local recovery caches only in the long-running service.
+// Administrative checks and migrations retain independent full replay.
+func PrepareRuntime(c Config) (*State,error) { return prepare(c,false,true) }
+
+func prepare(c Config, provision bool, recovery bool) (out *State, err error) {
 	if e := c.Validate(); e != nil {
 		return nil, e
 	}
@@ -120,7 +126,11 @@ func Prepare(c Config, provision bool) (out *State, err error) {
 		}
 	}
 	log.Printf("HVM_OPEN_STATE_BEGIN node=%s", c.NodeID)
-	s.Chain, e = blockchain.OpenExistingBlockchain(real, c.Protocol, c.GenesisHash, c.CheckpointHeight, c.CheckpointHash)
+	if recovery {
+  s.Chain,e=blockchain.OpenExistingBlockchainWithRecovery(real,c.Protocol,c.GenesisHash,c.CheckpointHeight,c.CheckpointHash)
+ } else {
+  s.Chain,e=blockchain.OpenExistingBlockchain(real,c.Protocol,c.GenesisHash,c.CheckpointHeight,c.CheckpointHash)
+ }
 	if e != nil {
 		return nil, e
 	}

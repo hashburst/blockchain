@@ -2,6 +2,8 @@ package blockchain
 
 import (
 	"encoding/binary"
+ "bufio"
+ "time"
 	"fmt"
 	"hashburst/consensus"
 	"hashburst/hvm"
@@ -15,7 +17,17 @@ import (
 // OpenExistingBlockchain never creates genesis or repairs an invalid chain.
 // The caller must exclusively lock the directory for the entire node lifetime.
 func OpenExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, checkpointHeight int, checkpointHash string) (*Blockchain, error) {
-	cfg = cfg.detached()
+ return openExistingBlockchain(dir,cfg,genesis,checkpointHeight,checkpointHash,false)
+}
+
+// OpenExistingBlockchainWithRecovery permits only authenticated node-local caches.
+// Offline audits and configuration migrations use OpenExistingBlockchain instead.
+func OpenExistingBlockchainWithRecovery(dir string, cfg ProtocolV2Config, genesis string, checkpointHeight int, checkpointHash string) (*Blockchain,error) {
+ return openExistingBlockchain(dir,cfg,genesis,checkpointHeight,checkpointHash,true)
+}
+func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, checkpointHeight int, checkpointHash string, useCheckpoint bool) (*Blockchain,error) {
+	started:=time.Now()
+ cfg = cfg.detached()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -32,9 +44,7 @@ func OpenExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 		}
 	}
 	storage := &ChainStorage{durable: true, dir: dir, datPath: filepath.Join(dir, chainFile), idxPath: filepath.Join(dir, indexFile)}
-	if err := verifyPersistentIndex(storage.datPath, storage.idxPath); err != nil {
-		return nil, err
-	}
+	// The durable loader validates index/frame agreement before decoding each bounded frame.
 	blocks, err := storage.LoadAll()
 	if err != nil {
 		return nil, err
@@ -54,15 +64,27 @@ func OpenExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 		return nil, err
 	}
 	bc := &Blockchain{Blocks: blocks, MiningReward: DefaultMiningReward, storage: storage, state: NewState(), hvmEngine: hvm.NewEngine(nil, cfg.FeePolicy), validators: consensus.NewRegistry(cfg.Validator), voteJournal: vote, bftJournal: bft, receipts: make(map[string]hvm.Receipt), v2Config: cfg}
-	log.Printf("HVM_CHAIN_VERIFY_BEGIN blocks=%d", len(blocks))
-	if err := bc.VerifyChain(); err != nil {
+	bc.checkpointStartup = useCheckpoint && os.Getenv("HVM_FULL_REPLAY") != "1"
+ if bc.checkpointStartup {
+  seed, e := bc.loadRecoveryCheckpoint()
+  if e == nil { bc.startupSeed = seed; bc.checkpointHeight = seed.height; log.Printf("HVM_CHECKPOINT_RESTORED height=%d suffix=%d", seed.height, len(blocks)-seed.height-1) } else { log.Printf("HVM_CHECKPOINT_FALLBACK reason=%v", e) }
+ }
+ log.Printf("HVM_CHAIN_VERIFY_BEGIN blocks=%d", len(blocks))
+	start := 1
+ if bc.startupSeed != nil { start = bc.startupSeed.height+1 }
+ if err := bc.verifyChainFrom(start); err != nil {
 		return nil, fmt.Errorf("verify existing chain: %w", err)
 	}
 	log.Printf("HVM_CHAIN_REPLAY_BEGIN blocks=%d", len(blocks))
 	if err := bc.rebuildProjections(blocks); err != nil {
 		return nil, fmt.Errorf("replay existing chain: %w", err)
 	}
-	log.Printf("HVM_CHAIN_REPLAY_COMPLETE height=%d", bc.Height())
+	bc.recoveryStatus=RecoveryStatus{Mode:"full",CheckpointHeight:-1,ReplayBlocks:len(blocks),ElapsedMillis:time.Since(started).Milliseconds()}
+ if bc.startupSeed!=nil { bc.recoveryStatus.Mode="incremental";bc.recoveryStatus.CheckpointHeight=bc.startupSeed.height;bc.recoveryStatus.ReplayBlocks=len(blocks)-bc.startupSeed.height-1 }
+ bc.startupSeed = nil
+ bc.checkpointStartup = false
+ bc.checkpointEnabled = useCheckpoint && os.Getenv("HVM_FULL_REPLAY") != "1"
+ log.Printf("HVM_CHAIN_REPLAY_COMPLETE height=%d", bc.Height())
 	return bc, nil
 }
 
@@ -88,10 +110,11 @@ func verifyPersistentIndex(dataPath, indexPath string) error {
 	if e != nil {
 		return e
 	}
-	var offset int64
+	reader := bufio.NewReaderSize(idx, 64<<10)
+ var offset int64
 	for n := uint64(0); ; n++ {
 		var rec [20]byte
-		_, e = io.ReadFull(idx, rec[:])
+		_, e = io.ReadFull(reader, rec[:])
 		if e == io.EOF {
 			if offset != st.Size() {
 				return fmt.Errorf("unindexed chain bytes")

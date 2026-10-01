@@ -29,7 +29,8 @@ func run() int {
 		log.Print("mainnet executable refuses another network")
 		return 1
 	}
-	s, e := testnet.Prepare(c, *provision)
+	var s *testnet.State
+ if *provision || *check { s,e=testnet.Prepare(c,*provision) } else { s,e=testnet.PrepareRuntime(c) }
 	if e != nil {
 		log.Printf("state: %v", e)
 		return 1
