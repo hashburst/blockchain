@@ -11,6 +11,7 @@ import (
  "crypto/rand"
  "crypto/sha256"
  "encoding/binary"
+ "encoding"
  "encoding/gob"
  "encoding/hex"
  "encoding/json"
@@ -27,6 +28,9 @@ import (
  "github.com/ethereum/go-ethereum/core/state"
  "github.com/ethereum/go-ethereum/core/types"
  "github.com/ethereum/go-ethereum/triedb"
+ "github.com/ethereum/go-ethereum/trie"
+ "github.com/ethereum/go-ethereum/rlp"
+ "github.com/ethereum/go-ethereum/ethdb"
  "hashburst/consensus"
  execution "hashburst/evm-execution"
  "hashburst/hvm"
@@ -93,17 +97,65 @@ func checkpointKey(dir string, create bool) ([]byte,error) {
  if !st.Mode().IsRegular() || st.Mode().Perm()&0077!=0 || st.Size()!=32{return nil,fmt.Errorf("invalid local checkpoint key")}
  return os.ReadFile(p)
 }
-func checkpointPrefix(s *ChainStorage, height int) (int64,string,error) {
- f,err:=os.Open(s.idxPath);if err!=nil{return 0,"",err}
+func checkpointPrefix(s *ChainStorage, height int, previousBytes int64, previousState []byte) (int64,string,[]byte,error) {
+ f,err:=os.Open(s.idxPath);if err!=nil{return 0,"",nil,err}
  var rec [20]byte
- _,err=f.ReadAt(rec[:],int64(height)*20);f.Close();if err!=nil{return 0,"",err}
- if binary.BigEndian.Uint64(rec[:8])!=uint64(height){return 0,"",fmt.Errorf("checkpoint index height mismatch")}
+ _,err=f.ReadAt(rec[:],int64(height)*20);f.Close();if err!=nil{return 0,"",nil,err}
+ if binary.BigEndian.Uint64(rec[:8])!=uint64(height){return 0,"",nil,fmt.Errorf("checkpoint index height mismatch")}
  end:=binary.BigEndian.Uint64(rec[8:16])+uint64(binary.BigEndian.Uint32(rec[16:]))
- if end>uint64(^uint64(0)>>1){return 0,"",fmt.Errorf("checkpoint offset overflow")}
- d,err:=os.Open(s.datPath);if err!=nil{return 0,"",err};defer d.Close()
- h:=sha256.New();if _,err=io.CopyN(h,d,int64(end));err!=nil{return 0,"",err}
- return int64(end),hex.EncodeToString(h.Sum(nil)),nil
+ if end>uint64(^uint64(0)>>1){return 0,"",nil,fmt.Errorf("checkpoint offset overflow")}
+ d,err:=os.Open(s.datPath);if err!=nil{return 0,"",nil,err};defer d.Close()
+ h:=sha256.New()
+ start:=int64(0)
+ if previousBytes>0 && previousBytes<=int64(end) && len(previousState)>0 {
+  if err=h.(encoding.BinaryUnmarshaler).UnmarshalBinary(previousState);err!=nil{return 0,"",nil,err}
+  start=previousBytes
+ }
+ if _,err=d.Seek(start,io.SeekStart);err!=nil{return 0,"",nil,err}
+ if _,err=io.CopyN(h,d,int64(end)-start);err!=nil{return 0,"",nil,err}
+ encoded,err:=h.(encoding.BinaryMarshaler).MarshalBinary();if err!=nil{return 0,"",nil,err}
+ return int64(end),hex.EncodeToString(h.Sum(nil)),encoded,nil
 }
+// Copy only trie nodes reachable from this root and referenced contract code.
+// Historical trie garbage, preimages and unrelated database keys are not a checkpoint.
+func compactCheckpointTrie(src state.Database, root common.Hash) (ethdb.Database,error) {
+ out:=rawdb.NewMemoryDatabase()
+ var used int
+ copyNodes:=func(it trie.NodeIterator) error {
+  for it.Next(true){
+   if hash:=it.Hash(); hash!=(common.Hash{}) {
+    blob:=it.NodeBlob();used+=len(blob)+32
+    if used>checkpointMaxBytes{return fmt.Errorf("reachable trie exceeds checkpoint budget")}
+    if err:=out.Put(hash[:],blob);err!=nil{return err}
+   }
+  }
+  return it.Error()
+ }
+ accounts,err:=src.OpenTrie(root);if err!=nil{return nil,err}
+ nodes,err:=accounts.NodeIterator(nil);if err!=nil{return nil,err}
+ if err=copyNodes(nodes);err!=nil{return nil,err}
+ nodes,err=accounts.NodeIterator(nil);if err!=nil{return nil,err}
+ for nodes.Next(true){
+  if !nodes.Leaf(){continue}
+  var account types.StateAccount
+  if err=rlp.DecodeBytes(nodes.LeafBlob(),&account);err!=nil{return nil,err}
+  codeHash:=common.BytesToHash(account.CodeHash)
+  if codeHash!=types.EmptyCodeHash {
+   code:=rawdb.ReadCode(src.TrieDB().Disk(),codeHash)
+   if len(code)==0{return nil,fmt.Errorf("checkpoint contract code missing")}
+   used+=len(code)+32;if used>checkpointMaxBytes{return nil,fmt.Errorf("checkpoint code exceeds budget")}
+   rawdb.WriteCode(out,codeHash,code)
+  }
+  if account.Root!=types.EmptyRootHash {
+   storage,err:=trie.NewStateTrie(trie.StorageTrieID(root,common.BytesToHash(nodes.LeafKey()),account.Root),src.TrieDB());if err!=nil{return nil,err}
+   slots,err:=storage.NodeIterator(nil);if err!=nil{return nil,err}
+   if err=copyNodes(slots);err!=nil{return nil,err}
+  }
+ }
+ if err=nodes.Error();err!=nil{return nil,err}
+ return out,nil
+}
+
 func exportCheckpointEVM(p *evmProjection, b *Block, chainID uint64) (*checkpointEVM,error) {
  if p==nil{return nil,nil}
  cfg,err:=execution.Config(chainID);if err!=nil{return nil,err}
@@ -115,7 +167,8 @@ func exportCheckpointEVM(p *evmProjection, b *Block, chainID uint64) (*checkpoin
  if err=tdb.Commit(root,false);err!=nil{return nil,err}
  out:=&checkpointEVM{Root:p.root,ReceiptsRoot:p.receiptsRoot,GasUsed:p.gasUsed}
  for a:=range p.accounts{out.Accounts=append(out.Accounts,a)}
- it:=tdb.Disk().NewIterator(nil,nil);defer it.Release()
+ compact,err:=compactCheckpointTrie(copyDB.Database(),root);if err!=nil{return nil,err}
+ it:=compact.NewIterator(nil,nil);defer it.Release()
  var size int
  for it.Next(){
   size+=len(it.Key())+len(it.Value());if size>checkpointMaxBytes{return nil,fmt.Errorf("EVM checkpoint exceeds budget")}
@@ -155,7 +208,7 @@ func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.
  started:=time.Now()
  binding,err:=bc.checkpointBinding();if err!=nil{return err}
  evm,err:=exportCheckpointEVM(st.evm,b,bc.v2Config.ChainID);if err!=nil{return err}
- n,digest,err:=checkpointPrefix(bc.storage,height);if err!=nil{return err}
+ n,digest,hashState,err:=checkpointPrefix(bc.storage,height,bc.checkpointBytes,bc.checkpointHashState);if err!=nil{return err}
  cp:=recoveryCheckpoint{Version:checkpointFormat,Height:height,Hash:b.Hash,Config:bc.recoveryConfigHash(),PrefixBytes:n,PrefixHash:digest,NodeBinding:binding,Balances:st.balances,Sequences:st.sequences,HVM:engine.State().CheckpointValues(),Validators:validators.Snapshot(),Receipts:receipts,EVM:evm}
  // Encode to a bounded buffer before publishing; a failed cache write is nonfatal.
  var packed bytes.Buffer
@@ -172,6 +225,7 @@ func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.
  if err=os.Rename(name,bc.checkpointPath((height/checkpointInterval)%2));err!=nil{return err}
  dir,err:=os.Open(bc.storage.dir);if err!=nil{return err};err=dir.Sync();dir.Close();if err!=nil{return err}
  bc.checkpointHeight=height
+ bc.checkpointBytes=n;bc.checkpointHashState=hashState
  log.Printf("HVM_CHECKPOINT_SAVED height=%d raw_bytes=%d compressed_bytes=%d elapsed=%s",height,plain.written,packed.Len(),time.Since(started))
  return nil
 }
@@ -195,7 +249,7 @@ func (bc *Blockchain) readCheckpoint(slot int,key []byte) (*recoveryCheckpoint,e
  binding,err:=bc.checkpointBinding();if err!=nil{return nil,err};if cp.NodeBinding!=binding{return nil,fmt.Errorf("checkpoint belongs to another node")}
  b:=bc.Blocks[cp.Height]
  if cp.Hash!=b.Hash||b.FinalityCertificate==nil{return nil,fmt.Errorf("checkpoint head mismatch")}
- n,digest,err:=checkpointPrefix(bc.storage,cp.Height);if err!=nil{return nil,err}
+ n,digest,_,err:=checkpointPrefix(bc.storage,cp.Height,0,nil);if err!=nil{return nil,err}
  if n!=cp.PrefixBytes||digest!=cp.PrefixHash{return nil,fmt.Errorf("checkpoint chain prefix changed")}
  return &cp,nil
 }

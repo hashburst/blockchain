@@ -8,6 +8,7 @@ import (
  "path/filepath"
  "testing"
  "time"
+ "runtime"
 
  "github.com/ethereum/go-ethereum/common"
  "github.com/ethereum/go-ethereum/core/types"
@@ -43,18 +44,32 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  journal:=filepath.Join(n.storage.dir,"consensus-bft-signatures.jsonl")
  before,_:=os.ReadFile(journal)
  open:=func()*Blockchain{t.Helper();b,e:=OpenExistingBlockchain(n.storage.dir,n.v2Config,n.Blocks[0].Hash,6,n.Blocks[6].Hash);if e!=nil{t.Fatal(e)};return b}
+ var m0,m1 runtime.MemStats
+ runtime.GC();runtime.ReadMemStats(&m0)
  start:=time.Now();fast:=open();fastTime:=time.Since(start)
+ runtime.ReadMemStats(&m1);fastAlloc:=m1.TotalAlloc-m0.TotalAlloc
  if fast.checkpointHeight<cpHeight{t.Fatal("checkpoint was not restored")}
  if fast.state.Root()!=n.state.Root()||fast.state.evm.root!=n.state.evm.root||fast.validators.Root()!=n.validators.Root()||fast.HVMStateRoot()!=n.HVMStateRoot(){t.Fatal("incremental roots differ")}
  if !bytes.Equal(fast.state.evm.db.GetCode(contract),n.state.evm.db.GetCode(contract))||fast.state.evm.db.GetState(contract,common.Hash{})!=common.BigToHash(big.NewInt(42)){t.Fatal("contract checkpoint mismatch")}
  receipt,_:=fast.ethereumReceiptLocked(tx.Hash());original,_:=n.ethereumReceiptLocked(tx.Hash())
  if receipt==nil||receipt.Status!=1||receipt.TxHash!=original.TxHash||receipt.GasUsed!=original.GasUsed||receipt.ContractAddress!=original.ContractAddress||receipt.BlockHash!=original.BlockHash{t.Fatal("receipt lost across checkpoint")}
  if _,e:=fast.evmReadHistory.snapshot(fast.Blocks[len(fast.Blocks)-256]);e!=nil{t.Fatal(e)}
- t.Setenv("HVM_FULL_REPLAY","1");start=time.Now();full:=open();fullTime:=time.Since(start)
+ t.Setenv("HVM_FULL_REPLAY","1");runtime.GC();runtime.ReadMemStats(&m0);start=time.Now();full:=open();fullTime:=time.Since(start)
+ runtime.ReadMemStats(&m1);fullAlloc:=m1.TotalAlloc-m0.TotalAlloc
  if full.state.Root()!=fast.state.Root()||full.state.evm.root!=fast.state.evm.root{t.Fatal("full replay mismatch")}
  after,_:=os.ReadFile(journal);if !bytes.Equal(before,after){t.Fatal("checkpoint modified signing journal")}
- t.Logf("CHECKPOINT_TIMING blocks=%d fast=%s full=%s (fixture, not VPS or energy measurement)",len(n.Blocks),fastTime,fullTime)
+ t.Logf("CHECKPOINT_TIMING blocks=%d fast=%s full=%s fast_allocated_bytes=%d full_allocated_bytes=%d (fixture, not peak RSS, VPS or energy measurement)",len(n.Blocks),fastTime,fullTime,fastAlloc,fullAlloc)
  t.Setenv("HVM_FULL_REPLAY","")
+ // A valid seal is still rejected for another node or changed canonical prefix.
+ pinPath:=filepath.Join(n.storage.dir,"runtime.pin")
+ pin,_:=os.ReadFile(pinPath);os.WriteFile(pinPath,[]byte("different-node"),0600)
+ if _,e:=n.loadRecoveryCheckpoint();e==nil{t.Fatal("another node identity accepted")}
+ os.WriteFile(pinPath,pin,0600)
+ chainBytes,_:=os.ReadFile(n.storage.datPath)
+ modified:=append([]byte(nil),chainBytes...);modified[20]^=1
+ os.WriteFile(n.storage.datPath,modified,0600)
+ if _,e:=n.loadRecoveryCheckpoint();e==nil{t.Fatal("changed chain prefix accepted")}
+ os.WriteFile(n.storage.datPath,chainBytes,0600)
  // Corrupt both slots: authentication failure must trigger verified full replay.
  for slot:=0;slot<2;slot++{if b,e:=os.ReadFile(n.checkpointPath(slot));e==nil{b[len(b)/2]^=1;os.WriteFile(n.checkpointPath(slot),b,0600)}}
  if fallback:=open();fallback.state.Root()!=full.state.Root(){t.Fatal("corrupt checkpoint fallback mismatch")}
