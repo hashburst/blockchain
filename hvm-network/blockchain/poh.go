@@ -18,16 +18,17 @@ const PoHTicks = 400_000
 var recentPoH pohMemo
 
 type pohMemoEntry struct {
-	prev int64
-	ticks int
-	result int64
+	prev    int64
+	ticks   int
+	result  int64
 	present bool
 }
 type pohMemo struct {
-	mu sync.Mutex
+	mu      sync.Mutex
 	entries [32]pohMemoEntry
-	next uint
+	next    uint
 }
+
 func (m *pohMemo) calculate(prev int64, ticks int) int64 {
 	m.mu.Lock()
 	for _, e := range m.entries {
@@ -41,12 +42,12 @@ func (m *pohMemo) calculate(prev int64, ticks int) int64 {
 	result := computePoHWithTicks(prev, ticks)
 	m.mu.Lock()
 	m.entries[m.next] = pohMemoEntry{prev, ticks, result, true}
-	m.next = (m.next+1)%uint(len(m.entries))
+	m.next = (m.next + 1) % uint(len(m.entries))
 	m.mu.Unlock()
 	return result
 }
 func poHWithTicks(prev int64, ticks int) int64 {
-	return recentPoH.calculate(prev,ticks)
+	return recentPoH.calculate(prev, ticks)
 }
 func computePoHWithTicks(prev int64, ticks int) int64 {
 	var state [8]byte
