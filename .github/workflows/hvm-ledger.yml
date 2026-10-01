@@ -29,6 +29,7 @@ jobs:
       - name: Build Linux/macOS nodes and Windows primitives
         run: |
           mkdir -p ../ledger-build
+          GOOS=linux GOARCH=amd64 go build -o ../ledger-build/hvm-ledger-convert-linux-amd64 ./cmd/hvm-ledger-convert
           GOOS=linux GOARCH=amd64 go build -o ../ledger-build/hashburst-testnet-linux-amd64 ./cmd/hashburst-testnet
           GOOS=darwin GOARCH=arm64 go build -o ../ledger-build/hashburst-testnet-darwin-arm64 ./cmd/hashburst-testnet
           GOOS=windows GOARCH=amd64 go test -c -o ../ledger-build/ledger-windows-amd64.test.exe ./ledger

@@ -142,3 +142,40 @@ func TestPairCorruptionRejected(t *testing.T) {
 		t.Fatal("CRC corruption accepted")
 	}
 }
+
+// The existing gob storage permits larger frames than the new 16 MiB codec.
+func TestPairLegacyFrameBudget(t *testing.T) {
+	dir := t.TempDir()
+	f, e := os.Create(filepath.Join(dir, "blockchain.dat"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	size := uint32(17 << 20)
+	var h [4]byte
+	binary.BigEndian.PutUint32(h[:], size-4)
+	if _, e = f.Write(h[:]); e != nil {
+		t.Fatal(e)
+	}
+	if e = f.Truncate(int64(size)); e != nil {
+		t.Fatal(e)
+	}
+	f.Close()
+	idx := IndexRecord{0, 0, size}.Encode()
+	os.WriteFile(filepath.Join(dir, "blockchain.idx"), idx[:], 0600)
+	r, e := OpenPair(dir, GobPayload, 32<<20, 0, 0)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer r.Close()
+	if e = r.ValidateLayout(); e != nil {
+		t.Fatal(e)
+	}
+	if e = r.WithPayload(0, func(b []byte) error {
+		if len(b) != int(size-4) {
+			return errors.New("size")
+		}
+		return nil
+	}); e != nil {
+		t.Fatal(e)
+	}
+}
