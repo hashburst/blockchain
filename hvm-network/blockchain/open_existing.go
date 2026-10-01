@@ -33,9 +33,7 @@ func OpenExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 		}
 	}
 	storage := &ChainStorage{durable: true, dir: dir, datPath: filepath.Join(dir, chainFile), idxPath: filepath.Join(dir, indexFile)}
-	if err := verifyPersistentIndex(storage.datPath, storage.idxPath); err != nil {
-		return nil, err
-	}
+	// The durable loader validates index/frame agreement before decoding each bounded frame.
 	blocks, err := storage.LoadAll()
 	if err != nil {
 		return nil, err

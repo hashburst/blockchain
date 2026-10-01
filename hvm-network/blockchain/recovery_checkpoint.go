@@ -13,6 +13,7 @@ import (
  "encoding/binary"
  "encoding/gob"
  "encoding/hex"
+ "encoding/json"
  "fmt"
  "io"
  "log"
@@ -32,7 +33,7 @@ import (
 )
 
 const checkpointInterval = 1024
-const checkpointMaxBytes = 256 << 20
+const checkpointMaxBytes = 64 << 20
 const checkpointFormat = 1 // Increment on projection/execution semantics changes.
 
 type recoverySeed struct {
@@ -43,7 +44,7 @@ type recoverySeed struct {
  receipts map[string]hvm.Receipt
 }
 type checkpointKV struct { Key, Value []byte }
-type checkpointEthHistory struct { Receipts types.Receipts; Transactions [][]byte }
+type checkpointEthHistory struct { Receipts [][]byte; Transactions [][]byte }
 type checkpointEVM struct {
  Root, ReceiptsRoot string
  GasUsed uint64
@@ -54,7 +55,7 @@ type checkpointEVM struct {
 type recoveryCheckpoint struct {
  Version int
  Height int
- Hash, Config, PrefixHash string
+ Hash, Config, PrefixHash, NodeBinding string
  PrefixBytes int64
  Balances map[string]int64
  Sequences map[string]uint64
@@ -62,6 +63,18 @@ type recoveryCheckpoint struct {
  Validators []consensus.Validator
  Receipts map[string]hvm.Receipt
  EVM *checkpointEVM
+}
+
+// The seal is node-local: a copied cache is not a bootstrap mechanism.
+func (bc *Blockchain) checkpointBinding() (string,error) {
+ pin,err:=os.ReadFile(filepath.Join(bc.storage.dir,"runtime.pin"));if err!=nil{return "",err}
+ h:=sha256.New();h.Write([]byte(bc.storage.dir));h.Write([]byte{0});h.Write(pin)
+ return hex.EncodeToString(h.Sum(nil)),nil
+}
+type checkpointBudgetWriter struct { writer io.Writer; written int }
+func (w *checkpointBudgetWriter) Write(p []byte) (int,error) {
+ if len(p)>checkpointMaxBytes-w.written{return 0,fmt.Errorf("checkpoint exceeds byte budget")}
+ n,err:=w.writer.Write(p);w.written+=n;return n,err
 }
 
 func (bc *Blockchain) checkpointPath(slot int) string {
@@ -110,7 +123,8 @@ func exportCheckpointEVM(p *evmProjection, b *Block, chainID uint64) (*checkpoin
  }
  if err=it.Error();err!=nil{return nil,err}
  for h:=p.history;h!=nil;h=h.previous{
-  entry:=checkpointEthHistory{Receipts:h.receipts}
+  entry:=checkpointEthHistory{}
+  for _,receipt:=range h.receipts{encoded,e:=json.Marshal(receipt);if e!=nil{return nil,e};entry.Receipts=append(entry.Receipts,encoded)}
   for _,tx:=range h.transactions{raw,e:=tx.MarshalBinary();if e!=nil{return nil,e};entry.Transactions=append(entry.Transactions,raw)}
   out.History=append(out.History,entry)
  }
@@ -125,7 +139,8 @@ func restoreCheckpointEVM(in *checkpointEVM) (*evmProjection,error) {
  p:=&evmProjection{db:st,root:in.Root,receiptsRoot:in.ReceiptsRoot,gasUsed:in.GasUsed,accounts:make(map[common.Address]struct{})}
  for _,a:=range in.Accounts{p.accounts[a]=struct{}{}}
  for i:=len(in.History)-1;i>=0;i--{
-  e:=in.History[i];h:=&ethereumReceipts{previous:p.history,receipts:e.Receipts}
+  e:=in.History[i];h:=&ethereumReceipts{previous:p.history}
+  for _,encoded:=range e.Receipts{receipt:=new(types.Receipt);if err=json.Unmarshal(encoded,receipt);err!=nil{return nil,err};h.receipts=append(h.receipts,receipt)}
   if len(e.Receipts)!=len(e.Transactions){return nil,fmt.Errorf("checkpoint receipt count mismatch")}
   for _,raw:=range e.Transactions{tx:=new(types.Transaction);if err=tx.UnmarshalBinary(raw);err!=nil{return nil,err};h.transactions=append(h.transactions,tx)}
   p.history=h
@@ -138,16 +153,17 @@ func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.
  b:=bc.Blocks[height]
  if b.FinalityCertificate==nil{return fmt.Errorf("checkpoint requires finalized block")}
  started:=time.Now()
+ binding,err:=bc.checkpointBinding();if err!=nil{return err}
  evm,err:=exportCheckpointEVM(st.evm,b,bc.v2Config.ChainID);if err!=nil{return err}
  n,digest,err:=checkpointPrefix(bc.storage,height);if err!=nil{return err}
- cp:=recoveryCheckpoint{Version:checkpointFormat,Height:height,Hash:b.Hash,Config:bc.recoveryConfigHash(),PrefixBytes:n,PrefixHash:digest,Balances:st.balances,Sequences:st.sequences,HVM:engine.State().CheckpointValues(),Validators:validators.Snapshot(),Receipts:receipts,EVM:evm}
+ cp:=recoveryCheckpoint{Version:checkpointFormat,Height:height,Hash:b.Hash,Config:bc.recoveryConfigHash(),PrefixBytes:n,PrefixHash:digest,NodeBinding:binding,Balances:st.balances,Sequences:st.sequences,HVM:engine.State().CheckpointValues(),Validators:validators.Snapshot(),Receipts:receipts,EVM:evm}
  // Encode to a bounded buffer before publishing; a failed cache write is nonfatal.
- var raw bytes.Buffer
- if err=gob.NewEncoder(&raw).Encode(&cp);err!=nil{return err}
- if raw.Len()>checkpointMaxBytes{return fmt.Errorf("checkpoint exceeds uncompressed budget")}
  var packed bytes.Buffer
- zw,_:=gzip.NewWriterLevel(&packed,gzip.BestSpeed)
- if _,err=zw.Write(raw.Bytes());err!=nil{return err};if err=zw.Close();err!=nil{return err}
+ compressed:=&checkpointBudgetWriter{writer:&packed}
+ zw,_:=gzip.NewWriterLevel(compressed,gzip.BestSpeed)
+ plain:=&checkpointBudgetWriter{writer:zw}
+ if err=gob.NewEncoder(plain).Encode(&cp);err!=nil{zw.Close();return err}
+ if err=zw.Close();err!=nil{return err}
  key,err:=checkpointKey(bc.storage.dir,true);if err!=nil{return err}
  mac:=hmac.New(sha256.New,key);mac.Write(packed.Bytes())
  f,err:=os.CreateTemp(bc.storage.dir,".recovery-checkpoint-*");if err!=nil{return err}
@@ -156,7 +172,7 @@ func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.
  if err=os.Rename(name,bc.checkpointPath((height/checkpointInterval)%2));err!=nil{return err}
  dir,err:=os.Open(bc.storage.dir);if err!=nil{return err};err=dir.Sync();dir.Close();if err!=nil{return err}
  bc.checkpointHeight=height
- log.Printf("HVM_CHECKPOINT_SAVED height=%d raw_bytes=%d compressed_bytes=%d elapsed=%s",height,raw.Len(),packed.Len(),time.Since(started))
+ log.Printf("HVM_CHECKPOINT_SAVED height=%d raw_bytes=%d compressed_bytes=%d elapsed=%s",height,plain.written,packed.Len(),time.Since(started))
  return nil
 }
 func (bc *Blockchain) maybeSaveRecoveryCheckpoint() {
@@ -176,6 +192,7 @@ func (bc *Blockchain) readCheckpoint(slot int,key []byte) (*recoveryCheckpoint,e
  var cp recoveryCheckpoint
  if err=gob.NewDecoder(bytes.NewReader(raw)).Decode(&cp);err!=nil{return nil,err}
  if cp.Version!=checkpointFormat||cp.Config!=bc.recoveryConfigHash()||cp.Height<1||cp.Height>=len(bc.Blocks)-evmReadHistoryLimit{return nil,fmt.Errorf("checkpoint version/config/height/window mismatch")}
+ binding,err:=bc.checkpointBinding();if err!=nil{return nil,err};if cp.NodeBinding!=binding{return nil,fmt.Errorf("checkpoint belongs to another node")}
  b:=bc.Blocks[cp.Height]
  if cp.Hash!=b.Hash||b.FinalityCertificate==nil{return nil,fmt.Errorf("checkpoint head mismatch")}
  n,digest,err:=checkpointPrefix(bc.storage,cp.Height);if err!=nil{return nil,err}

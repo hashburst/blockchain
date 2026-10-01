@@ -62,7 +62,7 @@ func (bc *Blockchain) computeProjections(blocks []*Block) (*State, *hvm.Engine, 
 		for _, r := range result.receipts {
 			receipts[strings.ToLower(strings.TrimPrefix(r.TxID, "0x"))] = r
 		}
-  if bc.checkpointStartup && b.Index == len(blocks)-evmReadHistoryLimit-1 {
+  if bc.checkpointStartup && bc.startupSeed == nil && b.Index == len(blocks)-evmReadHistoryLimit-1 {
    if err := bc.saveRecoveryCheckpoint(b.Index, st, engine, validators, receipts); err != nil { log.Printf("HVM_CHECKPOINT_WRITE_SKIPPED reason=%v", err) }
   }
  }
