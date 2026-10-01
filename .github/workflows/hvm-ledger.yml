@@ -1,0 +1,38 @@
+name: HVM ledger bounded storage and diagnostics
+on:
+  push:
+    branches: [codex/hvm-ledger-profiling]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: hvm-network
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - name: Full regression
+        run: go test ./...
+      - name: Race and codec equivalence
+        run: go test -race ./ledger ./internal/diagnostics ./blockchain -run 'Test(Segment|Frame|Cache|CheckpointFreeze|BufferedFrame|ProfileLifecycle|LedgerCodec)' -count=1
+      - name: Benchmarks
+        run: go test ./ledger ./blockchain -run '^$' -bench 'Benchmark(FrameRead|CacheRead|LedgerBlockCodec)$' -benchmem -count=3 | tee ledger-benchmarks.txt
+      - name: Build platforms
+        run: |
+          mkdir -p ../ledger-build
+          GOOS=linux GOARCH=amd64 go build -o ../ledger-build/hashburst-testnet-linux-amd64 ./cmd/hashburst-testnet
+          GOOS=darwin GOARCH=arm64 go build -o ../ledger-build/hashburst-testnet-darwin-arm64 ./cmd/hashburst-testnet
+          GOOS=windows GOARCH=amd64 go build -o ../ledger-build/hashburst-testnet-windows-amd64.exe ./cmd/hashburst-testnet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ledger-diagnostics-candidate
+          path: |
+            ledger-build
+            hvm-network/ledger-benchmarks.txt

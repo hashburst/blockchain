@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"flag"
+	"hashburst/internal/diagnostics"
 	"hashburst/internal/testnet"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() { os.Exit(run()) }
@@ -17,7 +19,20 @@ func run() int {
 	check := flag.Bool("check", false, "validate pinned state and keys; do not start")
 	migration := flag.String("migrate-evm", "", "offline: migrate pinned testnet to this candidate config; safely resume the same transition")
 	apowMigration := flag.String("migrate-apow", "", "offline: schedule APoW and optional future gas capacity; preserve existing state")
+	profileDir := flag.String("profile-dir", "", "optional new private directory for bounded Go profile")
+	profileKind := flag.String("profile-kind", "cpu", "cpu, heap, block, mutex or trace (one per run)")
+	profileDuration := flag.Duration("profile-duration", 60*time.Second, "profile window; maximum 5m")
 	flag.Parse()
+	stopProfile, pe := diagnostics.Start(*profileDir, *profileKind, *profileDuration)
+	if pe != nil {
+		log.Printf("profile: %v", pe)
+		return 2
+	}
+	defer func() {
+		if e := stopProfile(); e != nil {
+			log.Printf("profile close: %v", e)
+		}
+	}()
 	if *path == "" || (*provision && *check) {
 		log.Print("--config required; --provision and --check are exclusive")
 		return 2
@@ -56,7 +71,11 @@ func run() int {
 		return 1
 	}
 	var s *testnet.State
- if *provision || *check { s,e=testnet.Prepare(c,*provision) } else { s,e=testnet.PrepareRuntime(c) }
+	if *provision || *check {
+		s, e = testnet.Prepare(c, *provision)
+	} else {
+		s, e = testnet.PrepareRuntime(c)
+	}
 	if e != nil {
 		log.Printf("state: %v", e)
 		return 1
