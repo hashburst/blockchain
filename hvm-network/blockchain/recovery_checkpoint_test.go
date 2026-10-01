@@ -43,12 +43,12 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  for i:=0;i<300;i++{finalizeEVMFixture(t,s)}
  journal:=filepath.Join(n.storage.dir,"consensus-bft-signatures.jsonl")
  before,_:=os.ReadFile(journal)
- open:=func()*Blockchain{t.Helper();b,e:=OpenExistingBlockchain(n.storage.dir,n.v2Config,n.Blocks[0].Hash,6,n.Blocks[6].Hash);if e!=nil{t.Fatal(e)};return b}
+ open:=func()*Blockchain{t.Helper();b,e:=OpenExistingBlockchainWithRecovery(n.storage.dir,n.v2Config,n.Blocks[0].Hash,6,n.Blocks[6].Hash);if e!=nil{t.Fatal(e)};return b}
  var m0,m1 runtime.MemStats
  runtime.GC();runtime.ReadMemStats(&m0)
  start:=time.Now();fast:=open();fastTime:=time.Since(start)
  runtime.ReadMemStats(&m1);fastAlloc:=m1.TotalAlloc-m0.TotalAlloc
- if fast.checkpointHeight<cpHeight{t.Fatal("checkpoint was not restored")}
+ if fast.RecoveryStatus().Mode!="incremental"||fast.RecoveryStatus().CheckpointHeight!=cpHeight{t.Fatal("checkpoint was not restored")}
  if fast.state.Root()!=n.state.Root()||fast.state.evm.root!=n.state.evm.root||fast.validators.Root()!=n.validators.Root()||fast.HVMStateRoot()!=n.HVMStateRoot(){t.Fatal("incremental roots differ")}
  if !bytes.Equal(fast.state.evm.db.GetCode(contract),n.state.evm.db.GetCode(contract))||fast.state.evm.db.GetState(contract,common.Hash{})!=common.BigToHash(big.NewInt(42)){t.Fatal("contract checkpoint mismatch")}
  receipt,_:=fast.ethereumReceiptLocked(tx.Hash());original,_:=n.ethereumReceiptLocked(tx.Hash())
@@ -56,6 +56,7 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  if _,e:=fast.evmReadHistory.snapshot(fast.Blocks[len(fast.Blocks)-256]);e!=nil{t.Fatal(e)}
  t.Setenv("HVM_FULL_REPLAY","1");runtime.GC();runtime.ReadMemStats(&m0);start=time.Now();full:=open();fullTime:=time.Since(start)
  runtime.ReadMemStats(&m1);fullAlloc:=m1.TotalAlloc-m0.TotalAlloc
+ if full.RecoveryStatus().Mode!="full" { t.Fatal("audit did not force full verification") }
  if full.state.Root()!=fast.state.Root()||full.state.evm.root!=fast.state.evm.root{t.Fatal("full replay mismatch")}
  after,_:=os.ReadFile(journal);if !bytes.Equal(before,after){t.Fatal("checkpoint modified signing journal")}
  t.Logf("CHECKPOINT_TIMING blocks=%d fast=%s full=%s fast_allocated_bytes=%d full_allocated_bytes=%d (fixture, not peak RSS, VPS or energy measurement)",len(n.Blocks),fastTime,fullTime,fastAlloc,fullAlloc)

@@ -19,6 +19,7 @@ import (
 // Protocol V2/HVM projections. The chain remains the source of truth; native
 // HBT state, HVM state and receipts are deterministic projections of blocks.
 type Blockchain struct {
+ recoveryStatus RecoveryStatus
  startupSeed *recoverySeed
  checkpointStartup bool
  checkpointEnabled bool
