@@ -23,6 +23,8 @@ type Blockchain struct {
  checkpointStartup bool
  checkpointEnabled bool
  checkpointHeight int
+ checkpointBytes int64
+ checkpointHashState []byte
 
 	apowWork         *APoWProof // guarded by mu; never durable signing state
 	evmSubscriptions *execution.Subscriptions
