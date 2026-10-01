@@ -1,7 +1,7 @@
 name: HVM recovery checkpoint
 on:
   pull_request:
-    paths: ['hvm-network/blockchain/recovery_checkpoint*', '.github/workflows/hvm-checkpoint.yml']
+    paths: ['hvm-network/**', '.github/workflows/hvm-checkpoint.yml']
 concurrency:
   group: hvm-checkpoint-${{ github.ref }}
   cancel-in-progress: true
@@ -28,6 +28,8 @@ jobs:
       - name: Race and recovery safety
         working-directory: hvm-network
         run: go test -race ./blockchain -run 'RecoveryCheckpoint|PersistentRecovery|LockConflict|APoW|EVMHistorical' -count=1 -timeout 10m
+      - name: Deployment guards
+        run: python3 hvm-network/deploy/checkpoint/test_upgrade.py
       - name: Build candidate
         working-directory: hvm-network
         run: |
@@ -35,7 +37,7 @@ jobs:
           CGO_ENABLED=0 go build -trimpath -o candidate/hashburst-testnet ./cmd/hashburst-testnet
           CGO_ENABLED=0 go build -trimpath -o candidate/hashburst-mainnet ./cmd/hashburst-mainnet
           git rev-parse HEAD > candidate/SOURCE_COMMIT
-          cp deploy/checkpoint/upgrade-node.py deploy/checkpoint/README.md candidate/
+          cp deploy/checkpoint/upgrade-node.py deploy/checkpoint/test_upgrade.py deploy/checkpoint/README.md candidate/
           cp deploy/testnet/apow/*.py candidate/
           CGO_ENABLED=0 go build -trimpath -o candidate/hvm-apow-audit ./cmd/hvm-apow-audit
           python3 - <<'PYCODE'
