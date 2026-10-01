@@ -1,0 +1,39 @@
+name: HVM lock recovery regression
+on:
+  push:
+    branches: ['fix/hvm-lock-recovery']
+  pull_request:
+    paths:
+      - 'hvm-network/blockchain/**'
+      - '.github/workflows/hvm-lock-recovery.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - name: Regression and race checks
+        working-directory: hvm-network
+        run: |
+          go test ./blockchain -run 'TestLockConflict' -count=1 -v
+          go test ./... -count=1
+          go test -race ./blockchain -run 'LockConflict|PersistentRecovery|RoundExhaustion|APoW' -count=1
+          python3 deploy/testnet/apow/test_coordinator.py
+      - name: Build testnet candidate
+        working-directory: hvm-network
+        run: |
+          mkdir -p candidate
+          CGO_ENABLED=0 go build -trimpath -o candidate/hashburst-testnet ./cmd/hashburst-testnet
+          git rev-parse HEAD > candidate/SOURCE_COMMIT
+          cd candidate
+          sha256sum hashburst-testnet SOURCE_COMMIT > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hvm-lock-recovery-linux-amd64
+          path: hvm-network/candidate/
