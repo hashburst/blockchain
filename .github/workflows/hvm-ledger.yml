@@ -21,7 +21,7 @@ jobs:
       - name: OS sampler regression
         run: python3 deploy/diagnostics/test_samples.py
       - name: Runtime installer evidence tests
-        run: python3 hvm-network/deploy/runtime/test_installer.py
+        run: python3 deploy/runtime/test_installer.py
       - name: Full regression
         run: go test ./...
       - name: Race and codec equivalence
@@ -36,6 +36,8 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build -o ../ledger-build/hashburst-testnet-darwin-arm64 ./cmd/hashburst-testnet
           GOOS=windows GOARCH=amd64 go test -c -o ../ledger-build/ledger-windows-amd64.test.exe ./ledger
           GOOS=windows GOARCH=amd64 go test -c -o ../ledger-build/diagnostics-windows-amd64.test.exe ./internal/diagnostics
+      - name: Disposable systemd installer integration
+        run: sudo env PATH="$PATH" HVM_DISPOSABLE_CI=1 bash deploy/runtime/test-systemd.sh
       - uses: actions/upload-artifact@v4
         with:
           name: ledger-diagnostics-candidate
