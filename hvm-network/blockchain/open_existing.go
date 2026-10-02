@@ -1,33 +1,34 @@
 package blockchain
 
 import (
+	"bufio"
 	"encoding/binary"
- "bufio"
- "time"
 	"fmt"
 	"hashburst/consensus"
 	"hashburst/hvm"
+	"hashburst/ledger"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // OpenExistingBlockchain never creates genesis or repairs an invalid chain.
 // The caller must exclusively lock the directory for the entire node lifetime.
 func OpenExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, checkpointHeight int, checkpointHash string) (*Blockchain, error) {
- return openExistingBlockchain(dir,cfg,genesis,checkpointHeight,checkpointHash,false)
+	return openExistingBlockchain(dir, cfg, genesis, checkpointHeight, checkpointHash, false)
 }
 
 // OpenExistingBlockchainWithRecovery permits only authenticated node-local caches.
 // Offline audits and configuration migrations use OpenExistingBlockchain instead.
-func OpenExistingBlockchainWithRecovery(dir string, cfg ProtocolV2Config, genesis string, checkpointHeight int, checkpointHash string) (*Blockchain,error) {
- return openExistingBlockchain(dir,cfg,genesis,checkpointHeight,checkpointHash,true)
+func OpenExistingBlockchainWithRecovery(dir string, cfg ProtocolV2Config, genesis string, checkpointHeight int, checkpointHash string) (*Blockchain, error) {
+	return openExistingBlockchain(dir, cfg, genesis, checkpointHeight, checkpointHash, true)
 }
-func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, checkpointHeight int, checkpointHash string, useCheckpoint bool) (*Blockchain,error) {
-	started:=time.Now()
- cfg = cfg.detached()
+func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, checkpointHeight int, checkpointHash string, useCheckpoint bool) (*Blockchain, error) {
+	started := time.Now()
+	cfg = cfg.detached()
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -65,26 +66,38 @@ func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 	}
 	bc := &Blockchain{Blocks: blocks, MiningReward: DefaultMiningReward, storage: storage, state: NewState(), hvmEngine: hvm.NewEngine(nil, cfg.FeePolicy), validators: consensus.NewRegistry(cfg.Validator), voteJournal: vote, bftJournal: bft, receipts: make(map[string]hvm.Receipt), v2Config: cfg}
 	bc.checkpointStartup = useCheckpoint && os.Getenv("HVM_FULL_REPLAY") != "1"
- if bc.checkpointStartup {
-  seed, e := bc.loadRecoveryCheckpoint()
-  if e == nil { bc.startupSeed = seed; bc.checkpointHeight = seed.height; log.Printf("HVM_CHECKPOINT_RESTORED height=%d suffix=%d", seed.height, len(blocks)-seed.height-1) } else { log.Printf("HVM_CHECKPOINT_FALLBACK reason=%v", e) }
- }
- log.Printf("HVM_CHAIN_VERIFY_BEGIN blocks=%d", len(blocks))
+	if bc.checkpointStartup {
+		seed, e := bc.loadRecoveryCheckpoint()
+		if e == nil {
+			bc.startupSeed = seed
+			bc.checkpointHeight = seed.height
+			log.Printf("HVM_CHECKPOINT_RESTORED height=%d suffix=%d", seed.height, len(blocks)-seed.height-1)
+		} else {
+			log.Printf("HVM_CHECKPOINT_FALLBACK reason=%v", e)
+		}
+	}
+	log.Printf("HVM_CHAIN_VERIFY_BEGIN blocks=%d", len(blocks))
 	start := 1
- if bc.startupSeed != nil { start = bc.startupSeed.height+1 }
- if err := bc.verifyChainFrom(start); err != nil {
+	if bc.startupSeed != nil {
+		start = bc.startupSeed.height + 1
+	}
+	if err := bc.verifyChainFrom(start); err != nil {
 		return nil, fmt.Errorf("verify existing chain: %w", err)
 	}
 	log.Printf("HVM_CHAIN_REPLAY_BEGIN blocks=%d", len(blocks))
 	if err := bc.rebuildProjections(blocks); err != nil {
 		return nil, fmt.Errorf("replay existing chain: %w", err)
 	}
-	bc.recoveryStatus=RecoveryStatus{Mode:"full",CheckpointHeight:-1,ReplayBlocks:len(blocks),ElapsedMillis:time.Since(started).Milliseconds()}
- if bc.startupSeed!=nil { bc.recoveryStatus.Mode="incremental";bc.recoveryStatus.CheckpointHeight=bc.startupSeed.height;bc.recoveryStatus.ReplayBlocks=len(blocks)-bc.startupSeed.height-1 }
- bc.startupSeed = nil
- bc.checkpointStartup = false
- bc.checkpointEnabled = useCheckpoint && os.Getenv("HVM_FULL_REPLAY") != "1"
- log.Printf("HVM_CHAIN_REPLAY_COMPLETE height=%d", bc.Height())
+	bc.recoveryStatus = RecoveryStatus{Mode: "full", CheckpointHeight: -1, ReplayBlocks: len(blocks), ElapsedMillis: time.Since(started).Milliseconds()}
+	if bc.startupSeed != nil {
+		bc.recoveryStatus.Mode = "incremental"
+		bc.recoveryStatus.CheckpointHeight = bc.startupSeed.height
+		bc.recoveryStatus.ReplayBlocks = len(blocks) - bc.startupSeed.height - 1
+	}
+	bc.startupSeed = nil
+	bc.checkpointStartup = false
+	bc.checkpointEnabled = useCheckpoint && os.Getenv("HVM_FULL_REPLAY") != "1"
+	log.Printf("HVM_CHAIN_REPLAY_COMPLETE height=%d", bc.Height())
 	return bc, nil
 }
 
@@ -111,7 +124,7 @@ func verifyPersistentIndex(dataPath, indexPath string) error {
 		return e
 	}
 	reader := bufio.NewReaderSize(idx, 64<<10)
- var offset int64
+	var offset int64
 	for n := uint64(0); ; n++ {
 		var rec [20]byte
 		_, e = io.ReadFull(reader, rec[:])
@@ -132,7 +145,18 @@ func verifyPersistentIndex(dataPath, indexPath string) error {
 		if _, e = d.ReadAt(h[:], offset); e != nil {
 			return e
 		}
-		if binary.BigEndian.Uint32(h[:]) != size-4 {
+		if string(h[:]) == "HBX2" {
+			if size < ledger.FrameHeader || size > ledger.MaxRecord+ledger.FrameHeader {
+				return fmt.Errorf("invalid binary frame size")
+			}
+			var header [ledger.FrameHeader]byte
+			if _, e = d.ReadAt(header[:], offset); e != nil {
+				return e
+			}
+			if binary.LittleEndian.Uint32(header[4:8]) != size-ledger.FrameHeader || binary.LittleEndian.Uint32(header[12:16]) != 0 {
+				return fmt.Errorf("invalid binary frame header")
+			}
+		} else if binary.BigEndian.Uint32(h[:]) != size-4 {
 			return fmt.Errorf("chain index/frame size mismatch")
 		}
 		offset += int64(size)
