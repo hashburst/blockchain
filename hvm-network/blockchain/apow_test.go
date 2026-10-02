@@ -104,7 +104,7 @@ func TestAPoWPersistentOpenAndLocalIngress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	opened, err := OpenExistingBlockchain(bc.storage.dir, s.cfg, bc.Blocks[0].Hash, 6, bc.Blocks[6].Hash)
+	opened, err := OpenExistingBlockchain(bc.storage.dir, s.cfg, testHistoryBlock(t,bc,0).Hash, 6, testHistoryBlock(t,bc,6).Hash)
 	if err != nil {
 		t.Fatal(err)
 	}

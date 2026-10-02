@@ -315,7 +315,7 @@ func isProtocolV2ExecutableTxType(t protocolv2.TxType) bool {
 }
 
 func (bc *Blockchain) prepareV2Commitments(b *Block) (*blockExecutionV2, error) {
-	result, err := bc.executeBlockV2(bc.state, bc.hvmEngine, bc.validators, nodeIdentityProjection(bc.Blocks, bc.v2Config.ChainID), b, bc.Blocks)
+	result, err := bc.executeCurrentBlock(b)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +333,7 @@ func (bc *Blockchain) prepareV2Commitments(b *Block) (*blockExecutionV2, error) 
 }
 
 func (bc *Blockchain) validateV2Commitments(b *Block) (*blockExecutionV2, error) {
-	result, err := bc.executeBlockV2(bc.state, bc.hvmEngine, bc.validators, nodeIdentityProjection(bc.Blocks, bc.v2Config.ChainID), b, bc.Blocks)
+	result, err := bc.executeCurrentBlock(b)
 	if err != nil {
 		return nil, err
 	}

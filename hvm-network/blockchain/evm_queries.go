@@ -53,7 +53,11 @@ func (a *EthereumNodeAPI) GetTransactionByHash(hash common.Hash) (map[string]any
 	defer a.bc.mu.RUnlock()
 	receipt, tx := a.bc.ethereumReceiptLocked(hash)
 	if tx != nil {
-		return ethereumTransactionObject(tx, a.bc.Blocks[receipt.BlockNumber.Int64()], int(receipt.TransactionIndex))
+		b, e := a.bc.blockAtLocked(int(receipt.BlockNumber.Int64()))
+		if e != nil {
+			return nil, e
+		}
+		return ethereumTransactionObject(tx, b, int(receipt.TransactionIndex))
 	}
 	if a.bc.mempool != nil {
 		for _, raw := range a.bc.mempool.snapshotEthereum() {
@@ -68,7 +72,12 @@ func (a *EthereumNodeAPI) GetTransactionByHash(hash common.Hash) (map[string]any
 func (a *EthereumNodeAPI) GetBlockByHash(hash common.Hash, full bool) (map[string]any, error) {
 	a.bc.mu.RLock()
 	height := -1
-	for _, b := range a.bc.Blocks {
+	for n := 0; n < a.bc.blockCountLocked(); n++ {
+		b, e := a.bc.blockAtLocked(n)
+		if e != nil {
+			a.bc.mu.RUnlock()
+			return nil, e
+		}
 		if common.HexToHash(b.Hash) == hash {
 			height = b.Index
 			break
@@ -93,21 +102,24 @@ func (a *EthereumNodeAPI) FeeHistory(count hexutil.Uint64, newest rpc.BlockNumbe
 	defer a.bc.mu.RUnlock()
 	end := int64(newest)
 	if newest == rpc.LatestBlockNumber || newest == rpc.PendingBlockNumber || newest == rpc.FinalizedBlockNumber || newest == rpc.SafeBlockNumber {
-		end = int64(len(a.bc.Blocks) - 1)
+		end = int64(a.bc.blockCountLocked() - 1)
 	}
 	start := end - int64(count) + 1
 	activation := int64(a.bc.v2Config.EVM.ActivationHeight)
 	if start < activation {
 		start = activation
 	}
-	if end < start || end >= int64(len(a.bc.Blocks)) {
+	if end < start || end >= int64(a.bc.blockCountLocked()) {
 		return nil, fmt.Errorf("EVM fee history unavailable")
 	}
 	fees := make([]hexutil.Big, 0, end-start+2)
 	ratios := make([]float64, 0, end-start+1)
 	rewards := make([][]hexutil.Big, 0, end-start+1)
 	for h := start; h <= end; h++ {
-		b := a.bc.Blocks[h]
+		b, e := a.bc.blockAtLocked(int(h))
+		if e != nil {
+			return nil, e
+		}
 		base := new(big.Int).SetUint64(a.bc.v2Config.EVM.BaseFeeWei)
 		fees = append(fees, hexutil.Big(*base))
 		ratios = append(ratios, float64(b.EVMGasUsed)/float64(a.bc.v2Config.EVMGasLimitAt(b.Index)))
@@ -195,7 +207,7 @@ func (a *EthereumNodeAPI) GetLogs(q EthereumLogQuery) ([]*types.Log, error) {
 	a.bc.mu.RLock()
 	defer a.bc.mu.RUnlock()
 	out := make([]*types.Log, 0)
-	head := len(a.bc.Blocks) - 1
+	head := a.bc.blockCountLocked() - 1
 	resolve := func(n rpc.BlockNumber) int {
 		if n == rpc.LatestBlockNumber || n == rpc.FinalizedBlockNumber || n == rpc.SafeBlockNumber {
 			return head
@@ -205,7 +217,11 @@ func (a *EthereumNodeAPI) GetLogs(q EthereumLogQuery) ([]*types.Log, error) {
 	start, end := resolve(q.From), resolve(q.To)
 	if q.BlockHash != nil {
 		start = -1
-		for _, b := range a.bc.Blocks {
+		for n := 0; n < a.bc.blockCountLocked(); n++ {
+			b, e := a.bc.blockAtLocked(n)
+			if e != nil {
+				return nil, e
+			}
 			if common.HexToHash(b.Hash) == *q.BlockHash {
 				start = b.Index
 				break

@@ -38,7 +38,7 @@ func TestBinaryStorageConvertedRuntimeReplay(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	restored, err := OpenExistingBlockchain(target, n.v2Config, n.Blocks[0].Hash, 6, n.Blocks[6].Hash)
+	restored, err := OpenExistingBlockchain(target, n.v2Config, testHistoryBlock(t,n,0).Hash, 6, testHistoryBlock(t,n,6).Hash)
 	if err != nil {
 		t.Fatal(err)
 	}

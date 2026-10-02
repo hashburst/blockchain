@@ -206,7 +206,7 @@ func validateAPoWEnvelope(prev, b *Block, cfg ProtocolV2Config) error {
 func (bc *Blockchain) APoWJob() (*APoWProof, error) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
-	prev := bc.Blocks[len(bc.Blocks)-1]
+	prev := bc.headLocked()
 	bits, start, err := expectedAPoW(prev, bc.v2Config)
 	if err != nil {
 		return nil, err
@@ -222,7 +222,7 @@ func (bc *Blockchain) SubmitAPoW(p APoWProof) error {
 	}
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
-	prev := bc.Blocks[len(bc.Blocks)-1]
+	prev := bc.headLocked()
 	bits, start, err := expectedAPoW(prev, bc.v2Config)
 	if err != nil {
 		return err

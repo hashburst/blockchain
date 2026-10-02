@@ -118,10 +118,10 @@ func (bc *Blockchain) ethereumContext(b *Block, ancestors []*Block) execution.Bl
 		}
 	}
 	return execution.Block{Number: uint64(b.Index), Time: uint64(b.Timestamp.Unix()), Hash: common.HexToHash(b.Hash), ParentHash: common.HexToHash(b.PrevHash), Coinbase: coinbase, Random: common.HexToHash(b.PrevHash), GasLimit: bc.v2Config.EVMGasLimitAt(b.Index), BaseFee: new(big.Int).SetUint64(bc.v2Config.EVM.BaseFeeWei), HashAt: func(h uint64) common.Hash {
-		if h >= uint64(len(ancestors)) {
+		if len(ancestors) == 0 || h < uint64(ancestors[0].Index) || h-uint64(ancestors[0].Index) >= uint64(len(ancestors)) {
 			return common.Hash{}
 		}
-		return common.HexToHash(ancestors[h].Hash)
+		return common.HexToHash(ancestors[h-uint64(ancestors[0].Index)].Hash)
 	}}
 }
 func (bc *Blockchain) executeEthereum(base, next *State, b *Block, ancestors []*Block) error {

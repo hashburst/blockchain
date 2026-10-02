@@ -45,16 +45,39 @@ func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 		}
 	}
 	storage := &ChainStorage{durable: true, dir: dir, datPath: filepath.Join(dir, chainFile), idxPath: filepath.Join(dir, indexFile)}
-	// The durable loader validates index/frame agreement before decoding each bounded frame.
-	blocks, err := storage.LoadAll()
+	reader, err := ledger.OpenLiveReader(dir, 8<<20, 512)
 	if err != nil {
 		return nil, err
 	}
-	if len(blocks) == 0 || checkpointHeight >= len(blocks) {
+	storage.binaryPayload = reader.Format() == ledger.BinaryPayload
+	storage.formatKnown = true
+	success := false
+	defer func() {
+		if !success {
+			reader.Close()
+		}
+	}()
+	if reader.Count() > uint64(^uint(0)>>1) {
+		return nil, fmt.Errorf("history too large")
+	}
+	count := int(reader.Count())
+	if count == 0 || checkpointHeight >= count {
 		return nil, fmt.Errorf("state missing checkpoint")
 	}
-	if !strings.EqualFold(blocks[0].Hash, genesis) || blocks[checkpointHeight].Index != checkpointHeight || !strings.EqualFold(blocks[checkpointHeight].Hash, checkpointHash) {
+	first, err := readHistoryBlock(reader, 0)
+	if err != nil {
+		return nil, err
+	}
+	checkpoint, err := readHistoryBlock(reader, checkpointHeight)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.EqualFold(first.Hash, genesis) || !strings.EqualFold(checkpoint.Hash, checkpointHash) {
 		return nil, fmt.Errorf("genesis/checkpoint mismatch")
+	}
+	head, err := readHistoryBlock(reader, count-1)
+	if err != nil {
+		return nil, err
 	}
 	vote, err := consensus.OpenVoteJournal(filepath.Join(dir, "consensus-votes.jsonl"))
 	if err != nil {
@@ -64,19 +87,19 @@ func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 	if err != nil {
 		return nil, err
 	}
-	bc := &Blockchain{Blocks: blocks, MiningReward: DefaultMiningReward, storage: storage, state: NewState(), hvmEngine: hvm.NewEngine(nil, cfg.FeePolicy), validators: consensus.NewRegistry(cfg.Validator), voteJournal: vote, bftJournal: bft, receipts: make(map[string]hvm.Receipt), v2Config: cfg}
+	bc := &Blockchain{history: &indexedHistory{reader: reader, head: head}, MiningReward: DefaultMiningReward, storage: storage, state: NewState(), hvmEngine: hvm.NewEngine(nil, cfg.FeePolicy), validators: consensus.NewRegistry(cfg.Validator), voteJournal: vote, bftJournal: bft, receipts: make(map[string]hvm.Receipt), v2Config: cfg}
 	bc.checkpointStartup = useCheckpoint && os.Getenv("HVM_FULL_REPLAY") != "1"
 	if bc.checkpointStartup {
 		seed, e := bc.loadRecoveryCheckpoint()
 		if e == nil {
 			bc.startupSeed = seed
 			bc.checkpointHeight = seed.height
-			log.Printf("HVM_CHECKPOINT_RESTORED height=%d suffix=%d", seed.height, len(blocks)-seed.height-1)
+			log.Printf("HVM_CHECKPOINT_RESTORED height=%d suffix=%d", seed.height, count-seed.height-1)
 		} else {
 			log.Printf("HVM_CHECKPOINT_FALLBACK reason=%v", e)
 		}
 	}
-	log.Printf("HVM_CHAIN_VERIFY_BEGIN blocks=%d", len(blocks))
+	log.Printf("HVM_CHAIN_VERIFY_BEGIN blocks=%d", count)
 	start := 1
 	if bc.startupSeed != nil {
 		start = bc.startupSeed.height + 1
@@ -84,20 +107,28 @@ func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 	if err := bc.verifyChainFrom(start); err != nil {
 		return nil, fmt.Errorf("verify existing chain: %w", err)
 	}
-	log.Printf("HVM_CHAIN_REPLAY_BEGIN blocks=%d", len(blocks))
-	if err := bc.rebuildProjections(blocks); err != nil {
+	log.Printf("HVM_CHAIN_REPLAY_BEGIN blocks=%d", count)
+	if err := bc.rebuildProjections(nil); err != nil {
 		return nil, fmt.Errorf("replay existing chain: %w", err)
 	}
-	bc.recoveryStatus = RecoveryStatus{Mode: "full", CheckpointHeight: -1, ReplayBlocks: len(blocks), ElapsedMillis: time.Since(started).Milliseconds()}
+	bc.recoveryStatus = RecoveryStatus{Mode: "full", CheckpointHeight: -1, ReplayBlocks: count, ElapsedMillis: time.Since(started).Milliseconds()}
 	if bc.startupSeed != nil {
 		bc.recoveryStatus.Mode = "incremental"
 		bc.recoveryStatus.CheckpointHeight = bc.startupSeed.height
-		bc.recoveryStatus.ReplayBlocks = len(blocks) - bc.startupSeed.height - 1
+		bc.recoveryStatus.ReplayBlocks = count - bc.startupSeed.height - 1
 	}
 	bc.startupSeed = nil
 	bc.checkpointStartup = false
 	bc.checkpointEnabled = useCheckpoint && os.Getenv("HVM_FULL_REPLAY") != "1"
 	log.Printf("HVM_CHAIN_REPLAY_COMPLETE height=%d", bc.Height())
+	for n := max(0, count-257); n < count; n++ {
+		b, e := bc.blockAtLocked(n)
+		if e != nil {
+			return nil, e
+		}
+		bc.history.hashes[n%257] = &Block{Index: n, Hash: b.Hash}
+	}
+	success = true
 	return bc, nil
 }
 

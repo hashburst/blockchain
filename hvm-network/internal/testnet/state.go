@@ -25,6 +25,7 @@ type State struct {
 func (s *State) Close() {
 	if s.Chain != nil {
 		s.Chain.CloseRecoveryWriter()
+		_ = s.Chain.CloseHistory()
 	}
 	if s.lock != nil {
 		_ = unix.Flock(int(s.lock.Fd()), unix.LOCK_UN)

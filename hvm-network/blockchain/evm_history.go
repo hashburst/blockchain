@@ -43,11 +43,11 @@ func (h *evmReadHistory) snapshot(b *Block) (*state.StateDB, error) {
 }
 
 func (bc *Blockchain) rememberEVMStateLocked() {
-	if bc.state == nil || bc.state.evm == nil || len(bc.Blocks) == 0 {
+	if bc.state == nil || bc.state.evm == nil || bc.blockCountLocked() == 0 {
 		return
 	}
 	if bc.evmReadHistory == nil {
 		bc.evmReadHistory = &evmReadHistory{}
 	}
-	bc.evmReadHistory.remember(bc.Blocks[len(bc.Blocks)-1], bc.state)
+	bc.evmReadHistory.remember(bc.headLocked(), bc.state)
 }
