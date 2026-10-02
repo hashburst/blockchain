@@ -32,13 +32,13 @@ func (bc *Blockchain) ethereumHeader(b *Block) *types.Header {
 			}
 		}
 	}
-	return &types.Header{ParentHash: common.HexToHash(b.PrevHash), UncleHash: types.EmptyUncleHash, Coinbase: bc.ethereumContext(b, bc.Blocks).Coinbase, Root: common.HexToHash(b.EVMStateRoot), TxHash: types.DeriveSha(txs, trie.NewStackTrie(nil)), ReceiptHash: common.HexToHash(b.EVMReceiptsRoot), Bloom: bloom, Difficulty: new(big.Int), Number: big.NewInt(int64(b.Index)), GasLimit: bc.v2Config.EVMGasLimitAt(b.Index), GasUsed: b.EVMGasUsed, Time: uint64(b.Timestamp.Unix()), Extra: []byte("HVM Network"), BaseFee: new(big.Int).SetUint64(bc.v2Config.EVM.BaseFeeWei)}
+	return &types.Header{ParentHash: common.HexToHash(b.PrevHash), UncleHash: types.EmptyUncleHash, Coinbase: bc.ethereumContext(b, nil).Coinbase, Root: common.HexToHash(b.EVMStateRoot), TxHash: types.DeriveSha(txs, trie.NewStackTrie(nil)), ReceiptHash: common.HexToHash(b.EVMReceiptsRoot), Bloom: bloom, Difficulty: new(big.Int), Number: big.NewInt(int64(b.Index)), GasLimit: bc.v2Config.EVMGasLimitAt(b.Index), GasUsed: b.EVMGasUsed, Time: uint64(b.Timestamp.Unix()), Extra: []byte("HVM Network"), BaseFee: new(big.Int).SetUint64(bc.v2Config.EVM.BaseFeeWei)}
 }
 func (bc *Blockchain) publishEthereumFinalizedLocked() {
-	if bc.evmSubscriptions == nil || bc.state.evm == nil || len(bc.Blocks) == 0 {
+	if bc.evmSubscriptions == nil || bc.state.evm == nil || bc.blockCountLocked() == 0 {
 		return
 	}
-	b := bc.Blocks[len(bc.Blocks)-1]
+	b := bc.headLocked()
 	if b.Version < BlockVersionEVM || b.FinalityCertificate == nil {
 		return
 	}
@@ -65,12 +65,15 @@ func (a *EthereumNodeAPI) GetBlockByNumber(n rpc.BlockNumber, full bool) (map[st
 	defer a.bc.mu.RUnlock()
 	index := int64(n)
 	if n == rpc.LatestBlockNumber || n == rpc.FinalizedBlockNumber || n == rpc.SafeBlockNumber {
-		index = int64(len(a.bc.Blocks) - 1)
+		index = int64(a.bc.blockCountLocked() - 1)
 	}
-	if index < 0 || index >= int64(len(a.bc.Blocks)) {
+	if index < 0 || index >= int64(a.bc.blockCountLocked()) {
 		return nil, nil
 	}
-	b := a.bc.Blocks[index]
+	b, readErr := a.bc.blockAtLocked(int(index))
+	if readErr != nil {
+		return nil, readErr
+	}
 	if b.Version < BlockVersionEVM {
 		return nil, fmt.Errorf("block predates EVM activation")
 	}

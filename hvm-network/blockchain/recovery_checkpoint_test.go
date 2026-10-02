@@ -70,7 +70,7 @@ func TestRecoveryCheckpointIncrementalEVMAndTamper(t *testing.T) {
  restoredLog,e:=json.Marshal(callReceipt.Logs);if e!=nil{t.Fatal(e)}
  originalLog,e:=json.Marshal(originalCall.Logs);if e!=nil{t.Fatal(e)}
  if !bytes.Equal(restoredLog,originalLog){t.Fatalf("checkpoint log metadata mismatch: restored=%s original=%s",restoredLog,originalLog)}
- if _,e:=fast.evmReadHistory.snapshot(fast.Blocks[len(fast.Blocks)-256]);e!=nil{t.Fatal(e)}
+ if _,e:=fast.evmReadHistory.snapshot(testHistoryBlock(t,fast,fast.Height()+1-256));e!=nil{t.Fatal(e)}
  t.Setenv("HVM_FULL_REPLAY","1");runtime.GC();runtime.ReadMemStats(&m0);start=time.Now();full:=open();fullTime:=time.Since(start)
  runtime.ReadMemStats(&m1);fullAlloc:=m1.TotalAlloc-m0.TotalAlloc
  if full.RecoveryStatus().Mode!="full" { t.Fatal("audit did not force full verification") }

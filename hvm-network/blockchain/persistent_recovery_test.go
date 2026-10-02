@@ -44,7 +44,7 @@ func reopenRecovery(t *testing.T, r *ConsensusReactor) *ConsensusReactor {
 	t.Helper()
 	bc := r.bc
 	r.Stop()
-	fresh, err := OpenExistingBlockchain(bc.storage.dir, bc.v2Config, bc.Blocks[0].Hash, 6, bc.Blocks[6].Hash)
+	fresh, err := OpenExistingBlockchain(bc.storage.dir, bc.v2Config, testHistoryBlock(t,bc,0).Hash, 6, testHistoryBlock(t,bc,6).Hash)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,7 +275,7 @@ func TestPersistentRecoveryFourValidatorsColdRestartLocked(t *testing.T) {
 		t.Fatal("cold restart did not finalize locked value")
 	}
 	for _, bc := range s.nodes {
-		if bc.Blocks[7].Hash != b.Hash {
+		if testHistoryBlock(t,bc,7).Hash != b.Hash {
 			t.Fatal("finalized conflicting value")
 		}
 	}

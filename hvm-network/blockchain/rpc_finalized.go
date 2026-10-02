@@ -33,10 +33,13 @@ func (h *RPCHandler) getFinalizedCommitment(params []json.RawMessage) (interface
 	}
 	h.bc.mu.RLock()
 	defer h.bc.mu.RUnlock()
-	if height >= uint64(len(h.bc.Blocks)) {
+	if height >= uint64(h.bc.blockCountLocked()) {
 		return nil, &rpcError{Code: -32001, Message: "finalized block unavailable"}
 	}
-	b := h.bc.Blocks[int(height)]
+	b, readErr := h.bc.blockAtLocked(int(height))
+	if readErr != nil {
+		return nil, &rpcError{Code: -32603, Message: readErr.Error()}
+	}
 	if b == nil || b.Index != int(height) || !h.bc.v2Config.ConsensusEnabledAt(b.Index) || b.FinalityCertificate == nil {
 		return nil, &rpcError{Code: -32001, Message: "BFT finalized block unavailable"}
 	}

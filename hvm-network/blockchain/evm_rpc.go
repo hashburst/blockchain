@@ -26,7 +26,7 @@ func (a *EthereumBackend) Snapshot(ctx context.Context, tag rpc.BlockNumber) (*s
 	bc := a.Chain
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
-	head := bc.Blocks[len(bc.Blocks)-1]
+	head := bc.headLocked()
 	if bc.state.evm == nil {
 		return nil, execution.Block{}, fmt.Errorf("EVM not active")
 	}
@@ -34,7 +34,10 @@ func (a *EthereumBackend) Snapshot(ctx context.Context, tag rpc.BlockNumber) (*s
 		if tag < 0 || int64(tag) > int64(head.Index) {
 			return nil, execution.Block{}, fmt.Errorf("unknown EVM block")
 		}
-		b := bc.Blocks[int(tag)]
+		b, readErr := bc.blockAtLocked(int(tag))
+		if readErr != nil {
+			return nil, execution.Block{}, readErr
+		}
 		if !bc.v2Config.EVMEnabledAt(b.Index) {
 			return nil, execution.Block{}, fmt.Errorf("EVM not active at requested block")
 		}
@@ -42,13 +45,25 @@ func (a *EthereumBackend) Snapshot(ctx context.Context, tag rpc.BlockNumber) (*s
 		if err != nil {
 			return nil, execution.Block{}, err
 		}
-		return st, bc.ethereumContext(b, append([]*Block(nil), bc.Blocks[:int(tag)+1]...)), nil
+		ancestors, readErr := bc.ancestorWindowLocked(b.Index)
+		if readErr != nil {
+			return nil, execution.Block{}, readErr
+		}
+		return st, bc.ethereumContext(b, ancestors), nil
 	}
 	st := bc.state.evm.db.Copy()
-	block := bc.ethereumContext(head, append([]*Block(nil), bc.Blocks...))
+	ancestors, readErr := bc.ancestorWindowLocked(head.Index)
+	if readErr != nil {
+		return nil, execution.Block{}, readErr
+	}
+	block := bc.ethereumContext(head, ancestors)
 	if tag == rpc.PendingBlockNumber {
 		next := &Block{Version: BlockVersionEVM, Index: head.Index + 1, Timestamp: time.Unix(head.Timestamp.Unix()+1, 0), PrevHash: head.Hash}
-		block = bc.ethereumContext(next, append([]*Block(nil), bc.Blocks...))
+		ancestors, readErr = bc.ancestorWindowLocked(next.Index)
+		if readErr != nil {
+			return nil, execution.Block{}, readErr
+		}
+		block = bc.ethereumContext(next, ancestors)
 		if bc.mempool != nil {
 			result, err := execution.ApplyBlock(ctx, st, bc.v2Config.ChainID, block, bc.mempool.snapshotEthereum())
 			if err != nil {

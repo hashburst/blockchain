@@ -86,12 +86,15 @@ func run() error {
 			return e
 		}
 	}
-	count := len(s.Chain.Blocks)
+	count := s.Chain.Height() + 1
 	if count == 0 {
 		return fmt.Errorf("empty verified chain")
 	}
 	proof, e := ledger.WriteGeneration(candidate, uint64(count), func(n uint64) ([]byte, error) {
-		b := s.Chain.Blocks[n]
+		b, e := s.Chain.BlockAt(int(n))
+		if e != nil {
+			return nil, e
+		}
 		if b == nil || b.Index != int(n) {
 			return nil, fmt.Errorf("block ordinal mismatch %d", n)
 		}
@@ -136,7 +139,11 @@ func run() error {
 	}
 	for n := uint64(0); n < r.Count(); n++ {
 		e = r.WithPayload(n, func(raw []byte) error {
-			want, e := blockchain.EncodeLedgerBlock(nil, s.Chain.Blocks[n])
+			b, e := s.Chain.BlockAt(int(n))
+			if e != nil {
+				return e
+			}
+			want, e := blockchain.EncodeLedgerBlock(nil, b)
 			if e != nil {
 				return e
 			}
@@ -158,5 +165,5 @@ func run() error {
 			return fmt.Errorf("source changed during conversion: %s", name)
 		}
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{"status": "OFFLINE_GENERATION_VERIFIED_NOT_ACTIVATED", "chain_id": c.Protocol.ChainID, "node_id": c.NodeID, "configuration_digest": c.Pin(), "head_height": s.Chain.Height(), "generation": proof, "source_sha256": before, "legacy_freeze_verified": false, "runtime_integration_complete": false})
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{"status": "OFFLINE_GENERATION_VERIFIED_NOT_ACTIVATED", "chain_id": c.Protocol.ChainID, "node_id": c.NodeID, "configuration_digest": c.Pin(), "head_height": s.Chain.Height(), "generation": proof, "source_sha256": before, "legacy_freeze_verified": false, "binary_runtime_supported": true, "active_generation_replaced": false})
 }

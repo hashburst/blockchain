@@ -38,9 +38,10 @@ import (
 
 const checkpointInterval = 1024
 const checkpointMaxBytes = 64 << 20
-const checkpointFormat = 1 // Increment on projection/execution semantics changes.
+const checkpointFormat = 2 // Increment on projection/execution semantics changes.
 
 type recoverySeed struct {
+	nodes      map[string]ConfirmedNodeIdentity
 	height     int
 	state      *State
 	engine     *hvm.Engine
@@ -60,6 +61,7 @@ type checkpointEVM struct {
 	History            []checkpointEthHistory
 }
 type recoveryCheckpoint struct {
+	Nodes                                 map[string]ConfirmedNodeIdentity
 	Version                               int
 	Height                                int
 	Hash, Config, PrefixHash, NodeBinding string
@@ -363,11 +365,14 @@ func restoreCheckpointEVM(in *checkpointEVM) (*evmProjection, error) {
 	return p, nil
 }
 
-func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.Engine, validators *consensus.Registry, receipts map[string]hvm.Receipt) error {
+func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.Engine, validators *consensus.Registry, receipts map[string]hvm.Receipt, nodeSnapshot ...map[string]ConfirmedNodeIdentity) error {
 	if bc.storage == nil || !bc.storage.durable || height < 1 || !bc.v2Config.ConsensusEnabledAt(height) {
 		return nil
 	}
-	b := bc.Blocks[height]
+	b, readErr := bc.blockAtLocked(height)
+	if readErr != nil {
+		return readErr
+	}
 	if b.FinalityCertificate == nil {
 		return fmt.Errorf("checkpoint requires finalized block")
 	}
@@ -384,7 +389,22 @@ func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.
 	if err != nil {
 		return err
 	}
-	cp := recoveryCheckpoint{Version: checkpointFormat, Height: height, Hash: b.Hash, Config: bc.recoveryConfigHash(), PrefixBytes: n, PrefixHash: digest, NodeBinding: binding, Balances: st.balances, Sequences: st.sequences, HVM: engine.State().CheckpointValues(), Validators: validators.Snapshot(), Receipts: receipts, EVM: evm}
+	var nodes map[string]ConfirmedNodeIdentity
+	if len(nodeSnapshot) > 0 {
+		nodes = cloneNodeIdentityMap(nodeSnapshot[0])
+	} else if bc.history != nil && height == bc.headLocked().Index && bc.confirmedNodes != nil {
+		nodes = cloneNodeIdentityMap(bc.confirmedNodes)
+	} else {
+		nodes = make(map[string]ConfirmedNodeIdentity)
+		for n := 0; n <= height; n++ {
+			item, e := bc.blockAtLocked(n)
+			if e != nil {
+				return e
+			}
+			applyNodeRegistrations(nodes, item, bc.v2Config.ChainID)
+		}
+	}
+	cp := recoveryCheckpoint{Nodes: nodes, Version: checkpointFormat, Height: height, Hash: b.Hash, Config: bc.recoveryConfigHash(), PrefixBytes: n, PrefixHash: digest, NodeBinding: binding, Balances: st.balances, Sequences: st.sequences, HVM: engine.State().CheckpointValues(), Validators: validators.Snapshot(), Receipts: receipts, EVM: evm}
 	// Freeze all maps/projections into owned bytes while the caller holds the chain
 	// lock (or is in single-threaded startup). Only compression and publication run
 	// off-thread. Snapshot construction still has a measurable CPU/copy cost.
@@ -508,7 +528,7 @@ func (bc *Blockchain) maybeSaveRecoveryCheckpoint() {
 	}
 	bc.checkpointAsync = true
 	defer func() { bc.checkpointAsync = false }()
-	height := len(bc.Blocks) - 1
+	height := bc.blockCountLocked() - 1
 	if height%checkpointInterval != 0 || height <= bc.checkpointHeight {
 		return
 	}
@@ -550,7 +570,7 @@ func (bc *Blockchain) readCheckpoint(slot int, key []byte) (*recoveryCheckpoint,
 	if err = gob.NewDecoder(bytes.NewReader(raw)).Decode(&cp); err != nil {
 		return nil, err
 	}
-	if cp.Version != checkpointFormat || cp.Config != bc.recoveryConfigHash() || cp.Height < 1 || cp.Height >= len(bc.Blocks)-evmReadHistoryLimit {
+	if cp.Version != checkpointFormat || cp.Config != bc.recoveryConfigHash() || cp.Height < 1 || cp.Height >= bc.blockCountLocked()-evmReadHistoryLimit {
 		return nil, fmt.Errorf("checkpoint version/config/height/window mismatch")
 	}
 	binding, err := bc.checkpointBinding()
@@ -560,7 +580,10 @@ func (bc *Blockchain) readCheckpoint(slot int, key []byte) (*recoveryCheckpoint,
 	if cp.NodeBinding != binding {
 		return nil, fmt.Errorf("checkpoint belongs to another node")
 	}
-	b := bc.Blocks[cp.Height]
+	b, readErr := bc.blockAtLocked(cp.Height)
+	if readErr != nil {
+		return nil, readErr
+	}
 	if cp.Hash != b.Hash || b.FinalityCertificate == nil {
 		return nil, fmt.Errorf("checkpoint head mismatch")
 	}
@@ -588,7 +611,10 @@ func (bc *Blockchain) loadRecoveryCheckpoint() (*recoverySeed, error) {
 	if best == nil {
 		return nil, fmt.Errorf("no eligible authenticated checkpoint")
 	}
-	b := bc.Blocks[best.Height]
+	b, readErr := bc.blockAtLocked(best.Height)
+	if readErr != nil {
+		return nil, readErr
+	}
 	st := NewState()
 	st.balances = best.Balances
 	st.sequences = best.Sequences
@@ -613,7 +639,7 @@ func (bc *Blockchain) loadRecoveryCheckpoint() (*recoverySeed, error) {
 	if err = checkEVMCommitments(b, st); err != nil {
 		return nil, err
 	}
-	return &recoverySeed{height: best.Height, state: st, engine: hvm.NewEngine(hs, bc.v2Config.FeePolicy), validators: validators, receipts: best.Receipts}, nil
+	return &recoverySeed{nodes: cloneNodeIdentityMap(best.Nodes), height: best.Height, state: st, engine: hvm.NewEngine(hs, bc.v2Config.FeePolicy), validators: validators, receipts: best.Receipts}, nil
 }
 
 // RecoveryStatus reports startup work without exposing paths or cache secrets.

@@ -96,6 +96,7 @@ type indexEntry struct {
 }
 
 type ChainStorage struct {
+	writeErr      error // Once a durable write fails, only verified reopening may resume writes.
 	binaryPayload bool
 	formatKnown   bool
 	durable       bool // Strict persistent runtime: sync data before publishing its index.
@@ -123,7 +124,14 @@ func NewChainStorage(dir string) *ChainStorage {
 func (s *ChainStorage) SaveBlock(b *Block) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.saveBlockLocked(b)
+	if s.writeErr != nil {
+		return fmt.Errorf("storage requires verified reopen: %w", s.writeErr)
+	}
+	err := s.saveBlockLocked(b)
+	if err != nil && s.durable {
+		s.writeErr = err
+	}
+	return err
 }
 
 // saveBlockLocked contiene la logica; presuppone il lock già preso.
@@ -177,6 +185,38 @@ func (s *ChainStorage) saveBlockLocked(b *Block) error {
 		return fmt.Errorf("seek: %w", err)
 	}
 
+	if s.durable {
+		idx, e := os.Open(s.idxPath)
+		if e != nil && !(os.IsNotExist(e) && b.Index == 0 && offset == 0) {
+			return e
+		}
+		if idx != nil {
+			defer idx.Close()
+			st, e := idx.Stat()
+			if e != nil {
+				return e
+			}
+			if b.Index < 0 || st.Size()%20 != 0 || int64(b.Index) != st.Size()/20 {
+				return fmt.Errorf("nonsequential durable append")
+			}
+			end := uint64(0)
+			if st.Size() > 0 {
+				var rec [20]byte
+				if _, e = idx.ReadAt(rec[:], st.Size()-20); e != nil {
+					return e
+				}
+				off := binary.BigEndian.Uint64(rec[8:16])
+				size := uint64(binary.BigEndian.Uint32(rec[16:]))
+				if off > uint64(offset) || size > uint64(offset)-off {
+					return fmt.Errorf("invalid durable tail")
+				}
+				end = off + size
+			}
+			if end != uint64(offset) {
+				return fmt.Errorf("unindexed durable tail requires recovery")
+			}
+		}
+	}
 	if n, e := f.Write(frame); e != nil {
 		return e
 	} else if n != len(frame) {
@@ -201,6 +241,9 @@ func (s *ChainStorage) Rewrite(blocks []*Block) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.durable {
+		return fmt.Errorf("durable history replacement requires a separately verified generation")
+	}
 	// Tronca entrambi i file, poi riscrive dal primo blocco.
 	if err := os.Truncate(s.datPath, 0); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("truncate dat: %w", err)
@@ -226,7 +269,10 @@ func (s *ChainStorage) appendIndex(e indexEntry) error {
 	binary.BigEndian.PutUint64(buf[0:8], e.BlockNum)
 	binary.BigEndian.PutUint64(buf[8:16], uint64(e.Offset))
 	binary.BigEndian.PutUint32(buf[16:20], e.Size)
-	_, err = f.Write(buf)
+	n, err := f.Write(buf)
+	if err == nil && n != len(buf) {
+		err = io.ErrShortWrite
+	}
 	if err == nil && s.durable {
 		err = f.Sync()
 	}

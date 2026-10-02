@@ -211,7 +211,19 @@ func NewBlockchainDNS(bc *Blockchain) *BlockchainDNS {
 func (d *BlockchainDNS) GetAllNodes() map[string]NodeRecord {
 	nodes := make(map[string]NodeRecord)
 
-	for _, block := range d.bc.Blocks {
+	d.bc.mu.RLock()
+	defer d.bc.mu.RUnlock()
+	if d.bc.history != nil {
+		for id, v := range cloneNodeIdentityMap(d.bc.confirmedNodes) {
+			nodes[id] = v.Record
+		}
+		return nodes
+	}
+	for n := 0; n < d.bc.blockCountLocked(); n++ {
+		block, e := d.bc.blockAtLocked(n)
+		if e != nil {
+			return nil
+		}
 		for _, tx := range block.Transactions {
 			// Identifica le transazioni NODE_REGISTRATION
 			if tx.Receiver != RegistryAddress {
