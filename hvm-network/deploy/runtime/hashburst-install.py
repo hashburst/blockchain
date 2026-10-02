@@ -105,7 +105,7 @@ def main():
     if args.action=='status':
         print(state.read_text() if state.exists() else '{"phase":"not_started"}');return
     # This lock guards request publication; the worker takes its own execution lock.
-    with (root/('worker.lock' if args.action in ('worker','verify') else 'request.lock')).open('a') as lock:
+    with (root.parent/('worker.lock' if args.action in ('worker','verify') else 'request.lock')).open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         if args.action in ('install','resume'):
             require(not args.release.is_symlink() and not args.binary.is_symlink(),'release files must not be symlinks')
