@@ -22,8 +22,8 @@ create keys, start miners, alter IPFS, or automatically roll back signing state.
 Inputs: tested Linux binary and reviewed release JSON with chain_id=4735490,
 source_commit (40 hex), sha256, predecessors (approved prior binary SHA256 list).
 Hash verification proves correspondence to that reviewed manifest, not provenance
-if both binary and manifest came from an untrusted party. No install manifest is
-published for this development candidate yet.
+if both binary and manifest came from an untrusted party. Candidate packages require explicitly reviewed predecessor hashes; discovery
+alone does not approve an installed binary.
 
     python3 hashburst-install.py install --node hvm-testnet-v3 \
       --release release.json --binary hashburst-testnet
@@ -49,13 +49,15 @@ installer's finality-progress check automatically.
 
 Tests cover source format replay/append/corruption, immutable async snapshots,
 race detection, manifest network exclusion, evidence-prefix preservation and
-command matching. Live systemd failure-injection/fleet acceptance remains open.
+command matching. Disposable systemd install/resume/verify integration passes in CI. Live fleet
+acceptance remains open.
 
 ## Gates still open
 
-The current runtime still retains Blockchain.Blocks. This commit does not claim
-a bounded total node heap, mmap use on the live append file, authenticated peer
-bootstrap or a full lazy-history runtime. A production generation switch also
+Persistent HVM now leaves Blockchain.Blocks empty and uses indexed reads.
+See ON-DEMAND-HISTORY.md for cache bounds and ownership. The legacy constructor
+retains its compatibility slice. This does not imply a bounded total node heap,
+mmap use on the live append file or authenticated peer bootstrap. A production generation switch also
 needs complete state/identity/journal handling, rather than replacing two files
 individually. Mainnet legacy spending freeze, economic snapshot reconciliation,
 validator/genesis manifest and live acceptance remain separate gates.
