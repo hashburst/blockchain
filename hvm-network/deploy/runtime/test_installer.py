@@ -1,4 +1,4 @@
-import importlib.util, tempfile, unittest, json
+import importlib.util, tempfile, unittest, json, fcntl
 from pathlib import Path
 spec=importlib.util.spec_from_file_location('installer',Path(__file__).with_name('hashburst-install.py'));m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class InstallerTests(unittest.TestCase):
@@ -19,6 +19,12 @@ class InstallerTests(unittest.TestCase):
  def test_effective_command_exact(self):
   self.assertTrue(m.effective({'ExecStart':'{ path=/bin/node ; argv[]=/bin/node --config /etc/node.json ; }'},'/bin/node','/etc/node.json'))
   self.assertFalse(m.effective({'ExecStart':'{ path=/bin/old ; argv[]=/bin/old --config /etc/node.json ; }'},'/bin/node','/etc/node.json'))
+ def test_cross_release_node_lock(self):
+  with tempfile.TemporaryDirectory() as d:
+   node=Path(d)/'node';a=node/'release-a';b=node/'release-b';a.mkdir(parents=True);b.mkdir()
+   with (a.parent/'worker.lock').open('a') as first, (b.parent/'worker.lock').open('a') as second:
+    fcntl.flock(first,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    with self.assertRaises(BlockingIOError):fcntl.flock(second,fcntl.LOCK_EX|fcntl.LOCK_NB)
  def test_prefix_truncation(self):
   with tempfile.TemporaryDirectory() as d:
    p=Path(d)/'journal';p.write_bytes(b'a')
