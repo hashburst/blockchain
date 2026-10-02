@@ -11,8 +11,8 @@ package blockchain
 //     un ramo alternativo (chainops.go).
 
 import (
+	"bufio"
 	"bytes"
- "bufio"
 	"encoding/binary"
 	"encoding/gob"
 	"fmt"
@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"hashburst/consensus"
+	"hashburst/ledger"
 	"hashburst/protocolv2"
 )
 
@@ -95,11 +96,13 @@ type indexEntry struct {
 }
 
 type ChainStorage struct {
-	durable bool // Strict persistent runtime: sync data before publishing its index.
-	dir     string
-	datPath string
-	idxPath string
-	mu      sync.Mutex
+	binaryPayload bool
+	formatKnown   bool
+	durable       bool // Strict persistent runtime: sync data before publishing its index.
+	dir           string
+	datPath       string
+	idxPath       string
+	mu            sync.Mutex
 }
 
 func NewChainStorage(dir string) *ChainStorage {
@@ -125,12 +128,43 @@ func (s *ChainStorage) SaveBlock(b *Block) error {
 
 // saveBlockLocked contiene la logica; presuppone il lock già preso.
 func (s *ChainStorage) saveBlockLocked(b *Block) error {
-	bod := blockToOnDisk(b)
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(bod); err != nil {
-		return fmt.Errorf("encode block: %w", err)
+	if !s.formatKnown {
+		f, e := os.Open(s.datPath)
+		if e == nil {
+			var h [4]byte
+			_, e = io.ReadFull(f, h[:])
+			f.Close()
+			if e != nil && e != io.EOF {
+				return e
+			}
+			s.binaryPayload = string(h[:]) == "HBX2"
+		} else if !os.IsNotExist(e) {
+			return e
+		}
+		s.formatKnown = true
 	}
-	data := buf.Bytes()
+	var frame []byte
+	if s.binaryPayload {
+		payload, e := EncodeLedgerBlock(nil, b)
+		if e != nil {
+			return e
+		}
+		frame, e = ledger.AppendFrame(nil, payload)
+		if e != nil {
+			return e
+		}
+	} else {
+		var buf bytes.Buffer
+		if e := gob.NewEncoder(&buf).Encode(blockToOnDisk(b)); e != nil {
+			return e
+		}
+		if buf.Len() > (64<<20)-4 {
+			return fmt.Errorf("block exceeds legacy frame budget")
+		}
+		frame = make([]byte, 4+buf.Len())
+		binary.BigEndian.PutUint32(frame[:4], uint32(buf.Len()))
+		copy(frame[4:], buf.Bytes())
+	}
 
 	f, err := os.OpenFile(s.datPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
@@ -143,13 +177,10 @@ func (s *ChainStorage) saveBlockLocked(b *Block) error {
 		return fmt.Errorf("seek: %w", err)
 	}
 
-	sizeBuf := make([]byte, 4)
-	binary.BigEndian.PutUint32(sizeBuf, uint32(len(data)))
-	if _, err := f.Write(sizeBuf); err != nil {
-		return fmt.Errorf("write size: %w", err)
-	}
-	if _, err := f.Write(data); err != nil {
-		return fmt.Errorf("write data: %w", err)
+	if n, e := f.Write(frame); e != nil {
+		return e
+	} else if n != len(frame) {
+		return io.ErrShortWrite
 	}
 
 	if s.durable {
@@ -160,7 +191,7 @@ func (s *ChainStorage) saveBlockLocked(b *Block) error {
 	return s.appendIndex(indexEntry{
 		BlockNum: uint64(b.Index),
 		Offset:   offset,
-		Size:     uint32(len(data) + 4),
+		Size:     uint32(len(frame)),
 	})
 }
 
@@ -216,45 +247,105 @@ func (s *ChainStorage) LoadAll() ([]*Block, error) {
 	defer f.Close()
 
 	var index *os.File
- var indexReader *bufio.Reader
- stat,err:=f.Stat();if err!=nil{return nil,err}
- if s.durable {
-  index,err=os.Open(s.idxPath);if err!=nil{return nil,err};defer index.Close()
-  indexReader=bufio.NewReaderSize(index,64<<10)
- }
- var offset int64
- blocks := []*Block{}
- reader := bufio.NewReaderSize(f, 256<<10)
- var data []byte
+	var indexReader *bufio.Reader
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if s.durable {
+		index, err = os.Open(s.idxPath)
+		if err != nil {
+			return nil, err
+		}
+		defer index.Close()
+		indexReader = bufio.NewReaderSize(index, 64<<10)
+	}
+	var offset int64
+	blocks := []*Block{}
+	reader := bufio.NewReaderSize(f, 256<<10)
+	var data []byte
 	for {
-		sizeBuf := make([]byte, 4)
-		if _, err := io.ReadFull(reader, sizeBuf); err != nil {
-			if err == io.EOF {
-    if indexReader!=nil { var extra [1]byte; if _,e:=indexReader.Read(extra[:]);e!=io.EOF{return nil,fmt.Errorf("trailing chain index bytes")} }
-    break
+		h, e := reader.Peek(4)
+		if e == io.EOF && len(h) == 0 {
+			if indexReader != nil {
+				var extra [1]byte
+				if _, e = indexReader.Read(extra[:]); e != io.EOF {
+					return nil, fmt.Errorf("trailing chain index bytes")
+				}
 			}
-			return nil, fmt.Errorf("read size: %w", err)
+			break
 		}
-		size := binary.BigEndian.Uint32(sizeBuf)
+		if e != nil {
+			return nil, fmt.Errorf("read frame prefix: %w", e)
+		}
+		isBinary := string(h) == "HBX2"
+		if len(blocks) == 0 {
+			s.binaryPayload = isBinary
+			s.formatKnown = true
+		} else if isBinary != s.binaryPayload {
+			return nil, fmt.Errorf("mixed payload formats")
+		}
+		var frameSize uint32
+		if isBinary {
+			header, e := reader.Peek(ledger.FrameHeader)
+			if e != nil {
+				return nil, e
+			}
+			n := binary.LittleEndian.Uint32(header[4:8])
+			if n > ledger.MaxRecord {
+				return nil, fmt.Errorf("binary frame exceeds budget")
+			}
+			frameSize = n + ledger.FrameHeader
+		} else {
+			n := binary.BigEndian.Uint32(h)
+			if n == 0 || n > (64<<20)-4 {
+				return nil, fmt.Errorf("invalid legacy frame size")
+			}
+			frameSize = n + 4
+		}
+		if int64(frameSize) > stat.Size()-offset {
+			return nil, fmt.Errorf("truncated chain frame")
+		}
+		if indexReader != nil {
+			var rec [20]byte
+			if _, e = io.ReadFull(indexReader, rec[:]); e != nil {
+				return nil, e
+			}
+			if binary.BigEndian.Uint64(rec[:8]) != uint64(len(blocks)) || binary.BigEndian.Uint64(rec[8:16]) != uint64(offset) || binary.BigEndian.Uint32(rec[16:]) != frameSize {
+				return nil, fmt.Errorf("persistent chain index mismatch")
+			}
+		}
+		if cap(data) < int(frameSize) {
+			data = make([]byte, frameSize)
+		} else {
+			data = data[:frameSize]
+		}
+		if _, e = io.ReadFull(reader, data); e != nil {
+			return nil, e
+		}
+		var b *Block
+		if isBinary {
+			payload, e := ledger.FramePayload(data)
+			if e != nil {
+				return nil, e
+			}
+			b = new(Block)
+			if e = DecodeLedgerBlockInto(payload, b); e != nil {
+				return nil, e
+			}
+		} else {
+			var bod blockOnDisk
+			if e = gob.NewDecoder(bytes.NewReader(data[4:])).Decode(&bod); e != nil {
+				return nil, e
+			}
+			b = blockFromOnDisk(&bod)
+		}
+		if s.durable && b.Index != len(blocks) {
+			return nil, fmt.Errorf("payload/index ordinal mismatch")
+		}
+		blocks = append(blocks, b)
+		offset += int64(frameSize)
 
-		if size == 0 || size > (64<<20)-4 { return nil, fmt.Errorf("invalid block frame size %d", size) }
- if int64(size)>stat.Size()-offset-4{return nil,fmt.Errorf("truncated chain frame")}
- if indexReader!=nil {
-  var rec [20]byte
-  if _,e:=io.ReadFull(indexReader,rec[:]);e!=nil{return nil,e}
-  if binary.BigEndian.Uint64(rec[:8])!=uint64(len(blocks))||binary.BigEndian.Uint64(rec[8:16])!=uint64(offset)||binary.BigEndian.Uint32(rec[16:])!=size+4{return nil,fmt.Errorf("persistent chain index mismatch")}
- }
- offset+=4+int64(size)
- if cap(data) < int(size) { data = make([]byte, size) } else { data = data[:size] }
-		if _, err := io.ReadFull(reader, data); err != nil {
-			return nil, fmt.Errorf("read data: %w", err)
-		}
-
-		var bod blockOnDisk
-		if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&bod); err != nil {
-			return nil, fmt.Errorf("decode block: %w", err)
-		}
-		blocks = append(blocks, blockFromOnDisk(&bod))
 	}
 	return blocks, nil
 }

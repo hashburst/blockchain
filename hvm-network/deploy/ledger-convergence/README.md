@@ -14,8 +14,10 @@ alignment is irrelevant: encode each field explicitly. Size includes the frame.
 
 The old payload is uint32-BE length + gob. The manual-codec candidate is an HBX2
 CRC frame containing HBB2 Block bytes. SAME FILENAMES DO NOT MAKE THEM COMPATIBLE.
-The new binary pair lives in a separate immutable generation with FORMAT.json.
-Never replace current runtime files with it before runtime integration.
+The converter creates a separate immutable generation with FORMAT.json.
+The development runtime now reads/appends this codec, but production generation
+switching and bounded-history integration remain unqualified. Do not replace
+active files with this development output.
 
 ledger.OpenPair supports explicit GobPayload or BinaryPayload; ValidateLayout
 checks index contiguity and bounds; WithPayload reads lazily. Mmap misses lend
@@ -77,7 +79,8 @@ Do not rename them mainnet or replace their testnet economic state.
 
 `bash fleet-inspect.sh` collects current identities/roles/health sequentially.
 It reads only, stops on error and does not certify common-height agreement.
-No automatic cutover script is supplied while the node cannot open this codec.
+The runtime-installer candidate updates a binary only. Automated ledger cutover
+and fleet acceptance remain unfinished.
 
 After runtime integration and acceptance, the required rolling workflow is:
 
