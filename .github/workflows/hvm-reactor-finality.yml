@@ -1,0 +1,51 @@
+name: HVM reactor finalized-head race
+on:
+  push:
+    branches: [codex/hvm-reactor-finality-race]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: hvm-network
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - name: Reproduce regression on unpatched parent
+        run: |
+          cp blockchain/consensus_reactor.go /tmp/fixed-reactor.go
+          git show 2bce89d3b0d101affb1f249c4bf8af11f6b3de7d:hvm-network/blockchain/consensus_reactor.go > blockchain/consensus_reactor.go
+          set +e
+          go test ./blockchain -run '^TestTimeoutReconcilesDurableHeadBeforeSyncCallback$' -count=1 > /tmp/before.log 2>&1
+          result=$?
+          set -e
+          cp /tmp/fixed-reactor.go blockchain/consensus_reactor.go
+          cat /tmp/before.log
+          test "$result" -ne 0
+          grep -q 'reactor height=' /tmp/before.log
+      - name: Recovery installer regression
+        run: |
+          python3 deploy/runtime/test_installer.py
+          python3 deploy/runtime/test_recover_v1.py
+          python3 deploy/runtime/test_align_fleet.py
+      - name: Failed-node systemd recovery
+        run: sudo env PATH="$PATH" HVM_DISPOSABLE_CI=1 bash deploy/runtime/test-systemd-failed-v1.sh
+      - name: Full regression
+        run: go test ./...
+      - name: Concurrent reactor regressions
+        run: go test -race ./blockchain -run 'Test(TimeoutReconciles|ProposalIndexAhead|HVMNetwork|Persistent)' -count=1
+      - name: Build candidate
+        run: go build -o hashburst-testnet-reactor-candidate ./cmd/hashburst-testnet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reactor-finality-candidate
+          path: hvm-network/hashburst-testnet-reactor-candidate

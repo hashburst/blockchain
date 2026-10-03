@@ -113,6 +113,29 @@ def verify(unit,cfg,c,binary,record,timeout):
         time.sleep(5)
     raise RuntimeError('verification deadline; repeat verify, not install; APoW activation barrier may require separate coordinated miner acceptance')
 
+def replace_override(drop, text, predecessor, cfg):
+    """Only replace our exact predecessor override, never an unrelated override."""
+    require(not drop.is_symlink(), 'runtime override symlink')
+    old='[Service]\nExecStart=\nExecStart='+str(predecessor)+' --config '+str(cfg)+'\nExecPaths='+str(predecessor)+'\n'
+    if drop.exists():
+        current=drop.read_text()
+        if current == text:return
+        require(current == old, 'unrecognized runtime override; retained stopped')
+        backup=drop.with_name(drop.name+'.previous-'+hashlib.sha256(old.encode()).hexdigest()[:16])
+        if backup.exists():require(not backup.is_symlink() and backup.read_text()==old,'override backup differs')
+        else:
+            with backup.open('x') as f:f.write(old);f.flush();os.fsync(f.fileno())
+    fd,tmp=tempfile.mkstemp(prefix='.runtime-',dir=drop.parent)
+    try:
+        with os.fdopen(fd,'w') as f:
+            f.write(text);f.flush();os.fchmod(f.fileno(),0o644);os.fsync(f.fileno())
+        os.replace(tmp,drop)
+        parent=os.open(drop.parent,os.O_RDONLY)
+        try:os.fsync(parent)
+        finally:os.close(parent)
+    finally:
+        if os.path.exists(tmp):os.unlink(tmp)
+
 def main():
     a=argparse.ArgumentParser(description=__doc__)
     a.add_argument('action',choices=['install','resume','verify','status','worker'])
@@ -178,9 +201,7 @@ def main():
             run('runuser','-u',p['User'],'--','test','-x',str(binary))
             drop=Path('/etc/systemd/system')/(unit+'.d')/'zzzz-hvm-runtime.conf';drop.parent.mkdir(parents=True,exist_ok=True)
             text='[Service]\nExecStart=\nExecStart='+str(binary)+' --config '+str(cfg)+'\nExecPaths='+str(binary)+'\n'
-            if drop.exists():require(drop.read_text()==text,'existing runtime override differs')
-            else:
-                with drop.open('x') as f:f.write(text);f.flush();os.fsync(f.fileno())
+            replace_override(drop, text, record['old'], cfg)
             run('systemctl','daemon-reload');require(effective(props(unit),binary,cfg),'override shadowed; retained stopped')
             record['phase']='configured';atomic(state,record)
         if record['phase']=='configured':
