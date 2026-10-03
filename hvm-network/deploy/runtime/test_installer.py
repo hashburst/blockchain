@@ -59,4 +59,36 @@ class AsyncStartTests(unittest.TestCase):
   calls=[n for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='run' and n.args and isinstance(n.args[0],ast.Constant) and n.args[0].value=='systemd-run']
   self.assertEqual(len(calls),1)
   self.assertIn('--no-block',[a.value for a in calls[0].args if isinstance(a,ast.Constant)])
+class ReadinessTests(unittest.TestCase):
+ def setUp(self):
+  import subprocess
+  spec=importlib.util.spec_from_file_location('rollout',Path(__file__).with_name('resume-rollout.py'))
+  module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+  self.ns={'subprocess':subprocess};exec(module.READ_ONLY_WAIT,self.ns)
+ def test_read_recovers_without_restart(self):
+  from unittest.mock import Mock, patch
+  import subprocess, urllib.error
+  call=Mock(side_effect=[urllib.error.URLError(ConnectionRefusedError(111,'refused')),{'height':5}])
+  with patch.object(subprocess,'run',return_value=Mock(stdout='ActiveState=active\nSubState=running\n')) as run, patch.object(self.ns['time'],'sleep'):
+   self.assertEqual(self.ns['read_only_ready'](call,{'action':'status'}),{'height':5})
+   self.assertEqual(run.call_args.args[0][:2],['systemctl','show'])
+   self.assertEqual(run.call_count,1)
+ def test_identity_error_not_retried(self):
+  from unittest.mock import Mock
+  call=Mock(side_effect=RuntimeError('identity mismatch'))
+  with self.assertRaisesRegex(RuntimeError,'identity mismatch'):self.ns['read_only_ready'](call,{'action':'status'})
+  self.assertEqual(call.call_count,1)
+ def test_write_action_rejected(self):
+  from unittest.mock import Mock
+  call=Mock()
+  with self.assertRaises(RuntimeError):self.ns['read_only_ready'](call,{'action':'install'})
+  call.assert_not_called()
+ def test_failed_service_shows_journal_and_stops(self):
+  from unittest.mock import Mock, patch
+  import subprocess, urllib.error
+  call=Mock(side_effect=urllib.error.URLError(ConnectionRefusedError(111,'refused')))
+  with patch.object(subprocess,'run',side_effect=[Mock(stdout='ActiveState=failed\n'),Mock(stdout='failure details')]) as run:
+   with self.assertRaisesRegex(RuntimeError,'no restart performed'):self.ns['read_only_ready'](call,{'action':'status'})
+   self.assertEqual(run.call_args_list[1].args[0][0],'journalctl')
+   self.assertEqual(call.call_count,1)
 if __name__=='__main__':unittest.main()
