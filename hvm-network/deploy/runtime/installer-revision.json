@@ -1,0 +1,14 @@
+{
+  "revision": "async-installer-2-readiness",
+  "binary_source_commit": "9dd8e4113c49a90861f465c4b7a18e8db5d7d6aa",
+  "rollout_binary_sha256": "3a77bcd4198a666801ca3ea8a91fccd4cead9bae506f6455ebc5ad5a9f8f3ebc",
+  "installer_sha256": "3f6d6ab823134a045ea55fcab58f778cea44f0ecf1c9b4e04dae498ad2bd7114",
+  "chain_id": 4735490,
+  "changed_files": [
+    "hvm-network/deploy/runtime/hashburst-install.py",
+    "hvm-network/deploy/runtime/test_installer.py",
+    "hvm-network/deploy/runtime/resume-rollout.py",
+    "hvm-network/deploy/runtime/installer-revision.json"
+  ],
+  "release_status": "testnet_installer_revision_not_mainnet_release"
+}

@@ -58,7 +58,7 @@ func TestPhase3BV2MiningPayoutRegistryEndToEnd(t *testing.T) {
 	if err := bc.AddBlock(admin.Address()); err != nil {
 		t.Fatal(err)
 	}
-	if bc.Height() != 1 || bc.Blocks[1].EffectiveVersion() != BlockVersionLegacy {
+	if bc.Height() != 1 || testHistoryBlock(t,bc,1).EffectiveVersion() != BlockVersionLegacy {
 		t.Fatalf("expected legacy block at height 1")
 	}
 
@@ -71,10 +71,10 @@ func TestPhase3BV2MiningPayoutRegistryEndToEnd(t *testing.T) {
 	signAndAdmitV2(t, bc, admin, deploy)
 	mineSnapshots(t, bc, mp, admin.Address())
 
-	if bc.Blocks[2].EffectiveVersion() != BlockVersionV2 {
+	if testHistoryBlock(t,bc,2).EffectiveVersion() != BlockVersionV2 {
 		t.Fatalf("height 2 is not V2")
 	}
-	if !isHex32(bc.Blocks[2].HBTStateRoot) || !isHex32(bc.Blocks[2].HVMStateRoot) || !isHex32(bc.Blocks[2].ReceiptsRoot) {
+	if !isHex32(testHistoryBlock(t,bc,2).HBTStateRoot) || !isHex32(testHistoryBlock(t,bc,2).HVMStateRoot) || !isHex32(testHistoryBlock(t,bc,2).ReceiptsRoot) {
 		t.Fatalf("missing V2 commitments")
 	}
 	deployReceipt, ok := bc.Receipt(deploy.HashHex())

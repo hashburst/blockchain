@@ -26,7 +26,7 @@ func (bc *Blockchain) SimulateHVMCall(sender, address, method string, args json.
 	}{sender, address, method, args})
 	sum := sha256.Sum256(seed)
 	engine := bc.hvmEngine.Clone()
-	head := bc.Blocks[len(bc.Blocks)-1]
+	head := bc.headLocked()
 	r := engine.Call(hvm.ExecutionContext{
 		TxID:         hex.EncodeToString(sum[:]),
 		ChainID:      bc.v2Config.ChainID,

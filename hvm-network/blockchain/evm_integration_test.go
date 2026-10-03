@@ -66,7 +66,7 @@ func TestEVMRealMempoolFourValidatorsAndPersistentReplay(t *testing.T) {
 		node.SetMempool(NewMempool())
 		node.storage.durable = true
 	}
-	originalGenesis := s.nodes[0].Blocks[0].Hash
+	originalGenesis := testHistoryBlock(t,s.nodes[0],0).Hash
 	finalizeEVMFixture(t, s) // explicit activation, no public data or genesis touched
 	node := s.nodes[0]
 	sender := common.HexToAddress(s.vals[0].operator.Address())
@@ -280,7 +280,7 @@ func TestEVMRealMempoolFourValidatorsAndPersistentReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fresh, err := OpenExistingBlockchain(restarted.storage.dir, cfg, originalGenesis, 6, restarted.Blocks[6].Hash)
+	fresh, err := OpenExistingBlockchain(restarted.storage.dir, cfg, originalGenesis, 6, testHistoryBlock(t,restarted,6).Hash)
 	if err != nil {
 		t.Fatal(err)
 	}

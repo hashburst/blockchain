@@ -1,31 +1,57 @@
 package blockchain
 
-import "strings"
+import (
+	"log"
+	"strings"
+)
 
-// ContainsTx checks confirmed V1 transaction IDs.
-func (bc *Blockchain) ContainsTx(txID string) bool {
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
-	for _, b := range bc.Blocks {
-		for _, tx := range b.Transactions {
-			if tx != nil && tx.ID == txID {
-				return true
+func (bc *Blockchain) containsTxLocked(id string, v2 bool) (bool, error) {
+	if v2 {
+		id = strings.ToLower(strings.TrimPrefix(id, "0x"))
+		if bc.history != nil {
+			_, found := bc.receipts[id]
+			return found, nil
+		}
+	}
+	for n := 0; n < bc.blockCountLocked(); n++ {
+		b, e := bc.blockAtLocked(n)
+		if e != nil {
+			return false, e
+		}
+		if v2 {
+			for _, tx := range b.TransactionsV2 {
+				if tx != nil && strings.ToLower(strings.TrimPrefix(tx.HashHex(), "0x")) == id {
+					return true, nil
+				}
+			}
+		} else {
+			for _, tx := range b.Transactions {
+				if tx != nil && tx.ID == id {
+					return true, nil
+				}
 			}
 		}
 	}
-	return false
+	return false, nil
+}
+func (bc *Blockchain) ContainsTxChecked(id string, v2 bool) (bool, error) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	return bc.containsTxLocked(id, v2)
 }
 
-func (bc *Blockchain) ContainsTxV2(txID string) bool {
-	txID = strings.ToLower(strings.TrimPrefix(txID, "0x"))
-	bc.mu.RLock()
-	defer bc.mu.RUnlock()
-	for _, b := range bc.Blocks {
-		for _, tx := range b.TransactionsV2 {
-			if tx != nil && strings.ToLower(strings.TrimPrefix(tx.HashHex(), "0x")) == txID {
-				return true
-			}
-		}
+// Legacy boolean callers fail closed on unreadable history. Network uses checked API.
+func (bc *Blockchain) ContainsTx(id string) bool {
+	v, e := bc.ContainsTxChecked(id, false)
+	if e != nil {
+		log.Printf("history lookup failed: %v", e)
 	}
-	return false
+	return v || e != nil
+}
+func (bc *Blockchain) ContainsTxV2(id string) bool {
+	v, e := bc.ContainsTxChecked(id, true)
+	if e != nil {
+		log.Printf("history lookup failed: %v", e)
+	}
+	return v || e != nil
 }

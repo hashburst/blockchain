@@ -171,7 +171,7 @@ func TestAPoWFourReactorsLossAndResume(t *testing.T) {
 		t.Fatal("lost messages across resume stalled finality")
 	}
 	for _, bc := range s.nodes {
-		if bc.Blocks[7].Hash != s.nodes[0].Blocks[7].Hash {
+		if testHistoryBlock(t,bc,7).Hash != testHistoryBlock(t,s.nodes[0],7).Hash {
 			t.Fatal("conflicting finalized blocks")
 		}
 	}

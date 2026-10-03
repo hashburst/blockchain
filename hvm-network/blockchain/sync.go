@@ -226,7 +226,10 @@ func (sy *Syncer) onHello(peerID peer.ID, msg *syncMessage) error {
 }
 
 func (sy *Syncer) onGetBlocks(s network.Stream, msg *syncMessage) error {
-	blocks := sy.bc.SnapshotBlocksFrom(msg.FromIndex, maxBlocksBatch)
+	blocks, err := sy.bc.SnapshotBlocksFromChecked(msg.FromIndex, maxBlocksBatch)
+	if err != nil {
+		return err
+	}
 	out := make([]*blockWire, len(blocks))
 	for i, b := range blocks {
 		out[i] = blockToWire(b)
@@ -265,7 +268,11 @@ func (sy *Syncer) onNewTx(peerID peer.ID, msg *syncMessage) error {
 	if err := tx.Verify(); err != nil {
 		return fmt.Errorf("tx gossip non valida: %w", err)
 	}
-	if sy.bc.ContainsTx(tx.ID) {
+	confirmed, err := sy.bc.ContainsTxChecked(tx.ID, false)
+	if err != nil {
+		return err
+	}
+	if confirmed {
 		return nil
 	}
 	before := sy.mp.Size()
@@ -280,7 +287,11 @@ func (sy *Syncer) onNewTxV2(peerID peer.ID, msg *syncMessage) error {
 	if msg.TxV2 == nil {
 		return nil
 	}
-	if sy.bc.ContainsTxV2(msg.TxV2.HashHex()) {
+	confirmed, err := sy.bc.ContainsTxChecked(msg.TxV2.HashHex(), true)
+	if err != nil {
+		return err
+	}
+	if confirmed {
 		return nil
 	}
 	if sy.mp.HasTransactionV2(msg.TxV2.HashHex()) {

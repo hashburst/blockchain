@@ -29,7 +29,7 @@ func (bc *Blockchain) TryExtendOrAdopt(incoming []*Block) (applied bool, err err
 		}
 	}()
 
-	head := bc.Blocks[len(bc.Blocks)-1]
+	head := bc.headLocked()
 	first := incoming[0]
 	if first.Index == head.Index+1 && first.PrevHash == head.Hash {
 		return bc.extendLocked(incoming)
@@ -48,7 +48,7 @@ func (bc *Blockchain) TryExtendOrAdopt(incoming []*Block) (applied bool, err err
 	}
 	ticksPerBlock := int64(bc.v2Config.EffectivePoHTicks())
 	candidateTicks := int64(len(candidate)-1) * ticksPerBlock
-	ourTicks := int64(len(bc.Blocks)-1) * ticksPerBlock
+	ourTicks := int64(bc.blockCountLocked()-1) * ticksPerBlock
 	if candidateTicks <= ourTicks {
 		return false, nil
 	}
@@ -71,7 +71,7 @@ func (bc *Blockchain) TryExtendOrAdopt(incoming []*Block) (applied bool, err err
 func (bc *Blockchain) extendLocked(blocks []*Block) (bool, error) {
 	appliedAny := false
 	for _, b := range blocks {
-		head := bc.Blocks[len(bc.Blocks)-1]
+		head := bc.headLocked()
 		if b.Index <= head.Index {
 			continue
 		}
@@ -100,7 +100,9 @@ func (bc *Blockchain) extendLocked(blocks []*Block) (bool, error) {
 		if err := bc.storage.SaveBlock(b); err != nil {
 			return appliedAny, fmt.Errorf("sync: persistenza blocco #%d: %w", b.Index, err)
 		}
-		bc.Blocks = append(bc.Blocks, b)
+		if err := bc.appendHistoryLocked(b); err != nil {
+			return appliedAny, err
+		}
 		if ex != nil {
 			bc.commitV2Execution(ex)
 		} else if bc.state != nil {
@@ -113,6 +115,9 @@ func (bc *Blockchain) extendLocked(blocks []*Block) (bool, error) {
 }
 
 func (bc *Blockchain) buildCandidateChain(incoming []*Block) ([]*Block, error) {
+	if bc.history != nil {
+		return nil, fmt.Errorf("persistent finalized history cannot use legacy fork replacement")
+	}
 	first := incoming[0]
 	if first.Index == 0 {
 		return nil, fmt.Errorf("il ramo riparte dal genesis: non gestito")
@@ -184,17 +189,30 @@ func validateFullChainWithConfig(chain []*Block, cfg ProtocolV2Config, reward fl
 	return nil
 }
 
-func (bc *Blockchain) SnapshotBlocksFrom(fromIndex, limit int) []*Block {
+// SnapshotBlocksFromChecked never returns a partial response after a disk error.
+func (bc *Blockchain) SnapshotBlocksFromChecked(fromIndex, limit int) ([]*Block, error) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
-	var out []*Block
-	for _, b := range bc.Blocks {
-		if b.Index >= fromIndex {
-			out = append(out, b)
-			if len(out) >= limit {
-				break
-			}
-		}
+	if fromIndex < 0 || limit <= 0 || limit > 2048 {
+		return nil, fmt.Errorf("invalid history range")
 	}
-	return out
+	out := make([]*Block, 0, min(limit, max(0, bc.blockCountLocked()-fromIndex)))
+	for n := fromIndex; n < bc.blockCountLocked() && len(out) < limit; n++ {
+		b, e := bc.blockAtLocked(n)
+		if e != nil {
+			return nil, e
+		}
+		out = append(out, cloneBlockForConsensus(b))
+	}
+	return out, nil
+}
+
+// Compatibility wrapper; network uses the checked API.
+func (bc *Blockchain) SnapshotBlocksFrom(fromIndex, limit int) []*Block {
+	blocks, e := bc.SnapshotBlocksFromChecked(fromIndex, limit)
+	if e != nil {
+		log.Printf("history range unavailable: %v", e)
+		return nil
+	}
+	return blocks
 }

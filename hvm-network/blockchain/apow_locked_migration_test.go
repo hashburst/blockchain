@@ -48,7 +48,7 @@ func TestAPoWRecoveryFourLockedValidatorsPreserveAndFinalize(t *testing.T) {
 		}
 		next := bc.v2Config.detached()
 		next.APoW = &APoWConfig{ActivationHeight: 10000, InitialBits: 4, MinBits: 1, MaxBits: 16, Window: 4, TargetSeconds: 5, GasLimit: 2000000}
-		fresh, e := OpenExistingBlockchain(bc.storage.dir, next, bc.Blocks[0].Hash, 6, bc.Blocks[6].Hash)
+		fresh, e := OpenExistingBlockchain(bc.storage.dir, next, testHistoryBlock(t,bc,0).Hash, 6, testHistoryBlock(t,bc,6).Hash)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -102,7 +102,7 @@ func TestAPoWRecoveryFourLockedValidatorsPreserveAndFinalize(t *testing.T) {
 		t.Fatal("no finality after recovery")
 	}
 	for _, bc := range s.nodes {
-		if bc.Blocks[7].Hash != b.Hash {
+		if testHistoryBlock(t,bc,7).Hash != b.Hash {
 			t.Fatal("conflicting finality")
 		}
 	}

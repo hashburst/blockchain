@@ -54,7 +54,7 @@ func (bc *Blockchain) AdmitEthereum(raw []byte) (common.Hash, error) {
 	if bc.mempool == nil {
 		return common.Hash{}, fmt.Errorf("mempool unavailable")
 	}
-	head := bc.Blocks[len(bc.Blocks)-1]
+	head := bc.headLocked()
 	if !bc.v2Config.EVMEnabledAt(head.Index) || bc.state.evm == nil {
 		return common.Hash{}, fmt.Errorf("EVM activation block not finalized")
 	}
@@ -102,7 +102,11 @@ func (bc *Blockchain) AdmitEthereum(raw []byte) (common.Hash, error) {
 	b := &Block{Version: BlockVersionEVM, Index: head.Index + 1, Timestamp: time.Unix(head.Timestamp.Unix()+1, 0), PrevHash: head.Hash}
 	// Validate intrinsic gas, fee and execution envelope on a detached state.
 	raws := append(pending, append([]byte(nil), raw...))
-	if _, err := execution.ApplyBlock(context.Background(), bc.state.evm.db, bc.v2Config.ChainID, bc.ethereumContext(b, bc.Blocks), raws); err != nil {
+	ancestors, readErr := bc.ancestorWindowLocked(b.Index)
+	if readErr != nil {
+		return common.Hash{}, readErr
+	}
+	if _, err := execution.ApplyBlock(context.Background(), bc.state.evm.db, bc.v2Config.ChainID, bc.ethereumContext(b, ancestors), raws); err != nil {
 		return common.Hash{}, err
 	}
 	bc.mempool.mutex.Lock()
@@ -118,10 +122,14 @@ func (bc *Blockchain) selectEthereum(b *Block) {
 	b.EthereumTransactions = nil
 	// Execute native effects once, then consider each envelope once. Replaying
 	// the entire pending prefix for every entry would allow quadratic gas work.
-	base, err := bc.executeBlockV2(bc.state, bc.hvmEngine, bc.validators, nodeIdentityProjection(bc.Blocks, bc.v2Config.ChainID), b, bc.Blocks)
+	base, err := bc.executeCurrentBlock(b)
 	if err != nil {
 		return
 	} // prepareV2Commitments reports the native execution error.
+	ancestors, readErr := bc.ancestorWindowLocked(b.Index)
+	if readErr != nil {
+		return
+	}
 	st := base.state.evm.db
 	remaining := bc.v2Config.EVMGasLimitAt(b.Index)
 	for _, raw := range candidates {
@@ -129,7 +137,7 @@ func (bc *Blockchain) selectEthereum(b *Block) {
 		if err != nil || tx.Gas() > remaining {
 			continue
 		}
-		result, err := execution.ApplyBlock(context.Background(), st, bc.v2Config.ChainID, bc.ethereumContext(b, bc.Blocks), [][]byte{raw})
+		result, err := execution.ApplyBlock(context.Background(), st, bc.v2Config.ChainID, bc.ethereumContext(b, ancestors), [][]byte{raw})
 		if err != nil {
 			continue
 		}

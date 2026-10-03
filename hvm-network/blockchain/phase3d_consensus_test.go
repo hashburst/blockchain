@@ -236,8 +236,8 @@ func TestPhase3DViewChangeWithRoundZeroProposerOffline(t *testing.T) {
 			t.Fatalf("online node %d finalized >=7 but has no height-7 block", i)
 		}
 		if finalized == nil {
-			finalized = cloneBlockForConsensus(bc.Blocks[7])
-		} else if !strings.EqualFold(finalized.Hash, bc.Blocks[7].Hash) {
+			finalized = cloneBlockForConsensus(testHistoryBlock(t,bc,7))
+		} else if !strings.EqualFold(finalized.Hash, testHistoryBlock(t,bc,7).Hash) {
 			t.Fatalf("online nodes finalized different values")
 		}
 	}

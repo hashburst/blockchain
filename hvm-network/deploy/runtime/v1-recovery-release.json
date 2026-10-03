@@ -1,0 +1,19 @@
+{
+  "chain_id": 4735490,
+  "source_commit": "2719806647f25012a8d6b868a645c0341b0442c1",
+  "sha256": "30a0cd390af000019577f06bcf97ce54959808aa4447ab318ef669cf8aa9be0e",
+  "predecessors": [
+    "10cb427894e3f51c088be2eb06744706f9f080aa9a2877cda6944622ebb8e0b7"
+  ],
+  "failed_node_recovery": {
+    "node_id": "hvm-testnet-v1",
+    "predecessor_sha256": "10cb427894e3f51c088be2eb06744706f9f080aa9a2877cda6944622ebb8e0b7",
+    "result": "exit-code",
+    "exit_status": 1
+  },
+  "installer_sha256": "af4a7f33974d4df2751675a4024ae2e0d4ee9bd9fefea7a577a82c0a571f8a41",
+  "artifact_id": 11274157535,
+  "artifact_sha256": "91a763f4cb4f500a42f03c6a3dae093d963b4a01d3f4c2260fd13a5138279f32",
+  "workflow_run": 37123137869,
+  "status": "testnet_v1_recovery_candidate_not_mainnet_release"
+}

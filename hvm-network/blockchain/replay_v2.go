@@ -10,30 +10,46 @@ import (
 )
 
 func (bc *Blockchain) computeProjections(blocks []*Block) (*State, *hvm.Engine, *consensus.Registry, map[string]hvm.Receipt, *evmReadHistory, error) {
+	return bc.computeProjectionsFrom(len(blocks), func(n int) (*Block, error) { return blocks[n], nil })
+}
+func (bc *Blockchain) computeProjectionsFrom(count int, get func(int) (*Block, error)) (*State, *hvm.Engine, *consensus.Registry, map[string]hvm.Receipt, *evmReadHistory, error) {
 	st := NewState()
 	history := &evmReadHistory{}
 	engine := hvm.NewEngine(nil, bc.v2Config.FeePolicy)
 	validators := consensus.NewRegistry(bc.v2Config.Validator)
 	receipts := make(map[string]hvm.Receipt)
 	confirmedNodes := make(map[string]ConfirmedNodeIdentity)
- start := 0
- if seed := bc.startupSeed; seed != nil {
-  st, engine, validators, receipts = seed.state, seed.engine, seed.validators, seed.receipts
-  start = seed.height+1
-  confirmedNodes = nodeIdentityProjection(blocks[:start], bc.v2Config.ChainID)
- }
- for _, b := range blocks[start:] {
+	start := 0
+	if seed := bc.startupSeed; seed != nil {
+		st, engine, validators, receipts = seed.state, seed.engine, seed.validators, seed.receipts
+		start = seed.height + 1
+		confirmedNodes = cloneNodeIdentityMap(seed.nodes)
+	}
+	ancestors := make([]*Block, 0, 257)
+	for n := max(0, start-256); n < start; n++ {
+		b, e := get(n)
+		if e != nil {
+			return nil, nil, nil, nil, nil, e
+		}
+		ancestors = append(ancestors, &Block{Index: b.Index, Hash: b.Hash})
+	}
+	for n := start; n < count; n++ {
+		b, e := get(n)
+		if e != nil {
+			return nil, nil, nil, nil, nil, e
+		}
 		if b.Index > 0 && b.Index%5000 == 0 {
-			log.Printf("HVM_REPLAY_PROGRESS height=%d total=%d", b.Index, len(blocks))
+			log.Printf("HVM_REPLAY_PROGRESS height=%d total=%d", b.Index, count)
 		}
 		if b.EffectiveVersion() < BlockVersionV2 {
 			if err := st.ApplyBlock(b); err != nil {
 				return nil, nil, nil, nil, nil, fmt.Errorf("block #%d native state: %w", b.Index, err)
 			}
 			applyNodeRegistrations(confirmedNodes, b, bc.v2Config.ChainID)
+			ancestors = appendAncestor(ancestors, b)
 			continue
 		}
-		result, err := bc.executeBlockV2(st, engine, validators, cloneNodeIdentityMap(confirmedNodes), b, blocks[:b.Index])
+		result, err := bc.executeBlockV2(st, engine, validators, cloneNodeIdentityMap(confirmedNodes), b, ancestors)
 		if err != nil {
 			return nil, nil, nil, nil, nil, fmt.Errorf("block #%d V2 execution: %w", b.Index, err)
 		}
@@ -53,7 +69,7 @@ func (bc *Blockchain) computeProjections(blocks []*Block) (*State, *hvm.Engine, 
 			}
 		}
 		st = result.state
-		if b.Index >= len(blocks)-evmReadHistoryLimit {
+		if b.Index >= count-evmReadHistoryLimit {
 			history.remember(b, st)
 		}
 		engine = result.hvm
@@ -62,9 +78,25 @@ func (bc *Blockchain) computeProjections(blocks []*Block) (*State, *hvm.Engine, 
 		for _, r := range result.receipts {
 			receipts[strings.ToLower(strings.TrimPrefix(r.TxID, "0x"))] = r
 		}
-  if bc.checkpointStartup && bc.startupSeed == nil && b.Index == len(blocks)-evmReadHistoryLimit-1 {
-   if err := bc.saveRecoveryCheckpoint(b.Index, st, engine, validators, receipts); err != nil { log.Printf("HVM_CHECKPOINT_WRITE_SKIPPED reason=%v", err) }
-  }
- }
- return st, engine, validators, receipts, history, nil
+		ancestors = appendAncestor(ancestors, b)
+		if bc.checkpointStartup && bc.startupSeed == nil && b.Index == count-evmReadHistoryLimit-1 {
+			if err := bc.saveRecoveryCheckpoint(b.Index, st, engine, validators, receipts, confirmedNodes); err != nil {
+				log.Printf("HVM_CHECKPOINT_WRITE_SKIPPED reason=%v", err)
+			}
+		}
+	}
+	if bc.history != nil {
+		bc.confirmedNodes = confirmedNodes
+	}
+	return st, engine, validators, receipts, history, nil
+}
+
+func appendAncestor(window []*Block, b *Block) []*Block {
+	b = &Block{Index: b.Index, Hash: b.Hash}
+	if len(window) == 256 {
+		copy(window, window[1:])
+		window[255] = b
+		return window
+	}
+	return append(window, b)
 }
