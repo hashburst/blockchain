@@ -16,14 +16,18 @@ func (bc *Blockchain) AdmitTransactionV2(tx *protocolv2.TransactionV2) error {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
-	nextHeight := bc.Blocks[len(bc.Blocks)-1].Index + 1
+	nextHeight := bc.headLocked().Index + 1
 	if !bc.v2Config.EnabledAt(nextHeight) {
 		return fmt.Errorf("Protocol V2 is not active at next block height %d", nextHeight)
 	}
 	if err := bc.validateV2Transaction(tx); err != nil {
 		return err
 	}
-	if bc.containsTxV2Locked(tx.HashHex()) {
+	confirmed, lookupErr := bc.containsTxLocked(tx.HashHex(), true)
+	if lookupErr != nil {
+		return lookupErr
+	}
+	if confirmed {
 		return fmt.Errorf("transaction already confirmed")
 	}
 
@@ -72,12 +76,6 @@ func (bc *Blockchain) AdmitTransactionV2(tx *protocolv2.TransactionV2) error {
 }
 
 func (bc *Blockchain) containsTxV2Locked(txID string) bool {
-	for _, b := range bc.Blocks {
-		for _, tx := range b.TransactionsV2 {
-			if tx != nil && tx.HashHex() == txID {
-				return true
-			}
-		}
-	}
-	return false
+	found, e := bc.containsTxLocked(txID, true)
+	return found || e != nil
 }

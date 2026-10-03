@@ -19,13 +19,19 @@ import (
 // Protocol V2/HVM projections. The chain remains the source of truth; native
 // HBT state, HVM state and receipts are deterministic projections of blocks.
 type Blockchain struct {
- recoveryStatus RecoveryStatus
- startupSeed *recoverySeed
- checkpointStartup bool
- checkpointEnabled bool
- checkpointHeight int
- checkpointBytes int64
- checkpointHashState []byte
+	history             *indexedHistory
+	confirmedNodes      map[string]ConfirmedNodeIdentity
+	recoveryStatus      RecoveryStatus
+	startupSeed         *recoverySeed
+	checkpointJobs      chan recoveryWrite
+	checkpointDone      chan struct{}
+	checkpointAsync     bool
+	checkpointClosed    bool
+	checkpointStartup   bool
+	checkpointEnabled   bool
+	checkpointHeight    int
+	checkpointBytes     int64
+	checkpointHashState []byte
 
 	apowWork         *APoWProof // guarded by mu; never durable signing state
 	evmSubscriptions *execution.Subscriptions
@@ -176,8 +182,8 @@ func (bc *Blockchain) syncConsensusReactorToHead() error {
 	bc.mu.RLock()
 	r := bc.consensusReactor
 	var head *Block
-	if len(bc.Blocks) > 0 {
-		head = cloneBlockForConsensus(bc.Blocks[len(bc.Blocks)-1])
+	if bc.blockCountLocked() > 0 {
+		head = cloneBlockForConsensus(bc.headLocked())
 	}
 	bc.mu.RUnlock()
 	if r == nil || head == nil {
@@ -202,7 +208,7 @@ func (bc *Blockchain) AddBlock(minerAddress string) error {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
 
-	latest := bc.Blocks[len(bc.Blocks)-1]
+	latest := bc.headLocked()
 	nextHeight := latest.Index + 1
 	if bc.v2Config.ConsensusEnabledAt(nextHeight) {
 		return fmt.Errorf("validator consensus active at height %d: use BuildConsensusProposal/FinalizeConsensusProposal", nextHeight)
@@ -245,7 +251,9 @@ func (bc *Blockchain) AddBlock(minerAddress string) error {
 		return fmt.Errorf("persist block #%d: %w", newBlock.Index, err)
 	}
 
-	bc.Blocks = append(bc.Blocks, newBlock)
+	if err := bc.appendHistoryLocked(newBlock); err != nil {
+		return err
+	}
 	if newBlock.EffectiveVersion() >= BlockVersionV2 {
 		bc.commitV2Execution(prepared)
 	} else {
@@ -273,7 +281,7 @@ func (bc *Blockchain) AppendBlock(b *Block) error {
 		return bc.appendConsensusBlockLocked(cloneBlockForConsensus(b))
 	}
 
-	latest := bc.Blocks[len(bc.Blocks)-1]
+	latest := bc.headLocked()
 	if err := ValidateBlockAgainstConfig(latest, b, bc.MiningReward, bc.v2Config); err != nil {
 		return err
 	}
@@ -292,7 +300,9 @@ func (bc *Blockchain) AppendBlock(b *Block) error {
 	if err := bc.storage.SaveBlock(b); err != nil {
 		return fmt.Errorf("persist block #%d: %w", b.Index, err)
 	}
-	bc.Blocks = append(bc.Blocks, b)
+	if err := bc.appendHistoryLocked(b); err != nil {
+		return err
+	}
 	if executed != nil {
 		bc.commitV2Execution(executed)
 	} else {
@@ -320,7 +330,7 @@ func (bc *Blockchain) commitV2Execution(ex *blockExecutionV2) {
 func (bc *Blockchain) ValidateBlock(b *Block) error {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
-	return ValidateBlockAgainstConfig(bc.Blocks[len(bc.Blocks)-1], b, bc.MiningReward, bc.v2Config)
+	return ValidateBlockAgainstConfig(bc.headLocked(), b, bc.MiningReward, bc.v2Config)
 }
 
 // ValidateBlockAgainst keeps legacy callers source-compatible and therefore
@@ -481,26 +491,48 @@ func isHex32(s string) bool {
 func (bc *Blockchain) VerifyChain() error { return bc.verifyChainFrom(1) }
 
 func (bc *Blockchain) verifyChainFrom(start int) error {
-	if len(bc.Blocks) == 0 {
-		return fmt.Errorf("catena vuota")
+	if bc.blockCountLocked() == 0 {
+		return fmt.Errorf("empty chain")
 	}
-	expected := NewGenesisBlock()
-	if bc.Blocks[0].Hash != expected.Hash {
-		return fmt.Errorf("genesis %s... non corrisponde a %s...", shortHash(bc.Blocks[0].Hash), shortHash(expected.Hash))
+	genesis, err := bc.blockAtLocked(0)
+	if err != nil {
+		return err
 	}
-	for i := start; i < len(bc.Blocks); i++ {
+	if genesis.Hash != NewGenesisBlock().Hash {
+		return fmt.Errorf("genesis mismatch")
+	}
+	if start < 1 {
+		start = 1
+	}
+	if start >= bc.blockCountLocked() {
+		return nil
+	}
+	prev, err := bc.blockAtLocked(start - 1)
+	if err != nil {
+		return err
+	}
+	for i := start; i < bc.blockCountLocked(); i++ {
 		if i%5000 == 0 {
-			log.Printf("HVM_CHAIN_VERIFY_PROGRESS height=%d total=%d", i, len(bc.Blocks))
+			log.Printf("HVM_CHAIN_VERIFY_PROGRESS height=%d total=%d", i, bc.blockCountLocked())
 		}
-		if err := ValidateBlockAgainstConfig(bc.Blocks[i-1], bc.Blocks[i], bc.MiningReward, bc.v2Config); err != nil {
-			return fmt.Errorf("blocco #%d: %w", i, err)
+		b, e := bc.blockAtLocked(i)
+		if e != nil {
+			return e
 		}
+		if e = ValidateBlockAgainstConfig(prev, b, bc.MiningReward, bc.v2Config); e != nil {
+			return fmt.Errorf("block %d: %w", i, e)
+		}
+		prev = b
 	}
 	return nil
 }
 
 func (bc *Blockchain) rebuildProjections(blocks []*Block) error {
-	st, engine, validators, receipts, history, err := bc.computeProjections(blocks)
+	count, get := len(blocks), func(n int) (*Block, error) { return blocks[n], nil }
+	if bc.history != nil {
+		count, get = bc.blockCountLocked(), bc.blockAtLocked
+	}
+	st, engine, validators, receipts, history, err := bc.computeProjectionsFrom(count, get)
 	if err != nil {
 		return err
 	}
@@ -513,12 +545,14 @@ func (bc *Blockchain) rebuildProjections(blocks []*Block) error {
 }
 
 func (bc *Blockchain) TotalPoHTicks() int64 {
-	return int64(len(bc.Blocks)-1) * int64(bc.v2Config.EffectivePoHTicks())
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	return int64(bc.blockCountLocked()-1) * int64(bc.v2Config.EffectivePoHTicks())
 }
 func (bc *Blockchain) Height() int {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
-	return bc.Blocks[len(bc.Blocks)-1].Index
+	return bc.headLocked().Index
 }
 
 // HeadSnapshot returns an immutable copy of the current chain head. Consensus
@@ -527,10 +561,10 @@ func (bc *Blockchain) Height() int {
 func (bc *Blockchain) HeadSnapshot() *Block {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
-	if len(bc.Blocks) == 0 {
+	if bc.blockCountLocked() == 0 {
 		return nil
 	}
-	return cloneBlockForConsensus(bc.Blocks[len(bc.Blocks)-1])
+	return cloneBlockForConsensus(bc.headLocked())
 }
 
 func (bc *Blockchain) Balance(addr string) float64 {

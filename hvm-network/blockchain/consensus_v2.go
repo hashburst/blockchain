@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -41,7 +42,7 @@ func (bc *Blockchain) BuildConsensusProposal(proposerID string, round uint64) (*
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 
-	latest := bc.Blocks[len(bc.Blocks)-1]
+	latest := bc.headLocked()
 	nextHeight := latest.Index + 1
 	if !bc.v2Config.ConsensusEnabledAt(nextHeight) {
 		return nil, fmt.Errorf("validator consensus is not active at height %d", nextHeight)
@@ -121,7 +122,7 @@ func (bc *Blockchain) ReproposeConsensusValue(proposerID string, round uint64, v
 	if valid == nil {
 		return nil, fmt.Errorf("nil valid value")
 	}
-	latest := bc.Blocks[len(bc.Blocks)-1]
+	latest := bc.headLocked()
 	nextHeight := latest.Index + 1
 	if valid.Index != nextHeight || !bc.v2Config.ConsensusEnabledAt(nextHeight) {
 		return nil, fmt.Errorf("valid value height %d is not current consensus height %d", valid.Index, nextHeight)
@@ -167,6 +168,10 @@ func (bc *Blockchain) ReproposeConsensusValue(proposerID string, round uint64, v
 	return b, nil
 }
 
+// errProposalBehindFinality identifies an obsolete proposal, not a storage or
+// signature failure. Only an already accepted QC-finalized local head permits it.
+var errProposalBehindFinality = errors.New("proposal behind local finality")
+
 // ValidateConsensusProposalForVote re-executes all state transitions and checks
 // proposer scheduling before a validator signs anything.
 func (bc *Blockchain) ValidateConsensusProposalForVote(b *Block) error {
@@ -178,7 +183,10 @@ func (bc *Blockchain) ValidateConsensusProposalForVote(b *Block) error {
 	if !bc.v2Config.ConsensusEnabledAt(b.Index) {
 		return fmt.Errorf("consensus not active at proposal height")
 	}
-	latest := bc.Blocks[len(bc.Blocks)-1]
+	latest := bc.headLocked()
+	if latest.FinalityCertificate != nil && bc.v2Config.ConsensusEnabledAt(latest.Index) && b.Index <= latest.Index {
+		return fmt.Errorf("%w: proposal=%d finalized=%d", errProposalBehindFinality, b.Index, latest.Index)
+	}
 	if err := ValidateBlockAgainstConfig(latest, b, bc.MiningReward, bc.v2Config); err != nil {
 		return err
 	}
@@ -244,7 +252,7 @@ func (bc *Blockchain) FinalizeConsensusProposal(b *Block, qc consensus.QuorumCer
 }
 
 func (bc *Blockchain) appendConsensusBlockLocked(b *Block) error {
-	latest := bc.Blocks[len(bc.Blocks)-1]
+	latest := bc.headLocked()
 	if err := ValidateBlockAgainstConfig(latest, b, bc.MiningReward, bc.v2Config); err != nil {
 		return err
 	}
@@ -258,9 +266,11 @@ func (bc *Blockchain) appendConsensusBlockLocked(b *Block) error {
 	if err := bc.storage.SaveBlock(b); err != nil {
 		return fmt.Errorf("persist finalized block #%d: %w", b.Index, err)
 	}
-	bc.Blocks = append(bc.Blocks, b)
+	if err := bc.appendHistoryLocked(b); err != nil {
+		return err
+	}
 	bc.commitV2Execution(ex)
- bc.maybeSaveRecoveryCheckpoint()
+	bc.maybeSaveRecoveryCheckpoint()
 	bc.removeMinedFromMempool(b)
 	bc.PendingTXs = nil
 	bc.PendingTXsV2 = nil
@@ -378,7 +388,13 @@ func cloneBlockForConsensus(b *Block) *Block {
 		out.APoW = &copy
 	}
 	out.EthereumTransactions = cloneRawTransactions(b.EthereumTransactions)
-	out.Transactions = append([]*Transaction(nil), b.Transactions...)
+	out.Transactions = make([]*Transaction, len(b.Transactions))
+	for i, tx := range b.Transactions {
+		if tx != nil {
+			copy := *tx
+			out.Transactions[i] = &copy
+		}
+	}
 	out.TransactionsV2 = make([]*protocolv2.TransactionV2, 0, len(b.TransactionsV2))
 	for _, tx := range b.TransactionsV2 {
 		out.TransactionsV2 = append(out.TransactionsV2, tx.Clone())
@@ -399,7 +415,10 @@ func (bc *Blockchain) CurrentValidatorSet(height uint64) consensus.ValidatorSet 
 func (bc *Blockchain) FinalizedHeight() int {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
-	for i := len(bc.Blocks) - 1; i >= 0; i-- {
+	if bc.history != nil {
+		return bc.headLocked().Index
+	}
+	for i := bc.blockCountLocked() - 1; i >= 0; i-- {
 		b := bc.Blocks[i]
 		if bc.v2Config.ConsensusEnabledAt(b.Index) {
 			if b.FinalityCertificate != nil {

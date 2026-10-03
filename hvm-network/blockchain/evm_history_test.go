@@ -179,7 +179,7 @@ func TestEVMHistoricalReadsAcrossFinalityAndRestart(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	fresh, e := OpenExistingBlockchain(node.storage.dir, cfg, node.Blocks[0].Hash, 6, node.Blocks[6].Hash)
+	fresh, e := OpenExistingBlockchain(node.storage.dir, cfg, testHistoryBlock(t,node,0).Hash, 6, testHistoryBlock(t,node,6).Hash)
 	if e != nil {
 		t.Fatal(e)
 	}
