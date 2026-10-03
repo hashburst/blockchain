@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -167,6 +168,10 @@ func (bc *Blockchain) ReproposeConsensusValue(proposerID string, round uint64, v
 	return b, nil
 }
 
+// errProposalBehindFinality identifies an obsolete proposal, not a storage or
+// signature failure. Only an already accepted QC-finalized local head permits it.
+var errProposalBehindFinality = errors.New("proposal behind local finality")
+
 // ValidateConsensusProposalForVote re-executes all state transitions and checks
 // proposer scheduling before a validator signs anything.
 func (bc *Blockchain) ValidateConsensusProposalForVote(b *Block) error {
@@ -179,6 +184,9 @@ func (bc *Blockchain) ValidateConsensusProposalForVote(b *Block) error {
 		return fmt.Errorf("consensus not active at proposal height")
 	}
 	latest := bc.headLocked()
+	if latest.FinalityCertificate != nil && bc.v2Config.ConsensusEnabledAt(latest.Index) && b.Index <= latest.Index {
+		return fmt.Errorf("%w: proposal=%d finalized=%d", errProposalBehindFinality, b.Index, latest.Index)
+	}
 	if err := ValidateBlockAgainstConfig(latest, b, bc.MiningReward, bc.v2Config); err != nil {
 		return err
 	}

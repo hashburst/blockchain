@@ -870,12 +870,37 @@ func (r *ConsensusReactor) requestRoundChangeLocked(nextRound uint64) error {
 	return r.enterRoundLocked(nextRound)
 }
 
-func (r *ConsensusReactor) HandleTimeout() error {
+// reconcileTimeoutHeadLocked closes the gap between durable chain sync and its
+// reactor callback. Only a locally accepted finalized head advances the view;
+// peer-reported heights never reset locks. Caller holds r.mu, never bc.mu.
+func (r *ConsensusReactor) reconcileTimeoutHeadLocked() (bool, error) {
+	head := r.bc.HeadSnapshot()
+	if head == nil || head.FinalityCertificate == nil ||
+		!r.bc.v2Config.ConsensusEnabledAt(head.Index) || uint64(head.Index) < r.height {
+		return false, nil
+	}
+	return true, r.startHeightLocked(uint64(head.Index) + 1)
+}
+
+func (r *ConsensusReactor) HandleTimeout() (err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.running {
 		return fmt.Errorf("consensus reactor not running")
 	}
+	// The chain may have advanced while the sync callback waits for r.mu.
+	if advanced, syncErr := r.reconcileTimeoutHeadLocked(); advanced || syncErr != nil {
+		return syncErr
+	}
+	defer func() {
+		// Chain sync may also win during proposal construction/validation.
+		// Never suppress generic validation, persistence or signing errors.
+		if errors.Is(err, errProposalBehindFinality) {
+			if advanced, syncErr := r.reconcileTimeoutHeadLocked(); advanced {
+				err = syncErr
+			}
+		}
+	}()
 	switch r.step {
 	case consensus.StepProposal:
 		r.step = consensus.StepPrevote
