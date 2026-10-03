@@ -43,7 +43,23 @@ def run(*args):
         raise RuntimeError(f'{args[0]} exited {e.returncode}: {(e.stderr or e.stdout or str(e)).strip()}') from e
 
 def props(unit):
-    return dict(line.split('=',1) for line in run('systemctl','show',unit,'--property=ActiveState,SubState,MainPID,ExecStart,User,RootDirectory,RootImage').splitlines() if '=' in line)
+    return dict(line.split('=',1) for line in run('systemctl','show',unit,'--property=ActiveState,SubState,MainPID,ExecStart,User,RootDirectory,RootImage,Result,ExecMainStatus').splitlines() if '=' in line)
+
+def predecessor_allowed(p, old_sha, release, node):
+    """Default: live predecessor. Explicit failed-node recovery never stops peers."""
+    require(old_sha in release['predecessors'], 'unexpected predecessor')
+    pid = int(p['MainPID'])
+    recovery = release.get('failed_node_recovery')
+    if recovery is not None:
+        require(recovery == {'node_id': node, 'predecessor_sha256': old_sha,
+                            'result': 'exit-code', 'exit_status': 1},
+                'failed-node recovery authorization differs')
+        require(node == 'hvm-testnet-v1' and pid == 0 and
+                p['ActiveState'] == 'failed' and p.get('Result') == 'exit-code' and
+                p.get('ExecMainStatus') == '1', 'expected failed v1 is not stopped')
+    else:
+        require(pid > 0 and digest('/proc/'+str(pid)+'/exe') == old_sha,
+                'predecessor is not running')
 
 def effective(p,binary,cfg):
     return p['ExecStart'].count('path=')==1 and 'path='+str(binary)+' ;' in p['ExecStart'] and 'argv[]='+str(binary)+' --config '+str(cfg)+' ;' in p['ExecStart']
@@ -142,7 +158,7 @@ def main():
             match=re.search(r'path=([^ ;]+)',p['ExecStart']);require(match is not None,'cannot resolve predecessor')
             old=match.group(1);require(digest(old) in r['predecessors'],'unexpected predecessor')
             require(effective(p,old,cfg),'unexpected predecessor command')
-            pid=int(p['MainPID']);require(pid>0 and digest('/proc/'+str(pid)+'/exe')==digest(old),'predecessor is not running')
+            predecessor_allowed(p,digest(old),r,args.node)
             record={'phase':'prepared','node':args.node,'sha256':sha,'config':digest(cfg),'old':old,'old_sha256':digest(old)};atomic(state,record)
         if record['phase']=='prepared':
             require(digest(cfg)==record['config'],'configuration changed')
