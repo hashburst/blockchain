@@ -58,6 +58,29 @@ while time.monotonic()<end:
 else:raise RuntimeError('worker deadline; job retained')
 '''
 
+READ_ONLY_WAIT = r'''
+import socket, sys, time, urllib.error
+
+def read_only_ready(call, request, timeout=180):
+ if request.get('action') not in ('status','commitment'):
+  raise RuntimeError('read-only action required')
+ unit='hashburst-hvm-testnet'+('-ingress' if request.get('node_id')=='hvm-testnet-ingress' else '')+'.service'
+ end=time.monotonic()+timeout
+ while True:
+  try:return call(request)
+  except (urllib.error.URLError, TimeoutError) as exc:
+   reason=exc.reason if isinstance(exc,urllib.error.URLError) else exc
+   if isinstance(exc,urllib.error.HTTPError) or not (isinstance(reason,(ConnectionRefusedError,TimeoutError)) or getattr(reason,'errno',None)==111):raise
+   status=subprocess.run(['systemctl','show',unit,'-p','ActiveState','-p','SubState','-p','MainPID','-p','NRestarts','-p','ExecMainStatus'],capture_output=True,text=True,timeout=10,check=True).stdout
+   print('API_WAIT '+str(exc)+' '+status.replace('\n',' '),file=sys.stderr,flush=True)
+   active=dict(line.split('=',1) for line in status.splitlines() if '=' in line).get('ActiveState')
+   if active not in ('active','activating') or time.monotonic()>=end:
+    log=subprocess.run(['journalctl','-u',unit,'-n','30','--no-pager','-o','short-iso'],capture_output=True,text=True,timeout=10)
+    print(log.stdout,file=sys.stderr,flush=True)
+    raise RuntimeError('API unavailable; inspect service diagnostics; no restart performed') from exc
+   time.sleep(5)
+'''
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--deployer-root',type=Path,required=True)
@@ -95,9 +118,15 @@ def main():
         return p
     original_remote=d.remote
     preamble=revision_file(code)
+    status_source=d.module().SOURCE
     def remote(host,script,payload=None):
         if script==d.REQUEST:script=preamble+INTERCEPT+script
         elif script==d.WAIT:script=preamble+WAIT
+        elif payload and payload.get('action') in ('status','commitment'):
+            request=dict(payload)
+            request['node_id']=dict(d.HOSTS)[host]
+            payload=request
+            script=status_source+READ_ONLY_WAIT+'\nprint("HB_RESULT="+json.dumps(read_only_ready(main,p)))\n'
         return original_remote(host,script,payload)
     d.checks=checks;d.remote=remote
     sys.argv=['hashburst_deployer.py','deploy']
