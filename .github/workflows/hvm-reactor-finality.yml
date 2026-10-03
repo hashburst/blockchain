@@ -32,6 +32,12 @@ jobs:
           cat /tmp/before.log
           test "$result" -ne 0
           grep -q 'reactor height=' /tmp/before.log
+      - name: Recovery installer regression
+        run: |
+          python3 deploy/runtime/test_installer.py
+          python3 deploy/runtime/test_recover_v1.py
+      - name: Failed-node systemd recovery
+        run: sudo env PATH="$PATH" HVM_DISPOSABLE_CI=1 bash deploy/runtime/test-systemd-failed-v1.sh
       - name: Full regression
         run: go test ./...
       - name: Concurrent reactor regressions
