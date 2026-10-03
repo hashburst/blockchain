@@ -1,0 +1,13 @@
+{
+  "chain_id": 4735490,
+  "source_commit": "2719806647f25012a8d6b868a645c0341b0442c1",
+  "sha256": "30a0cd390af000019577f06bcf97ce54959808aa4447ab318ef669cf8aa9be0e",
+  "predecessors": [
+    "3a77bcd4198a666801ca3ea8a91fccd4cead9bae506f6455ebc5ad5a9f8f3ebc"
+  ],
+  "installer_sha256": "d46e6bdc24855fcd27a028228f8fd459dad7cd1a30d3ff9aed335dbb60ff784f",
+  "artifact_id": 11274157535,
+  "artifact_sha256": "91a763f4cb4f500a42f03c6a3dae093d963b4a01d3f4c2260fd13a5138279f32",
+  "workflow_run": 37123137869,
+  "status": "testnet_sequential_alignment_candidate_not_mainnet_release"
+}

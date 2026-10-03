@@ -63,3 +63,26 @@ AFTER=$(systemctl show hashburst-hvm-testnet.service --property=MainPID --value)
 [ "$BEFORE" = "$AFTER" ]
 [ "$AFTER" -gt 0 ]
 echo SYSTEMD_FAILED_V1_RECOVERY_AND_RESUME_NO_RESTART_OK
+# Upgrade a live runtime with the previous installer's override already present.
+go build -ldflags='-X main.release=aligned' -o "$BASE/aligned" "$BASE/fake.go"
+python3 - <<'PY'
+import os,json,hashlib
+from pathlib import Path
+b=Path(os.environ['BASE']);h=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+(b/'aligned.json').write_text(json.dumps({'chain_id':4735490,'source_commit':'1'*40,'sha256':h(b/'aligned'),'predecessors':[h(b/'new')]}))
+PY
+python3 deploy/runtime/fleet-install.py install --node hvm-testnet-v1 --release "$BASE/aligned.json" --binary "$BASE/aligned" --timeout 60
+python3 - <<'PY'
+import os,json,time
+from pathlib import Path
+b=Path(os.environ['BASE']);sha=json.loads((b/'aligned.json').read_text())['sha256'];p=Path('/var/lib/hashburst-runtime-installer/hvm-testnet-v1')/sha/'state.json'
+for i in range(60):
+ if p.exists() and json.loads(p.read_text())['phase']=='verified':break
+ time.sleep(1)
+else:raise SystemExit('live upgrade did not verify')
+PY
+BEFORE=$(systemctl show hashburst-hvm-testnet.service --property=MainPID --value)
+python3 deploy/runtime/fleet-install.py verify --node hvm-testnet-v1 --release "$BASE/aligned.json" --binary "$BASE/aligned" --timeout 60
+AFTER=$(systemctl show hashburst-hvm-testnet.service --property=MainPID --value)
+[ "$BEFORE" = "$AFTER" ]
+echo SYSTEMD_LIVE_OVERRIDE_REPLACEMENT_AND_VERIFY_NO_RESTART_OK

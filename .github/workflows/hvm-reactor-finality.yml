@@ -36,6 +36,7 @@ jobs:
         run: |
           python3 deploy/runtime/test_installer.py
           python3 deploy/runtime/test_recover_v1.py
+          python3 deploy/runtime/test_align_fleet.py
       - name: Failed-node systemd recovery
         run: sudo env PATH="$PATH" HVM_DISPOSABLE_CI=1 bash deploy/runtime/test-systemd-failed-v1.sh
       - name: Full regression
