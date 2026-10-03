@@ -29,4 +29,34 @@ class InstallerTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as d:
    p=Path(d)/'journal';p.write_bytes(b'a')
    with self.assertRaises(RuntimeError):m.digest(p,2)
+class AsyncStartTests(unittest.TestCase):
+ def properties(self, active='active'):
+  return {'ExecStart':'{ path=/bin/node ; argv[]=/bin/node --config /etc/node.json ; }',
+          'ActiveState':active,'SubState':'running' if active=='active' else 'start','MainPID':'42'}
+ def test_activation_helper_not_treated_as_wrong_binary(self):
+  from unittest.mock import patch, MagicMock
+  import io
+  opener=MagicMock()
+  opener.open.side_effect=[io.StringIO(json.dumps(dict(chain_id=4735490,node_id='n',peer_id='p',role='observer',reactor_running=True,peer_count=4,finalized_height=h))) for h in (10,11)]
+  with patch.object(m,'props',side_effect=[self.properties('activating')]+[self.properties()]*4), patch.object(m,'digest',return_value='expected') as digest, patch.object(m,'preserved') as preserved, patch.object(m.time,'sleep'), patch.object(m.urllib.request,'build_opener',return_value=opener):
+   result=m.verify('unit','/etc/node.json',dict(node_id='n',peer_id='p',role='observer',data_dir='/data'),'/bin/node',{'sha256':'expected'},60)
+   self.assertEqual(result['finalized_height'],11)
+   self.assertEqual(digest.call_count,2)
+   preserved.assert_called_once()
+ def test_stable_wrong_executable_still_rejected(self):
+  from unittest.mock import patch
+  with patch.object(m,'props',return_value=self.properties()), patch.object(m,'digest',return_value='wrong'):
+   with self.assertRaisesRegex(RuntimeError,'running binary differs'):
+    m.verify('unit','/etc/node.json',{},'/bin/node',{'sha256':'expected'},60)
+ def test_systemd_error_is_visible(self):
+  from unittest.mock import patch
+  import subprocess
+  with patch.object(m.subprocess,'run',side_effect=subprocess.CalledProcessError(1,['systemd-run'],stderr='Unit collision')):
+   with self.assertRaisesRegex(RuntimeError,'Unit collision'):m.run('systemd-run')
+ def test_nonblocking_job_request(self):
+  import ast
+  tree=ast.parse(Path(m.__file__).read_text())
+  calls=[n for n in ast.walk(tree) if isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=='run' and n.args and isinstance(n.args[0],ast.Constant) and n.args[0].value=='systemd-run']
+  self.assertEqual(len(calls),1)
+  self.assertIn('--no-block',[a.value for a in calls[0].args if isinstance(a,ast.Constant)])
 if __name__=='__main__':unittest.main()
