@@ -14,6 +14,8 @@ jobs:
         working-directory: hvm-network
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.7'
@@ -21,7 +23,7 @@ jobs:
       - name: Reproduce regression on unpatched parent
         run: |
           cp blockchain/consensus_reactor.go /tmp/fixed-reactor.go
-          git show HEAD^:hvm-network/blockchain/consensus_reactor.go > blockchain/consensus_reactor.go
+          git show 2bce89d3b0d101affb1f249c4bf8af11f6b3de7d:hvm-network/blockchain/consensus_reactor.go > blockchain/consensus_reactor.go
           set +e
           go test ./blockchain -run '^TestTimeoutReconcilesDurableHeadBeforeSyncCallback$' -count=1 > /tmp/before.log 2>&1
           result=$?
@@ -40,4 +42,3 @@ jobs:
         with:
           name: reactor-finality-candidate
           path: hvm-network/hashburst-testnet-reactor-candidate
-
