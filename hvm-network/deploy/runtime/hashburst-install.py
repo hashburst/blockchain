@@ -37,10 +37,13 @@ def atomic(path, value):
         if os.path.exists(name):os.unlink(name)
 
 def run(*args):
-    return subprocess.run(args,check=True,capture_output=True,text=True,timeout=30).stdout.strip()
+    try:
+        return subprocess.run(args,check=True,capture_output=True,text=True,timeout=30).stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f'{args[0]} exited {e.returncode}: {(e.stderr or e.stdout or str(e)).strip()}') from e
 
 def props(unit):
-    return dict(line.split('=',1) for line in run('systemctl','show',unit,'--property=ActiveState,MainPID,ExecStart,User,RootDirectory,RootImage').splitlines() if '=' in line)
+    return dict(line.split('=',1) for line in run('systemctl','show',unit,'--property=ActiveState,SubState,MainPID,ExecStart,User,RootDirectory,RootImage').splitlines() if '=' in line)
 
 def effective(p,binary,cfg):
     return p['ExecStart'].count('path=')==1 and 'path='+str(binary)+' ;' in p['ExecStart'] and 'argv[]='+str(binary)+' --config '+str(cfg)+' ;' in p['ExecStart']
@@ -70,8 +73,18 @@ def verify(unit,cfg,c,binary,record,timeout):
     while time.monotonic()<end:
         p=props(unit);require(effective(p,binary,cfg),'effective ExecStart differs')
         require(p['ActiveState']!='failed','service failed; inspect journal, no restart')
+        # During activation MainPID may refer to a pre-exec systemd child.
+        # Do not accept health or inspect that transient executable as the node.
+        if p['ActiveState'] != 'active' or p.get('SubState') != 'running':
+            time.sleep(5);continue
         pid=int(p['MainPID'])
-        if pid:require(digest('/proc/'+str(pid)+'/exe')==record['sha256'],'running binary differs')
+        require(pid>0,'active service without managed process')
+        observed=digest('/proc/'+str(pid)+'/exe')
+        confirmed=props(unit)
+        if (confirmed['MainPID'],confirmed['ActiveState'],confirmed.get('SubState')) != (str(pid),'active','running'):
+            time.sleep(5);continue
+        require(effective(confirmed,binary,cfg),'effective ExecStart differs')
+        require(observed==record['sha256'],'running binary differs')
         try:
             with opener.open('http://127.0.0.1:18009/health',timeout=5) as f:h=json.load(f)
             require(h['chain_id']==4735490 and h['node_id']==c['node_id'] and h['peer_id']==c['peer_id'] and h['role']==c['role'],'health identity mismatch')
@@ -118,7 +131,7 @@ def main():
             if current in ('active','activating'):print('PERSISTENT_JOB_ALREADY_RUNNING='+job);return
             if current not in ('','inactive','failed'):raise RuntimeError('unexpected job state')
             # Same intent is safe to resume: phase record determines the next step.
-            run('systemd-run','--unit='+job,'--collect','--property=Type=oneshot','--property=TimeoutStartSec=infinity',sys.executable,str(root/'installer.py'),'worker','--node',args.node,'--release',str(root/'release.json'),'--binary',str(root/'candidate'),'--timeout',str(args.timeout))
+            run('systemd-run','--no-block','--unit='+job,'--collect','--property=Type=oneshot','--property=TimeoutStartSec=infinity',sys.executable,str(root/'installer.py'),'worker','--node',args.node,'--release',str(root/'release.json'),'--binary',str(root/'candidate'),'--timeout',str(args.timeout))
             print('PERSISTENT_JOB_REQUESTED='+job);return
         record=json.loads(state.read_text()) if state.exists() else None
         if args.action=='verify':
