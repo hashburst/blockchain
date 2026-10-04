@@ -80,7 +80,6 @@
     "hvm_units_must_not_change": true,
     "identity_keys_must_not_change": true,
     "ipfs_tep_and_storage_services_must_not_change": true,
-    "unknown_155_state": "API connection refused; disk state and service failure cause not yet known",
     "requirements": [
       "Inspect service, binary provenance, configured ledger path and existing disk data.",
       "Verify captured reference hashes and reject a changed source head.",
@@ -88,7 +87,39 @@
       "Publish a validated ledger generation while legacy writers are stopped; do not rename a live dat/idx pair independently.",
       "Preserve peer identity, wallet keystore, TEP keys, IPFS state and unrelated files.",
       "Verify exact selected head and economic state before allowing legacy service operation."
-    ]
+    ],
+    "observed_155": {
+      "service_state": "activating/auto-restart",
+      "main_pid": 0,
+      "exit_status": 1,
+      "restart_count": 38555,
+      "block_count": 8,
+      "height": 7,
+      "ledger_relation": "Exact byte prefix of preserved .157 alternate branch for both dat and idx; frame/index bounds valid.",
+      "installed_binary_sha256": "6400733b462d72235041b6b7f43609ab4b33b48a09ff692ab50dc9ebc97b363b",
+      "files": {
+        "blockchain.dat": {
+          "bytes": 10423,
+          "sha256": "9da5a5b8a75bf79f5de70d87fe6a0abbe36f4f585dc6199141d80bcd20001b1c"
+        },
+        "blockchain.idx": {
+          "bytes": 160,
+          "sha256": "40460dcdbe0c971c9b35b323764317ebe1b3839df8254a33a39a16c92d0ef094"
+        }
+      },
+      "failure_cause": "Not determined: fatal application log was not included in inspection.",
+      "repair_executed": false,
+      "latest_reported_restart_count": 38603,
+      "stop_confirmed": false,
+      "application_log_collected": "Old July log only; current append target still needs inspection."
+    },
+    "observed_157": {
+      "service_state": "active/running",
+      "restart_count": 0,
+      "installed_binary_sha256": "9842c82fb6712b1259e62a7b40d9228bd08fc61e55338e7d25d5aa2256e0c293",
+      "captured_ledger_unchanged": true,
+      "repair_executed": false
+    }
   },
   "spending_freeze": {
     "implemented": false,
@@ -121,6 +152,11 @@
     {
       "filename": "legacy-other-nodes-20261004T084031Z.json",
       "sha256": "4192e8ae5dbe8a72d6026ba05182986bb6d8afa2eff21b4332813cbbb697e04a"
+    },
+    {
+      "filename": "legacy-repair-inspection-20261004T090719Z.json",
+      "sha256": "f1a0166c565fa9fd4ac364569fb5f74e52f80fba12a1aa56e9634a68016ae36f"
     }
-  ]
+  ],
+  "metadata_publication_authorized": "Owner explicitly authorized PR #30 publication of service status, paths and binary checksums on 2026-10-04; excludes keys and credentials."
 }

@@ -19,3 +19,13 @@ No remote repair is implemented or executed by this change. The approved referen
 A normal legacy runtime may produce or adopt blocks after the selected height. Restoring the reference pair is not a spending freeze. Before mainnet activation, implement and test the canonical managed legacy network's freeze across local submission, peer ingress, block production, chain adoption and restarts. An HTTP-only restriction is insufficient. Independent third-party forks cannot be globally stopped by this procedure.
 
 Mainnet 4735489 must use separate genesis, state and signing identities/journals from legacy 1337 and testnet 4735490. The manifest deliberately denies mainnet activation until repair, freeze proof, full economic manifest and mainnet identity/genesis commitments exist. Neither choosing a reference nor merging this document activates a network.
+
+## Inspection received 2026-10-04 09:07 UTC
+
+.155 is in systemd auto-restart, exit status 1, MainPID 0, with 38,555 restarts. Its 8-block ledger (height 7) is an exact byte prefix of .157 for both files, including the first divergent block. Frame/index bounds pass. The fatal application message is absent from this inspection: corruption or a missing wallet must not be inferred from the exit status. .157 remains active with the same captured alternate ledger. The installed binary digests differ; this alone does not establish the reason for the crash.
+
+Collect the failing legacy unit journal and configured output log before changing its binary or data. Stop only `hashburst-node.service` on .155 if it remains in auto-restart, to avoid repeated failures while diagnosing. Leave HVM, IPFS and TEP services intact. Never recreate identity or genesis to make startup succeed. No repair has been executed by these evidence updates.
+
+## Follow-up journal and publication authorization
+
+The owner explicitly authorized publication in PR #30 of service status, paths and binary checksums, excluding keys and credentials. The subsequent systemd journal reaches restart counter 38,603. The collected `/var/log/hashburst/node.log` ends in July and does not contain the current failure. A conditional stop did not execute because the substate changed between checks. Therefore stopping the loop is not yet confirmed. The next operation is an explicit stop of only the known failing legacy service on .155, followed by reading its actual StandardOutput/StandardError destinations from the effective unit configuration. Do not infer the current cause from the July reward address or peer IDs.
