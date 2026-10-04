@@ -1,0 +1,27 @@
+name: Legacy terminal candidate
+on:
+  pull_request:
+    paths:
+      - 'hvm-network/**'
+      - '.github/workflows/hvm-legacy-terminal.yml'
+  push:
+    branches: ['codex/legacy-1337-reference']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: hvm-network
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - run: go test ./...
+      - run: go test -race ./blockchain -run '^TestLegacyTerminal' -count=1
+      - run: go test -race ./cmd/hvm-legacy-archive ./cmd/hvm-wallet-proof
+      - run: go build ./cmd/hvm-legacy-close ./cmd/hvm-legacy-archive
