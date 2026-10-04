@@ -39,7 +39,7 @@ def main():
     source = pre.SOURCE + '''
 result=[]
 for commitment in p['commitments']:
- response=get('/rpc',{'jsonrpc':'2.0','id':1,'method':'hb_getValidatorSet','params':[commitment['height']]})
+ response=get('/rpc',json.dumps({'jsonrpc':'2.0','id':1,'method':'hb_getValidatorSet','params':[commitment['height']]}).encode())
  if response.get('error'):raise RuntimeError(str(response['error']))
  value=response['result']
  if value['height']!=commitment['height'] or value['validator_set_root']!=commitment['validator_set_root']:

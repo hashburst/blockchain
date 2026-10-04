@@ -84,8 +84,8 @@ jobs:
           count=$(find candidate-assets -maxdepth 1 -name '*.tar.gz' | wc -l)
           test "$count" -eq 5
           if gh release view "$tag" >/dev/null 2>&1 || gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
-            echo 'Existing candidate retained; refusing to overwrite tag/assets.'
-            exit 1
+            echo 'Existing candidate retained unchanged. This run provides artifacts only; no tag/assets overwritten.'
+            exit 0
           fi
           (cd candidate-assets && sha256sum *.tar.gz > SHA256SUMS)
           cp hvm-network/deploy/release/ACCEPTANCE-20261003.md candidate-assets/NOTES.md
