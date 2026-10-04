@@ -61,3 +61,32 @@ jobs:
           path: HashBurst-HVM-v0.7.0-rc.2-*.tar.gz
           if-no-files-found: error
           retention-days: 30
+  publish-candidate:
+    needs: packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hvm-v0.7.0-rc.2-*
+          path: candidate-assets
+          merge-multiple: true
+      - name: Publish immutable candidate, never activate networks
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='hvm-network-v0.7.0-rc.2'
+          count=$(find candidate-assets -maxdepth 1 -name '*.tar.gz' | wc -l)
+          test "$count" -eq 5
+          if gh release view "$tag" >/dev/null 2>&1 || gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo 'Existing candidate retained; refusing to overwrite tag/assets.'
+            exit 1
+          fi
+          (cd candidate-assets && sha256sum *.tar.gz > SHA256SUMS)
+          cp hvm-network/deploy/release/ACCEPTANCE-20261003.md candidate-assets/NOTES.md
+          printf '\nSource: %s\nBuild: https://github.com/%s/actions/runs/%s\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" >> candidate-assets/NOTES.md
+          gh release create "$tag" candidate-assets/*.tar.gz candidate-assets/SHA256SUMS --target "$GITHUB_SHA" --prerelease --title 'HVM v0.7.0-rc.2 — consolidated testnet candidate' --notes-file candidate-assets/NOTES.md
