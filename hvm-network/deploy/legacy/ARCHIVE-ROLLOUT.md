@@ -53,7 +53,7 @@ HVM/HashBurst/IPFS/TEP services. This is evidence about the managed service,
 not proof that no copy of a private key or ledger exists elsewhere.
 
 `ONE_LEGACY_ARCHIVE_VERIFIED=<host>` authorizes the next invocation for the
-next host. After all five succeed, collect a **fresh fleet-wide audit**, plus
+next host. After all five succeed, run `rollout-archive.py --deployer-root /same/path --audit-fleet` for a **fresh fleet-wide audit**, plus
 restart verification of the archive service, before approving mainnet import.
 Individual reports deliberately retain `fleet_freeze_verified=false` and
 `mainnet_import_executed=false`. A current all-host freeze attestation and
@@ -71,3 +71,7 @@ mask and after archive unit publication. They verify resumption, preservation
 of original files, disabling of overrides, digest refusal before service
 mutation and the one-host gate. Systemd is mocked in these tests; the first
 real host is the systemd canary. No remote deployment is claimed by the tests.
+
+The fleet audit sets `fleet_freeze_verified=true` only for these five managed
+legacy services at the reported observation times. It excludes unmanaged
+copies and keeps `activation_allowed=false`; it is not a mainnet activation.
