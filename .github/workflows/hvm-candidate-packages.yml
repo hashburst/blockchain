@@ -42,7 +42,8 @@ jobs:
           suffix=''
           if [ "$GOOS" = windows ]; then
             suffix='.exe'
-            printf '%s\n' 'WINDOWS CLIENT TOOLS ONLY. Full node runtime is not supported by this package.' > "$bundle/PLATFORM.txt"
+            commands='hashburst-wallet hvm-qc-audit'
+            printf '%s\n' 'WINDOWS WALLET AND QC AUDITOR ONLY. Node and APoW miner require Unix-dependent EVM locking and are not included.' > "$bundle/PLATFORM.txt"
           else
             commands="$commands hashburst-testnet hashburst-mainnet"
           fi

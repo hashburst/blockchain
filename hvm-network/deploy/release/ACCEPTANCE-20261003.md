@@ -32,8 +32,9 @@ Public reports are not private key material. Never upload signing keys.
 ## Release and mainnet boundary
 
 The package workflow produces source-bound candidate artifacts for Linux and
-macOS amd64/arm64 and Windows amd64 client tools. Windows full-node runtime
-still depends on Unix-specific state locking and is not certified here.
+macOS amd64/arm64 and Windows amd64 wallet and QC auditor. Windows full-node
+and miner builds still depend on Unix-specific state/EVM locking and are not
+included or certified here.
 No production service is changed by this workflow. Existing pinned installer
 manifests remain immutable. Do not run the obsolete deploy/publish coordinator.
 
