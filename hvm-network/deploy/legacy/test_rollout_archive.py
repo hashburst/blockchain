@@ -2,6 +2,8 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
+import hashlib
 import unittest
 from unittest.mock import patch
 
@@ -86,6 +88,22 @@ class RolloutTests(unittest.TestCase):
                     m.worker(stage, sha, True)
                     verify.assert_called_once()
                     self.assertEqual(calls, [])
+
+    def test_fleet_audit_refuses_incomplete_rollout_without_ssh(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            work = root / 'legacy-archive-rollout'
+            work.mkdir()
+            for name in ('hvm-legacy-archive', *m.PINS):
+                (work / name).write_bytes(b'artifact')
+            sha = m.digest(work / 'hvm-legacy-archive')
+            artifact = hashlib.sha256((sha + m.digest(m.__file__)).encode()).hexdigest()
+            m.save(root / 'legacy-archive-rollout-state.json',
+                   {'artifact': artifact, 'completed': list(m.HOSTS[:-1]), 'in_flight': None})
+            with patch.object(m, 'check_pair'), patch.object(m, 'run') as run:
+                with self.assertRaisesRegex(RuntimeError, 'finish all five'):
+                    m.local(SimpleNamespace(deployer_root=str(root), host=None, audit_fleet=True))
+                run.assert_not_called()
 
     def test_existing_digest_change_refused_before_service_stop(self):
         with tempfile.TemporaryDirectory() as td:

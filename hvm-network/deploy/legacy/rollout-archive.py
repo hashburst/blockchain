@@ -192,6 +192,8 @@ def worker(stage, binary_sha, check_only=False):
             '--idx-sha256', PINS['blockchain.idx'], '--terminal-hash', TERMINAL, '--check')
         backup = stage / 'backup'
         backup.mkdir(mode=0o700, exist_ok=True)
+        atomic(stage / UNIT, unit_text(directory), 0o644)
+        run('systemd-analyze', 'verify', str(stage / UNIT))
         statepath = stage / 'state.json'
         def phase(value):
             save(statepath, {'phase': value, 'binary_sha256': binary_sha})
@@ -286,7 +288,30 @@ def local(args):
         binary_sha = digest(binary)
         artifact = hashlib.sha256((binary_sha + digest(script)).encode()).hexdigest()
         statepath = root / 'legacy-archive-rollout-state.json'
-        state = reserve(load(statepath, {'artifact': artifact, 'completed': [], 'in_flight': None}), args.host, artifact)
+        state = load(statepath, {'artifact': artifact, 'completed': [], 'in_flight': None})
+        if args.audit_fleet:
+            require(state['artifact'] == artifact and state.get('in_flight') is None and
+                    set(state['completed']) == set(HOSTS), 'finish all five managed hosts before fleet audit')
+            reports = {}
+            stage = '/root/hashburst-archive-rollout/' + artifact
+            for host in HOSTS:
+                command = ['/usr/bin/python3', stage + '/rollout-archive.py', '--worker', '--check-only',
+                           '--stage', stage, '--sha256', binary_sha]
+                run('ssh', *SSH_OPTIONS, 'root@' + host, shlex.join(command), timeout=120)
+                local_report = work / ('ACCEPTANCE-' + host + '.json')
+                scp('root@' + host + ':' + stage + '/ACCEPTANCE.json', str(local_report))
+                report = load(local_report)
+                require(report['binary_sha256'] == binary_sha and report['managed_host_archive_verified'], 'host evidence differs')
+                reports[host] = report
+            reportfile = work / ('FLEET-FREEZE-' + str(int(time.time())) + '.json')
+            save(reportfile, {'schema': 'hashburst-managed-legacy-freeze-v1', 'artifact': artifact,
+                             'fleet_freeze_verified': True, 'scope': 'five managed legacy services at reported observation times',
+                             'unmanaged_copies_excluded': True, 'mainnet_import_executed': False,
+                             'activation_allowed': False, 'terminal_hash': TERMINAL, 'reports': reports})
+            print('FIVE_MANAGED_LEGACY_ARCHIVES_FROZEN_OK')
+            print('REPORT=' + str(reportfile))
+            return
+        state = reserve(state, args.host, artifact)
         save(statepath, state)
         stage = '/root/hashburst-archive-rollout/' + artifact
         job = 'hb-legacy-archive-' + artifact[:20]
@@ -342,6 +367,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--host', choices=HOSTS)
     p.add_argument('--deployer-root')
+    p.add_argument('--audit-fleet', action='store_true', help='fresh read-only checks after all five hosts complete')
     p.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)
     p.add_argument('--check-only', action='store_true', help=argparse.SUPPRESS)
     p.add_argument('--stage', help=argparse.SUPPRESS)
@@ -350,7 +376,7 @@ def main():
     if a.worker:
         worker(Path(a.stage), a.sha256, a.check_only)
     else:
-        require(a.host and a.deployer_root, '--host and --deployer-root required')
+        require(a.deployer_root and bool(a.host) != a.audit_fleet, 'choose --host or --audit-fleet, with --deployer-root')
         local(a)
 
 
