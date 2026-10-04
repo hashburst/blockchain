@@ -1,0 +1,126 @@
+{
+  "schema": "hashburst-legacy-reference-candidate/v1",
+  "status": "owner_approved_reference_pending_repair_and_freeze",
+  "decision_date": "2026-10-04",
+  "authorization": "Owner explicitly selected the shared .153/.154/64.31.4.9 branch and its 450 HBT allocation in this session.",
+  "source_chain_id": 1337,
+  "destination_chain_id": 4735489,
+  "testnet_chain_id": 4735490,
+  "mainnet_activation_allowed": false,
+  "reference": {
+    "host": "64.31.4.9",
+    "storage_dir": "/var/lib/hashburst",
+    "block_count": 10,
+    "height": 9,
+    "block_hash": "0000ca5a560580d0a882a1e46808331e414d073dbc2b0125f5310a6a6a81f586",
+    "genesis_hash": "1f7761e81921358af25c403e13e19ffe7b8f0c588a03cc8b9f96ede3dead35e9",
+    "files": {
+      "blockchain.dat": {
+        "bytes": 13433,
+        "sha256": "4d958c23c65b42f95b976d134a1752425a40696f7241b1495a379f4300cdc2d5"
+      },
+      "blockchain.idx": {
+        "bytes": 200,
+        "sha256": "71fc170294373382ec2f938899d8d50815ca3fd16cbb09fad0198654e57e1a03"
+      }
+    },
+    "selection_basis": "explicit owner decision, not majority-vote consensus",
+    "api_hash_corroborating_hosts": [
+      "77.90.188.153",
+      "77.90.188.154"
+    ]
+  },
+  "economics": {
+    "unit_scale": 100000000,
+    "total_legacy_units": 45000000000,
+    "allocations": [
+      {
+        "address": "0x534746AC40019Ec4E19eb3D12d5F716D4f8b7e3e",
+        "units": 45000000000
+      }
+    ],
+    "scope": "Selected legacy ledger only; excludes founder allocation, faucet and future emissions.",
+    "alternate_branch_rewards_additive": false,
+    "import_executed": false
+  },
+  "preserved_alternate": {
+    "host": "77.90.188.157",
+    "height": 9,
+    "block_hash": "0000add84f9fda6ebd06da7824e8c8dcd7c89138b21252a80d2e90dc72475ece",
+    "common_ancestor_height": 6,
+    "common_ancestor_hash": "000027c1fcff6d099ff3d45d22edc63a53a48a712b14cb6c7c811534152521c7",
+    "files": {
+      "blockchain.dat": {
+        "bytes": 13433,
+        "sha256": "5b6c10a3aaf372396864f698d4b94f1deea0ef0eb76e5adc30fd8c1f169366df"
+      },
+      "blockchain.idx": {
+        "bytes": 200,
+        "sha256": "ab677b8b084a2bb4d13b53bcb23b6d9358933d2f559d84d5f867877d5f033c3a"
+      }
+    },
+    "policy": "Preserve the entire original ledger pair before any repair; never merge both sets of rewards."
+  },
+  "verification": {
+    "captured_pair_checksums_verified": true,
+    "index_and_frame_bounds_verified": true,
+    "legacy_block_hashes_verified": true,
+    "transaction_ids_verified_per_branch": 18,
+    "recovered_transaction_signatures_verified_per_branch": 9,
+    "poh_rounds_per_block_checked": 400000,
+    "scope": "Offline checks on the two captured ledger pairs; does not prove source binary provenance, global canonicality or live spending freeze."
+  },
+  "repair": {
+    "targets": [
+      "77.90.188.157",
+      "77.90.188.155"
+    ],
+    "completed": [],
+    "legacy_unit": "hashburst-node.service",
+    "hvm_units_must_not_change": true,
+    "identity_keys_must_not_change": true,
+    "ipfs_tep_and_storage_services_must_not_change": true,
+    "unknown_155_state": "API connection refused; disk state and service failure cause not yet known",
+    "requirements": [
+      "Inspect service, binary provenance, configured ledger path and existing disk data.",
+      "Verify captured reference hashes and reject a changed source head.",
+      "Archive original ledger pair and service configuration before a controlled legacy-only stop.",
+      "Publish a validated ledger generation while legacy writers are stopped; do not rename a live dat/idx pair independently.",
+      "Preserve peer identity, wallet keystore, TEP keys, IPFS state and unrelated files.",
+      "Verify exact selected head and economic state before allowing legacy service operation."
+    ]
+  },
+  "spending_freeze": {
+    "implemented": false,
+    "verified": false,
+    "proof_sha256": null,
+    "required_coverage": [
+      "local transaction submission",
+      "peer transaction ingress",
+      "block production",
+      "peer chain extension and adoption",
+      "restart persistence"
+    ],
+    "scope": "Canonical managed legacy network. Cannot prevent third parties running independent forks."
+  },
+  "mainnet_separation": {
+    "genesis_hash": null,
+    "validator_manifest_sha256": null,
+    "economic_manifest_sha256": null,
+    "legacy_import_receipt": null,
+    "requirements": [
+      "Distinct chain ID, genesis, consensus identity, data directory and signing journals.",
+      "Import selected balances once; prove legacy spend rejection before activation."
+    ]
+  },
+  "evidence": [
+    {
+      "filename": "legacy-public-evidence-20261004T080917Z.json",
+      "sha256": "45b632ffbefb9e14f74670dcccf5416733a7f802126f6e3809601dea9261112b"
+    },
+    {
+      "filename": "legacy-other-nodes-20261004T084031Z.json",
+      "sha256": "4192e8ae5dbe8a72d6026ba05182986bb6d8afa2eff21b4332813cbbb697e04a"
+    }
+  ]
+}
