@@ -1,4 +1,4 @@
-# HVM Network v0.7.0-rc.3 — draft preparation
+# HVM Network v0.7.0-rc.3 - draft preparation
 
 This draft follows PR #30, merged as 491f0cee03c3acc49b3439008340ca6ee6d4efbd.
 It includes the immutable legacy terminal archive, reviewed HA transition

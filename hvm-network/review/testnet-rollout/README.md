@@ -1,4 +1,4 @@
-# Persistent testnet rollout — 2026-09-26
+# Persistent testnet rollout - 2026-09-26
 
 Evidence source: operator-supplied command output, not direct access to the VPS.
 Runtime commit: 06d7c3bd2cff59b2e95b25ed09fe8509dd6de01a.

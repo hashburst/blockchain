@@ -1,4 +1,4 @@
-# HVM Network testnet acceptance — 29 September 2026
+# HVM Network testnet acceptance - 29 September 2026
 
 Scope: testnet 4735490, legacy 1337 unchanged, mainnet 4735489 not activated.
 

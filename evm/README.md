@@ -20,7 +20,7 @@ Build two contract standards:
 
 ### 2. **Solidity Implementation of HBT-20 Token (Fungible Tokens)**
 
-Here’s a Solidity implementation of the HBT-20 standard:
+Example Solidity implementation:
 
 solidity
                   
@@ -107,7 +107,7 @@ To execute smart contracts generated within the Hashburst ecosystem, the blockch
 
 - **Geth Integration**: use `geth` to run smart contracts on a **private network** or integrate it with external APIs for exchanges and Web3 systems.
   
-Here’s an example of deploying smart contracts programmatically with `geth`:
+Example contract deployment with `geth`:
 
 
                   bash
@@ -422,11 +422,11 @@ To provide a clearer understanding of how the smart contracts implemented in Sol
 
 
 
-- **2.For TRC tokens**: You’ll need to use the **TronLink** SDK for deploying TRC-20/721 tokens, ensuring compatibility across multiple chains.
+- **2.For TRC tokens**: You'll need to use the **TronLink** SDK for deploying TRC-20/721 tokens, ensuring compatibility across multiple chains.
   
   #### TRC-20/721 Token Deployment on the Tron Blockchain**
   
-  For **TRC-20** (fungible tokens) and **TRC-721** (non-fungible tokens), Tron’s architecture is different from Ethereum, but Tron offers its own tools for deploying smart contracts and interacting with the blockchain. The **TronLink Web** and **TronWeb** libraries facilitate easy deployment and interaction with Tron smart contracts.
+  For **TRC-20** (fungible tokens) and **TRC-721** (non-fungible tokens), Tron's architecture is different from Ethereum, but Tron offers its own tools for deploying smart contracts and interacting with the blockchain. The **TronLink Web** and **TronWeb** libraries facilitate easy deployment and interaction with Tron smart contracts.
   
   ##### **Steps for TRC-20/721 Token Deployment:**
   

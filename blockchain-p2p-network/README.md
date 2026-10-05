@@ -1,6 +1,6 @@
 # HashBurst Blockchain
 
-Go implementation of the HashBurst blockchain node — mainnet production release.
+Go implementation of the HashBurst blockchain node - mainnet production release.
 
 [![Go](https://img.shields.io/badge/Go-1.22-blue)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -13,10 +13,10 @@ Go implementation of the HashBurst blockchain node — mainnet production releas
 
 HashBurst is a blockchain designed for federated DePIN (Decentralized Physical Infrastructure Network) resource sharing. The node implements:
 
-- **APoW + PoH consensus** — fast blocks without network voting
-- **Blockchain DNS** — nodes discover each other via the chain, no external DNS
-- **HB-TEP integration** — direct encrypted node-to-node communication, Cloudflare-independent
-- **Compact ledger** — ~700 bytes/block (gob binary), ~1000x smaller than Bitcoin
+- **APoW + PoH consensus** - fast blocks without network voting
+- **Blockchain DNS** - nodes discover each other via the chain, no external DNS
+- **HB-TEP integration** - direct encrypted node-to-node communication, Cloudflare-independent
+- **Compact ledger** - ~700 bytes/block (gob binary), ~1000x smaller than Bitcoin
 
 ---
 
@@ -30,32 +30,32 @@ PoH is the cryptographic clock of each node. Instead of waiting for network cons
 prev_poh → SHA-512 → SHA-512 → ... (400,000 times) → new_poh
 ```
 
-This sequence is non-parallelizable — you cannot skip steps. It proves that approximately 40ms of CPU time has elapsed since the previous block, without requiring any coordination with other nodes.
+This sequence is non-parallelizable - you cannot skip steps. It proves that approximately 40ms of CPU time has elapsed since the previous block, without requiring any coordination with other nodes.
 
-Each block stores only the final PoH value (8 bytes). The intermediate sequence is discarded — this is why the ledger is compact.
+Each block stores only the final PoH value (8 bytes). The intermediate sequence is discarded - this is why the ledger is compact.
 
 ### Adaptive Proof of Work (APoW)
 
 APoW is a minimal validation layer on top of PoH. Difficulty = 4 means the block hash must begin with 4 zero hex characters (16 leading zero bits). On modern hardware this takes milliseconds, not minutes.
 
-Combined result: blocks are produced every ~100–500ms, making HashBurst orders of magnitude faster than Bitcoin (10 minutes) or Ethereum (12 seconds).
+Combined result: blocks are produced every ~100-500ms, making HashBurst orders of magnitude faster than Bitcoin (10 minutes) or Ethereum (12 seconds).
 
 ---
 
 ## Fixes Included in This Release
 
-### `blockchain/storage.go` — Disk Persistence
+### `blockchain/storage.go` - Disk Persistence
 
 **Problem:** the blockchain existed only in RAM. Every restart meant losing the entire chain, which caused `NODE_REGISTRATION` to be re-sent on every boot since the blockchain DNS had no memory of previous registrations.
 
-**Fix:** implemented `ChainStorage` using Go's stdlib `encoding/gob` — zero external dependencies. Each block is appended immediately after mining to two files:
+**Fix:** implemented `ChainStorage` using Go's stdlib `encoding/gob` - zero external dependencies. Each block is appended immediately after mining to two files:
 
 | File             | Format                                       | Size/entry.      |
 |------------------|----------------------------------------------|------------------|
 | `blockchain.dat` | gob-encoded blocks with 4-byte length prefix | ~700 bytes/block |
 | `blockchain.idx` | fixed-width index (blockNum, offset, size)   | 20 bytes/entry   |
 
-On startup `LoadAll()` reads the chain sequentially from disk. For 1 million blocks with 2 transactions each: ~700 MB — compared to Bitcoin's ~600 GB at similar block count.
+On startup `LoadAll()` reads the chain sequentially from disk. For 1 million blocks with 2 transactions each: ~700 MB - compared to Bitcoin's ~600 GB at similar block count.
 
 ```go
 // Every block is saved immediately after validation
@@ -64,7 +64,7 @@ if err := bc.storage.SaveBlock(newBlock); err != nil {
 }
 ```
 
-### `blockchain/mempool.go` — AddTransactionOnce
+### `blockchain/mempool.go` - AddTransactionOnce
 
 **Problem:** `GetTransactions()` returned all pending transactions but did not empty the mempool. The mining loop called `GetTransactions()` every 5 seconds, so the same transaction was included in multiple consecutive blocks, producing dozens of duplicate `NODE_REGISTRATION` entries in the chain.
 
@@ -99,7 +99,7 @@ func (m *Mempool) AddTransactionOnce(tx *Transaction) bool {
 }
 ```
 
-### `blockchain/blockchain.go` — Load from Disk on Startup
+### `blockchain/blockchain.go` - Load from Disk on Startup
 
 **Problem:** `NewBlockchain()` always created a fresh genesis block, ignoring any data previously saved on disk.
 
@@ -128,7 +128,7 @@ func newBlockchainWithDir(dir string) *Blockchain {
 }
 ```
 
-### `blockchain/registry.go` — BlockchainDNS
+### `blockchain/registry.go` - BlockchainDNS
 
 **Problem:** nodes discovered each other via a static `peers.json` file. If a server migrated to a new IP, every other node had to be manually updated. No automation, no resilience.
 
@@ -151,12 +151,12 @@ type NodeRecord struct {
 
 `BlockchainDNS` scans all blocks for these transactions and exposes them via `/api/nodes`. This makes the blockchain a **decentralized DNS**:
 
-- Cannot be censored — records are immutable once mined
-- Cannot be spoofed — each record is associated with the node's wallet address
-- No external dependency — no Cloudflare, no traditional DNS required
-- Auto-updating — `tepPeerSyncLoop` writes `peers.json` from blockchain data every 60s
+- Cannot be censored - records are immutable once mined
+- Cannot be spoofed - each record is associated with the node's wallet address
+- No external dependency - no Cloudflare, no traditional DNS required
+- Auto-updating - `tepPeerSyncLoop` writes `peers.json` from blockchain data every 60s
 
-### `blockchain/p2p.go` — Persistent P2P Identity
+### `blockchain/p2p.go` - Persistent P2P Identity
 
 **Problem:** `libp2p.New()` without an explicit identity option generates a new random Ed25519 key on every startup, producing a different Peer ID each time. This made the `NODE_REGISTRATION` record in the blockchain stale after every restart, and prevented other nodes from maintaining stable connections.
 
@@ -186,7 +186,7 @@ func (p *P2PNode) ConnectFromBlockchainDNS(ctx context.Context, excludeNodeID st
 }
 ```
 
-### `p2p_identity.go` — LoadOrCreateP2PIdentity
+### `p2p_identity.go` - LoadOrCreateP2PIdentity
 
 **Problem:** no mechanism existed to persist the libp2p key across restarts.
 
@@ -211,9 +211,9 @@ func LoadOrCreateP2PIdentity(keyPath string) (*P2PIdentity, error) {
 }
 ```
 
-**Do not delete `node_p2p.key`** — it is the permanent identity of the node registered in the blockchain DNS. Deleting it forces a new `NODE_REGISTRATION` with a different Peer ID.
+**Do not delete `node_p2p.key`** - it is the permanent identity of the node registered in the blockchain DNS. Deleting it forces a new `NODE_REGISTRATION` with a different Peer ID.
 
-### `main.go` — NODE_REGISTRATION Triple Deduplication
+### `main.go` - NODE_REGISTRATION Triple Deduplication
 
 **Problem:** `NODE_REGISTRATION` was being sent on every restart because the check was only in-memory. Since the blockchain was not persisted, the DNS was always empty on startup, so the registration check always returned "not found" and always re-queued the transaction.
 
@@ -285,7 +285,7 @@ All files are stored in `STORAGE_DIR` (default: `/var/lib/hashburst/`):
 | `blockchain.idx`       | Block index (20 bytes/entry)       | Only for full reset     |
 | `node_p2p.key`         | Ed25519 P2P identity               | **Never**               |
 | `node_registered.flag` | NODE_REGISTRATION dedup flag       | Only for full reset     |
-| `tep/peers.json`       | TEP peer cache from blockchain DNS | Safe — auto-regenerated |
+| `tep/peers.json`       | TEP peer cache from blockchain DNS | Safe - auto-regenerated |
 
 ### Full Reset Procedure (dev/test only)
 
@@ -308,7 +308,7 @@ systemctl start hashburst-node
 | GET    | `/api/status`       | Full status: peers, tps, miner, version           |
 | GET    | `/api/blocks`       | Last 10 blocks                                    |
 | GET    | `/api/transactions` | All transactions with tx_type annotation          |
-| GET.   | `/api/nodes`        | **Blockchain DNS** — all registered nodes         |
+| GET.   | `/api/nodes`        | **Blockchain DNS** - all registered nodes         |
 | GET    | `/api/tep/peers`    | TEP peer list for HB-TEP module                   |
 | GET    | `/api/storage`      | Disk storage statistics                           |
 
@@ -409,4 +409,4 @@ export STORAGE_DIR=/tmp/hashburst-test
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT - see [LICENSE](LICENSE)

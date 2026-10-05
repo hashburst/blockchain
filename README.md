@@ -50,8 +50,10 @@ Status recorded on 2026-10-05; this is an acceptance summary, not a live monitor
 The terminal legacy block moves exactly **450 HBT** to
 `0xd1Da8D04D767685e53440DbC56803aF350A65333` with **zero new issuance**.
 Managed-fleet archive acceptance does not establish a freeze of unmanaged forks.
-The import candidate remains non-activatable: the offline accounting model is
-not yet a consensus-bound mainnet import implementation.
+The Go genesis import now commits balances and consumed-source identity together
+and preserves both through replay and authenticated checkpoints. It remains
+non-activatable until the production validator checkpoint and runtime acceptance
+are complete. See [genesis import](hvm-network/deploy/mainnet/GENESIS-IMPORT.md).
 
 ## HVM ledger and recovery
 
@@ -72,7 +74,7 @@ a simple timestamp hash is not a replacement for consensus verification.
 ## Releases and websites
 
 Published candidate: [HVM v0.7.0-rc.2](https://github.com/hashburst/blockchain/releases/tag/hvm-network-v0.7.0-rc.2).
-Next preparation: **hvm-network-v0.7.0-rc.3**, draft only, including the terminal
+Next candidate: **hvm-network-v0.7.0-rc.3**, draft only, including the terminal
 archive and migration preparation. A final release requires mainnet acceptance.
 Linux/macOS amd64 and arm64 packages are cross-built; Windows amd64 includes
 wallet and certificate auditor only. Compilation is not a platform runtime certification.
@@ -86,90 +88,12 @@ See [release notes](hvm-network/deploy/release/RC3-PREPARATION.md),
 [mainnet preparation](hvm-network/deploy/mainnet/README.md) and
 [migration candidate](hvm-network/deploy/mainnet/legacy-migration.candidate.json).
 
-## PHP Implementation
+## Earlier implementations
 
-The PHP implementation provides components for:
-
-* blockchain record creation
-* Proof of History generation
-* AES-256-CBC encryption and decryption
-* SHA-512 hashing
-* CRC32b integrity verification
-* user ledger processing
-* wallet management
-* master ledger generation
-
-A simplified Proof of History implementation is:
-
-```php
-function generateProofOfHistory($data)
-{
-    $timestamp = time();
-    $combinedData = $data . $timestamp;
-    $proof = hash('sha512', $combinedData);
-
-    return [
-        'data' => $data,
-        'timestamp' => $timestamp,
-        'proof' => $proof
-    ];
-}
-```
-
-Block data can then be serialized, protected through the configured cryptographic mechanism and stored in the HashBurst ledger.
-
-## Python Implementation
-
-The Python implementation provides equivalent blockchain processing components and cryptographic operations.
-
-A simplified Proof of History implementation is:
-
-```python
-import hashlib
-import time
-
-def generate_proof_of_history(data):
-    timestamp = str(time.time())
-    combined_data = data + timestamp
-    proof = hashlib.sha512(combined_data.encode()).hexdigest()
-
-    return {
-        "data": data,
-        "timestamp": timestamp,
-        "proof": proof
-    }
-```
-
-Python components can be used for blockchain processing, automation, analytics and integration with optimization models.
-
-## C++ Implementation
-
-The C++ implementation provides lower-level blockchain and cryptographic processing using OpenSSL-based components.
-
-A simplified SHA-512 operation is:
-
-```cpp
-#include <openssl/sha.h>
-#include <string>
-
-std::string sha512(const std::string& data)
-{
-    unsigned char hash[SHA512_DIGEST_LENGTH];
-
-    SHA512(
-        reinterpret_cast<const unsigned char*>(data.c_str()),
-        data.size(),
-        hash
-    );
-
-    return std::string(
-        reinterpret_cast<char*>(hash),
-        SHA512_DIGEST_LENGTH
-    );
-}
-```
-
-The C++ components can be used for performance-sensitive blockchain processing and cryptographic operations.
+The PHP, Python and C++ examples document earlier framework designs. Their
+filesystem layouts, timestamp-hash examples and encryption examples do not
+specify HVM consensus. The current Go implementation is under `hvm-network`;
+its protocol, replay and state-root checks govern HVM blocks.
 
 ## Go Components
 
@@ -362,3 +286,10 @@ https://github.com/hashburst/node-installer
 Stable releases:
 
 https://github.com/hashburst/node-installer/releases
+
+## Mainnet activation inputs
+
+[Production activation inputs](hvm-network/deploy/mainnet/ACTIVATION-INPUTS.md)
+records the public identity and protocol data still required for the validator
+checkpoint. The economic genesis implementation is merged; production mainnet
+activation and final website publication have not been performed.
