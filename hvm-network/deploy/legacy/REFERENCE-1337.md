@@ -1,0 +1,31 @@
+# Approved legacy reference, chain 1337
+
+On 2026-10-04 the owner selected the branch served by 64.31.4.9 and corroborated by the block hashes reported by 77.90.188.153 and 77.90.188.154. This is an explicit migration reference decision, not a claim that a count of replicas establishes consensus finality.
+
+The reference is height 9 (10 blocks), hash `0000ca5a560580d0a882a1e46808331e414d073dbc2b0125f5310a6a6a81f586`. The captured files are `/var/lib/hashburst/blockchain.dat` and `blockchain.idx`. Nine rewards total 45,000,000,000 atomic units (450 HBT) for `0x534746AC40019Ec4E19eb3D12d5F716D4f8b7e3e`. Nine other transactions are zero-value node registrations. This manifest contains no founder allocation, faucet budget or future issuance.
+
+The .157 branch shares blocks 0–6 but assigns the rewards of blocks 7–9 to a different recipient. Both sets of rewards must never be summed. Preserve the entire .157 ledger before repair. API `miner` metadata varies by serving node even for matching blocks; use the actual reward transaction receiver.
+
+Offline evidence checks have verified file digests, index/frame bounds, parent linkage, monotonic timestamps, legacy SHA-256 block hashes, Keccak transaction IDs and recoverable secp256k1 signatures. Each branch has 18 transaction IDs and 9 non-system signatures. PoH checks used the legacy 400,000 SHA-512 iterations per block. These checks refer only to the captured data, not deployed binary provenance or an executed spending freeze.
+
+## Next operation
+
+Run `python3 inspect-repair.py` on the administration Mac. It asks for SSH authentication separately on .155 and .157 and returns a new local report. It does not restart any service, install a binary, execute the legacy binary, alter files remotely, or acquire private keys. It reads public ledger data only under a 16 MiB limit, selected public runtime settings, systemd status and the installed binary digest. A failed legacy API on .155 does not establish that its disk state is missing or corrupt.
+
+## Repair and activation boundaries
+
+No remote repair is implemented or executed by this change. The approved reference must not be installed by overwriting live dat/idx files. First determine the actual legacy service configuration and binary, retain old ledgers and configuration, stop only legacy writers in a controlled maintenance window, and publish a validated generation. Preserve P2P/wallet/TEP identity, HB-Files/IPFS state and all HVM services. Do not silently create genesis when an existing ledger is missing or corrupt.
+
+A normal legacy runtime may produce or adopt blocks after the selected height. Restoring the reference pair is not a spending freeze. Before mainnet activation, implement and test the canonical managed legacy network's freeze across local submission, peer ingress, block production, chain adoption and restarts. An HTTP-only restriction is insufficient. Independent third-party forks cannot be globally stopped by this procedure.
+
+Mainnet 4735489 must use separate genesis, state and signing identities/journals from legacy 1337 and testnet 4735490. The manifest deliberately denies mainnet activation until repair, freeze proof, full economic manifest and mainnet identity/genesis commitments exist. Neither choosing a reference nor merging this document activates a network.
+
+## Inspection received 2026-10-04 09:07 UTC
+
+.155 is in systemd auto-restart, exit status 1, MainPID 0, with 38,555 restarts. Its 8-block ledger (height 7) is an exact byte prefix of .157 for both files, including the first divergent block. Frame/index bounds pass. The fatal application message is absent from this inspection: corruption or a missing wallet must not be inferred from the exit status. .157 remains active with the same captured alternate ledger. The installed binary digests differ; this alone does not establish the reason for the crash.
+
+Collect the failing legacy unit journal and configured output log before changing its binary or data. Stop only `hashburst-node.service` on .155 if it remains in auto-restart, to avoid repeated failures while diagnosing. Leave HVM, IPFS and TEP services intact. Never recreate identity or genesis to make startup succeed. No repair has been executed by these evidence updates.
+
+## Follow-up journal and publication authorization
+
+The owner explicitly authorized publication in PR #30 of service status, paths and binary checksums, excluding keys and credentials. The subsequent systemd journal reaches restart counter 38,603. The collected `/var/log/hashburst/node.log` ends in July and does not contain the current failure. A conditional stop did not execute because the substate changed between checks. Therefore stopping the loop is not yet confirmed. The next operation is an explicit stop of only the known failing legacy service on .155, followed by reading its actual StandardOutput/StandardError destinations from the effective unit configuration. Do not infer the current cause from the July reward address or peer IDs.
