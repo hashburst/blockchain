@@ -5,7 +5,7 @@ record. The standalone JSONL matches the submitted summary; the pasted terminal
 Markdown contains a later capture. Both identify PID 1270573, 26 threads,
 `ActiveState=active`, `NRestarts=0`.
 
-| Metric | 22:12:21–22:13:21 UTC | 22:24:13–22:25:13 UTC |
+| Metric | 22:12:21-22:13:21 UTC | 22:24:13-22:25:13 UTC |
 |---|---:|---:|
 | Monotonic duration | 59.994608 s | 60.092887 s |
 | Process CPU | 0.73 CPU-s | 13.57 CPU-s |
@@ -58,9 +58,9 @@ pseudo-random payload, five iterations per trial, three trials:
 
 | | Old | New |
 |---|---:|---:|
-| Allocated bytes/op | 42,260,155–42,261,472 | 8,439,032–8,439,070 |
-| Allocations/op | 86–89 | 21 |
-| Time/op | 21.80–39.34 ms | 5.81–7.10 ms |
+| Allocated bytes/op | 42,260,155-42,261,472 | 8,439,032-8,439,070 |
+| Allocations/op | 86-89 | 21 |
+| Time/op | 21.80-39.34 ms | 5.81-7.10 ms |
 
 Allocation reduction is approximately 80%. The short sequential trials are not
 an energy experiment or a production speed guarantee. The fixture excludes the

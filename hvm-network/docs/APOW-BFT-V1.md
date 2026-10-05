@@ -51,7 +51,7 @@ independently spendable legacy balance from being copied into another chain.
 ## Runtime integration
 
 Version 4 commits the work digest and signature in addition to all version-3 EVM
-commitments. Versions 1–3 and nil-APoW config JSON remain unchanged. Structural
+commitments. Versions 1-3 and nil-APoW config JSON remain unchanged. Structural
 validation validates the challenge, target, signature and reward on ordinary
 append, full-chain verification and replay. Ethereum block/events continue to
 work for version 4. Work signatures are canonical low-S with recovery IDs 0/1.

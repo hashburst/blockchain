@@ -4,7 +4,7 @@ On 2026-10-04 the owner selected the branch served by 64.31.4.9 and corroborated
 
 The reference is height 9 (10 blocks), hash `0000ca5a560580d0a882a1e46808331e414d073dbc2b0125f5310a6a6a81f586`. The captured files are `/var/lib/hashburst/blockchain.dat` and `blockchain.idx`. Nine rewards total 45,000,000,000 atomic units (450 HBT) for `0x534746AC40019Ec4E19eb3D12d5F716D4f8b7e3e`. Nine other transactions are zero-value node registrations. This manifest contains no founder allocation, faucet budget or future issuance.
 
-The .157 branch shares blocks 0–6 but assigns the rewards of blocks 7–9 to a different recipient. Both sets of rewards must never be summed. Preserve the entire .157 ledger before repair. API `miner` metadata varies by serving node even for matching blocks; use the actual reward transaction receiver.
+The .157 branch shares blocks 0-6 but assigns the rewards of blocks 7-9 to a different recipient. Both sets of rewards must never be summed. Preserve the entire .157 ledger before repair. API `miner` metadata varies by serving node even for matching blocks; use the actual reward transaction receiver.
 
 Offline evidence checks have verified file digests, index/frame bounds, parent linkage, monotonic timestamps, legacy SHA-256 block hashes, Keccak transaction IDs and recoverable secp256k1 signatures. Each branch has 18 transaction IDs and 9 non-system signatures. PoH checks used the legacy 400,000 SHA-512 iterations per block. These checks refer only to the captured data, not deployed binary provenance or an executed spending freeze.
 

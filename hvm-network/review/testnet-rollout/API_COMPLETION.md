@@ -1,4 +1,4 @@
-# Four-validator API rollout — 2026-09-26
+# Four-validator API rollout - 2026-09-26
 
 Evidence: operator-supplied terminal output from API Resume v1.1.2; no direct VPS observation by the repository maintainer assistant. Raw JSON reports have not been imported.
 
