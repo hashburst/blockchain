@@ -1,0 +1,9 @@
+{
+  "source_chain_id": 1337,
+  "source_height": 10,
+  "source_hash": "0000a8bef0916f373a97fa8c311b095258f00cf7f2a24a3ff2f875156ca27ae1",
+  "recipient": "0xd1da8d04d767685e53440dbc56803af350a65333",
+  "units": 45000000000,
+  "founder_units": 100000000000000000,
+  "freeze_evidence_sha256": "d0f2246fc26e9e72c6117ac0d6f6805c7427a8cc1b106613c822a1cbb7e0a6f6"
+}

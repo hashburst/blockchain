@@ -1,6 +1,6 @@
 {
   "schema": "hashburst-mainnet-legacy-migration-candidate-v1",
-  "status": "offline_model_verified_not_activatable",
+  "status": "go_genesis_replay_candidate_not_activatable",
   "activation_allowed": false,
   "mainnet_import_executed": false,
   "evidence": {
@@ -46,5 +46,13 @@
     "approved complete protocol and validator manifest",
     "generated and verified common mainnet checkpoint",
     "mainnet runtime provisioning, restart and reward acceptance"
-  ]
+  ],
+  "implementation": {
+    "command": "hvm-mainnet-bootstrap",
+    "state_domain": "HASHBURST_HBT_STATE_V3_IMPORTS",
+    "consumed_source_committed_with_balances": true,
+    "legacy_and_testnet_roots_unchanged_when_no_import": true,
+    "production_validator_manifest_complete": false,
+    "production_checkpoint_created": false
+  }
 }
