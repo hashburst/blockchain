@@ -24,6 +24,6 @@ jobs:
       - run: python3 -m unittest discover -s deploy/legacy -p 'test_*archive.py' -v
       - run: python3 -m unittest discover -s deploy/mainnet -p test_migration_model.py -v
       - run: go test ./...
-      - run: go test -race ./blockchain -run '^TestLegacyTerminal' -count=1
-      - run: go test -race ./cmd/hvm-legacy-archive ./cmd/hvm-wallet-proof
-      - run: go build ./cmd/hvm-legacy-close ./cmd/hvm-legacy-archive
+      - run: go test -race ./blockchain -run '^Test(LegacyTerminal|MainnetImport)' -count=1
+      - run: go test -race ./cmd/hvm-legacy-archive ./cmd/hvm-wallet-proof ./cmd/hvm-mainnet-bootstrap
+      - run: go build ./cmd/hvm-legacy-close ./cmd/hvm-legacy-archive ./cmd/hvm-mainnet-bootstrap

@@ -223,6 +223,10 @@ func sameEthereumSender(raw []byte, chain uint64, sender string) bool {
 }
 
 func (c ProtocolV2Config) detached() ProtocolV2Config {
+	if c.GenesisImport != nil {
+		copy := *c.GenesisImport
+		c.GenesisImport = &copy
+	}
 	if c.APoW != nil {
 		copy := *c.APoW
 		c.APoW = &copy

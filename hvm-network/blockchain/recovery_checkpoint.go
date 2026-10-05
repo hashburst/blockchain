@@ -68,6 +68,7 @@ type recoveryCheckpoint struct {
 	PrefixBytes                           int64
 	Balances                              map[string]int64
 	Sequences                             map[string]uint64
+	ConsumedImports                       map[string]string
 	HVM                                   map[string][]byte
 	Validators                            []consensus.Validator
 	Receipts                              map[string]hvm.Receipt
@@ -404,7 +405,7 @@ func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.
 			applyNodeRegistrations(nodes, item, bc.v2Config.ChainID)
 		}
 	}
-	cp := recoveryCheckpoint{Nodes: nodes, Version: checkpointFormat, Height: height, Hash: b.Hash, Config: bc.recoveryConfigHash(), PrefixBytes: n, PrefixHash: digest, NodeBinding: binding, Balances: st.balances, Sequences: st.sequences, HVM: engine.State().CheckpointValues(), Validators: validators.Snapshot(), Receipts: receipts, EVM: evm}
+	cp := recoveryCheckpoint{Nodes: nodes, Version: checkpointFormat, Height: height, Hash: b.Hash, Config: bc.recoveryConfigHash(), PrefixBytes: n, PrefixHash: digest, NodeBinding: binding, Balances: st.balances, Sequences: st.sequences, ConsumedImports: st.consumedImports, HVM: engine.State().CheckpointValues(), Validators: validators.Snapshot(), Receipts: receipts, EVM: evm}
 	// Freeze all maps/projections into owned bytes while the caller holds the chain
 	// lock (or is in single-threaded startup). Only compression and publication run
 	// off-thread. Snapshot construction still has a measurable CPU/copy cost.
@@ -618,6 +619,7 @@ func (bc *Blockchain) loadRecoveryCheckpoint() (*recoverySeed, error) {
 	st := NewState()
 	st.balances = best.Balances
 	st.sequences = best.Sequences
+	st.consumedImports = best.ConsumedImports
 	if st.Root() != b.HBTStateRoot {
 		return nil, fmt.Errorf("checkpoint native root mismatch")
 	}
