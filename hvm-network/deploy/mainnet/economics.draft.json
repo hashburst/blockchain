@@ -31,11 +31,18 @@
   },
   "legacy_migration": {
     "mode": "verified_import_with_legacy_spending_freeze",
-    "snapshot_height": null,
-    "snapshot_hash": null,
+    "snapshot_height": 10,
+    "snapshot_hash": "0000a8bef0916f373a97fa8c311b095258f00cf7f2a24a3ff2f875156ca27ae1",
     "mapping_manifest_sha256": null,
     "source_spendability_policy": "Freeze canonical legacy spending at the agreed snapshot boundary; enforcement and evidence required before mainnet import",
-    "founder_allocation_additive_or_included": "additive"
+    "founder_allocation_additive_or_included": "additive",
+    "migration_candidate": "legacy-migration.candidate.json",
+    "freeze_evidence_sha256": "d0f2246fc26e9e72c6117ac0d6f6805c7427a8cc1b106613c822a1cbb7e0a6f6",
+    "managed_fleet_freeze_verified": true,
+    "target_recipient": "0xd1da8d04d767685e53440dbc56803af350a65333",
+    "import_units": "45000000000",
+    "source_nullifier": "f1bed2fa0b08af476aa141431fc4722461a6da2e3d010d456e7f29356ff15360",
+    "mainnet_import_executed": false
   },
   "apow": {
     "activation_height": null,
@@ -54,8 +61,7 @@
     "measured difficulty, gas and validator parameters",
     "separate identities and shared checkpoint",
     "mainnet restart and wallet acceptance",
-    "implement and demonstrate canonical legacy spending freeze",
-    "supply source snapshot, ownership mapping and total-supply reconciliation"
+    "integrate terminal import and consumed-source commitment into mainnet bootstrap/consensus; offline model is not runtime acceptance"
   ],
   "decisions_confirmed": {
     "date": "2026-09-30",
