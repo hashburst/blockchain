@@ -143,6 +143,13 @@ func (c Config) Pin() string {
 // Mainnet has a separate on-disk namespace and listeners. Existing testnet
 // pins cannot be relabelled: the pin covers Network, ChainID and the checkpoint.
 func (c Config) validateMainnetProfile() error {
+	if c.Protocol.GenesisImport == nil {
+		return fmt.Errorf("mainnet requires the approved genesis import commitment")
+	}
+	if c.CheckpointHeight < 1 || !c.Protocol.ConsensusEnabledAt(c.CheckpointHeight) {
+		return fmt.Errorf("economic genesis alone is not an activatable validator checkpoint")
+	}
+
 	if c.Protocol.ChainID != 4735489 || c.Protocol.EVM == nil {
 		return fmt.Errorf("mainnet requires chain ID 4735489 and explicit EVM configuration")
 	}

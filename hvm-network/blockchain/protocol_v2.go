@@ -27,6 +27,7 @@ const (
 // values are provisional while ActivationHeight is disabled; before testnet or
 // mainnet activation they must be frozen in a versioned protocol release.
 type ProtocolV2Config struct {
+	GenesisImport             *MainnetGenesisImport   `json:"genesis_import,omitempty"`
 	APoW                      *APoWConfig             `json:"apow,omitempty"`
 	EVM                       *EVMConfig              `json:"evm,omitempty"`
 	ChainID                   uint64                  `json:"chain_id"`
@@ -99,6 +100,11 @@ func (c ProtocolV2Config) EffectivePoHTicks() int {
 }
 
 func (c ProtocolV2Config) Validate() error {
+	if c.GenesisImport != nil {
+		if err := c.GenesisImport.Validate(c.ChainID); err != nil {
+			return err
+		}
+	}
 	if err := c.validateAPoWConfig(); err != nil {
 		return err
 	}

@@ -79,7 +79,7 @@ func NewBlockchainWithDirAndV2Config(dir string, cfg ProtocolV2Config) *Blockcha
 	bc := &Blockchain{
 		MiningReward:   DefaultMiningReward,
 		storage:        storage,
-		state:          NewState(),
+		state:          initialProtocolState(cfg),
 		hvmEngine:      hvm.NewEngine(nil, cfg.FeePolicy),
 		validators:     consensus.NewRegistry(cfg.Validator),
 		voteJournal:    voteJournal,
@@ -114,7 +114,7 @@ func NewBlockchainWithDirAndV2Config(dir string, cfg ProtocolV2Config) *Blockcha
 	}
 
 	log.Println("No blockchain data found — creating genesis block")
-	genesis := NewGenesisBlock()
+	genesis := protocolGenesis(cfg)
 	log.Printf("Genesis (deterministic): %s", genesis.Hash)
 	bc.Blocks = []*Block{genesis}
 	if err := storage.SaveBlock(genesis); err != nil {
@@ -498,7 +498,7 @@ func (bc *Blockchain) verifyChainFrom(start int) error {
 	if err != nil {
 		return err
 	}
-	if genesis.Hash != NewGenesisBlock().Hash {
+	if !validProtocolGenesis(genesis, bc.v2Config) {
 		return fmt.Errorf("genesis mismatch")
 	}
 	if start < 1 {

@@ -13,7 +13,7 @@ func (bc *Blockchain) computeProjections(blocks []*Block) (*State, *hvm.Engine, 
 	return bc.computeProjectionsFrom(len(blocks), func(n int) (*Block, error) { return blocks[n], nil })
 }
 func (bc *Blockchain) computeProjectionsFrom(count int, get func(int) (*Block, error)) (*State, *hvm.Engine, *consensus.Registry, map[string]hvm.Receipt, *evmReadHistory, error) {
-	st := NewState()
+	st := initialProtocolState(bc.v2Config)
 	history := &evmReadHistory{}
 	engine := hvm.NewEngine(nil, bc.v2Config.FeePolicy)
 	validators := consensus.NewRegistry(bc.v2Config.Validator)
@@ -37,6 +37,13 @@ func (bc *Blockchain) computeProjectionsFrom(count int, get func(int) (*Block, e
 		b, e := get(n)
 		if e != nil {
 			return nil, nil, nil, nil, nil, e
+		}
+		if n == 0 && bc.v2Config.GenesisImport != nil {
+			if !validProtocolGenesis(b, bc.v2Config) {
+				return nil, nil, nil, nil, nil, fmt.Errorf("mainnet import genesis mismatch")
+			}
+			ancestors = appendAncestor(ancestors, b)
+			continue
 		}
 		if b.Index > 0 && b.Index%5000 == 0 {
 			log.Printf("HVM_REPLAY_PROGRESS height=%d total=%d", b.Index, count)

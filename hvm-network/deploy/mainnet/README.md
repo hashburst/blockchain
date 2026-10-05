@@ -21,8 +21,9 @@ PoW and timing values are not an approved mainnet monetary/consensus policy.
 
 ## Required before provisioning
 
-1. Implement the approved legacy terminal import in the mainnet bootstrap;
-   migration is decided, but no mainnet allocation has been executed.
+1. Review the Go economic genesis import candidate described in
+   [GENESIS-IMPORT.md](GENESIS-IMPORT.md); no production mainnet allocation has
+   been executed.
 2. Approve a reproducible mainnet genesis/checkpoint and protocol manifest:
    allocations and reward recipients, supply/reward policy, validator bonds and
    weights, activation heights, gas limit/base fee and consensus timing.
@@ -93,3 +94,9 @@ Legacy copies outside the managed fleet are outside the freeze evidence scope.
 Public sites must currently describe legacy as archived, testnet separately,
 and mainnet as not activated. No mainnet balances, availability or release
 readiness may be claimed from the offline accounting tests.
+
+## Go economic genesis preparation
+
+See [GENESIS-IMPORT.md](GENESIS-IMPORT.md) for atomic balance/import commitments,
+full replay and authenticated recovery tests, and the offline checkpoint command.
+The economic checkpoint is not a complete validator bootstrap or activation manifest.

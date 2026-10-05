@@ -61,7 +61,7 @@
     "measured difficulty, gas and validator parameters",
     "separate identities and shared checkpoint",
     "mainnet restart and wallet acceptance",
-    "integrate terminal import and consumed-source commitment into mainnet bootstrap/consensus; offline model is not runtime acceptance"
+    "production validator checkpoint and runtime acceptance of the Go genesis import candidate"
   ],
   "decisions_confirmed": {
     "date": "2026-09-30",
