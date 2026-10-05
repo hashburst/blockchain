@@ -1,4 +1,4 @@
-# HVM dat/idx convergence candidate — not an activation release
+# HVM dat/idx convergence candidate - not an activation release
 
 The new hosts' five-second observations show ~0.0416% steal, unlike the older
 v2 windows. Both .151 AND .152 have Docker listeners on 80/443. No HashBurst/IPFS

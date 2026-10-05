@@ -1,4 +1,6 @@
-To integrate and start the **EVM (Ethereum Virtual Machine)** in PHP based on the repository you mentioned, follow these steps:
+# PHP EVM integration reference
+
+This document describes a historical PHP integration example. The current HVM execution implementation is documented in `evm/execution` and `hvm-network`.
 
 ### 1. **Prerequisites**:
 

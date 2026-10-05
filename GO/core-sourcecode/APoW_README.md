@@ -10,7 +10,7 @@ This combination of dynamic difficulty adjustment, efficient hashing, and stake-
 
 ### Step 1: **Adaptive Proof of Work (APoW) - Adjust Difficulty Dynamically**
 
-Here’s how to implement this in **Go** as the project is written in **GoLang**.
+The following Go example describes an experimental design.
 
 #### a. **Track Block Mining Time**:
 
@@ -61,7 +61,7 @@ The first step is to calculate the average time it takes to mine a block. Based 
 
 #### b. **Integrate the Difficulty Adjustment with Mining Logic**:
 
-In the main blockchain mining loop, you’ll call `AdjustDifficulty()` each time a new block is mined.
+In the main blockchain mining loop, you'll call `AdjustDifficulty()` each time a new block is mined.
 
                     go
                     

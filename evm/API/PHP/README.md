@@ -247,7 +247,7 @@ Questo endpoint gestisce la **distribuzione automatica** dei proventi dalle Pool
 
   #### Tipologia di Wallet e Standard
   
-  I placeholder dei wallet sono esempi di indirizzi blockchain utilizzati per distribuire ricompense derivanti dall’attività di mining o tokenizzazione all'interno dell'ecosistema Hashburst:
+  I placeholder dei wallet sono esempi di indirizzi blockchain utilizzati per distribuire ricompense derivanti dall'attività di mining o tokenizzazione all'interno dell'ecosistema Hashburst:
 
   - User Wallets: la lista ["UserWallet1", "UserWallet2", "UserWallet3"] rappresenta i wallet personali degli utenti che partecipano al mining. Gli utenti ricevono pagamenti basati sulle loro accepted shares delle criptovalute minate nelle pool (ad esempio, DOGE, BTC, ETC, XMR).
   - Dealer Wallet: "DealerWallet" è il portafoglio del "dealer" il quale è un'entità finanziatrice o affiliata che riceve una percentuale fissa dei guadagni lordi minati dalle Pool.

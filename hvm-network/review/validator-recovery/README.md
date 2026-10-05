@@ -1,4 +1,4 @@
-# Persistent validator recovery — targeted verification
+# Persistent validator recovery - targeted verification
 
 Local tests on 2026-09-23, Go 1.25.7; no production or VPS deployment.
 HVM Network RC3 gates are not reopened by this follow-up.

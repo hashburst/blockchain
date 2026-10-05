@@ -1,4 +1,4 @@
-# Runtime testnet persistente — integrazione, non attivazione pubblica
+# Runtime testnet persistente - integrazione, non attivazione pubblica
 
 Entry point: `cmd/hashburst-testnet`. Usa il modulo Go `hvm-network/` e Go 1.25.7.
 Non richiama fixture, non crea genesis, non avvia mining legacy, non installa servizi.
@@ -68,7 +68,7 @@ ispezione: nessuna cancellazione automatica.
 `--check` verifica senza avviare rete o firme; apre/crea il solo file di lock.
 Tutti gli avvii successivi richiedono pin e journal presenti. Configurazione,
 checkpoint, genesis, identità P2P, node ID e validator ID sono vincolati dal pin;
-porte/bootnodes e passaggio validator→observer restano configurabili.
+porte/bootnodes e passaggio validatortoobserver restano configurabili.
 
 La unità systemd inclusa è un template, non è stata installata. Richiede utente
 `hashburst-hvm-testnet`, binario e configurazione già preparati e snapshot con

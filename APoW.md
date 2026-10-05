@@ -1,21 +1,14 @@
-## Adaptive Proof of Work
+# HashBurst APoW
 
-###**Optimizing Hashburst's Proof of Work (PoW)**
+The current HVM APoW protocol is specified in
+[hvm-network/docs/APOW-BFT-V1.md](hvm-network/docs/APOW-BFT-V1.md).
 
-To optimize and reduce energy consumption in the Proof of Work (PoW) mechanism used by **Hashburst**, this project implements an **Adaptive Proof of Work (APoW)**. This approach adjusts the difficulty dynamically based on factors like network load, miner efficiency, or power consumption. Here’s how you can do it:
+A valid work submission is not a finalized block or an earned reward. The
+protocol binds work to its signer and beneficiary, and the subsidy is applied
+once when the block satisfies the configured rules and BFT finality.
 
-1. **Adjust Difficulty Dynamically**:
-   
-   - Calculate the average time miners take to solve a block.
-     
-   - If the time is too short, increase difficulty; if too long, decrease it.
-
-3. **Energy-Efficient Hashing**:
-   
-   - Implement efficient hashing algorithms like **SHA-3** or **Blake2**, which offer better performance per watt.
-     
-   - Use **ASIC-resistant algorithms** like **Equihash** to make sure that mining isn't dominated by high-power machines.
-
-5. **Use Proof of Stake (PoS) Hybrid**:
-   
-   - Combine PoW with **Proof of Stake (PoS)** to lower the reliance on power-hungry mining.
+The earlier adaptive-mining experiments in this repository are not the HVM
+consensus specification. Miner scheduling and external optimization models must
+not change network difficulty, supply, signatures or validation rules outside
+an explicitly approved protocol configuration. Energy reduction requires
+measurements; it cannot be inferred from an algorithm name or CPU utilization.

@@ -1,4 +1,4 @@
-# EVM integration validation — 2026-09-26
+# EVM integration validation - 2026-09-26
 
 Source validation only. No VPS was upgraded and no production activation was selected.
 
