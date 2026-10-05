@@ -21,7 +21,7 @@ jobs:
         with:
           go-version: '1.25.7'
           cache-dependency-path: hvm-network/go.sum
-      - run: python3 -m unittest discover -s deploy/legacy -p test_rollout_archive.py -v
+      - run: python3 -m unittest discover -s deploy/legacy -p 'test_*archive.py' -v
       - run: go test ./...
       - run: go test -race ./blockchain -run '^TestLegacyTerminal' -count=1
       - run: go test -race ./cmd/hvm-legacy-archive ./cmd/hvm-wallet-proof
