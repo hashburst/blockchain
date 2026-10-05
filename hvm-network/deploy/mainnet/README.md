@@ -1,6 +1,6 @@
 # HVM Mainnet 4735489 — runtime foundation, not an activation release
 
-Legacy 1337 and testnet 4735490 are unchanged. The separate executable
+The five managed legacy 1337 services now run a terminal read-only archive. Testnet 4735490 remains separate. The separate executable
 `cmd/hashburst-mainnet` accepts only `network=mainnet`, chain ID 4735489 and an
 explicit EVM configuration. It reuses the verified state/recovery/runtime engine;
 it offers no testnet migration command and never creates genesis on startup.
@@ -21,8 +21,8 @@ PoW and timing values are not an approved mainnet monetary/consensus policy.
 
 ## Required before provisioning
 
-1. Decide whether mainnet is a new network or an audited migration of legacy
-   economic state. This release assumes neither and performs neither.
+1. Implement the approved legacy terminal import in the mainnet bootstrap;
+   migration is decided, but no mainnet allocation has been executed.
 2. Approve a reproducible mainnet genesis/checkpoint and protocol manifest:
    allocations and reward recipients, supply/reward policy, validator bonds and
    weights, activation heights, gas limit/base fee and consensus timing.
@@ -35,8 +35,8 @@ PoW and timing values are not an approved mainnet monetary/consensus policy.
    repeat the scoped wallet and WebSocket acceptance tests on 4735489.
 
 An accepted testnet canary is not an instruction to create production balances.
-The existing mainnet genesis/economic decisions were not supplied with the
-acceptance evidence. This is the remaining input to assemble a real deployment.
+Founder allocation and legacy import amounts are recorded below. A complete
+protocol/validator manifest and authenticated bootstrap are still required.
 
 ## Offline usage after an approved checkpoint exists
 
@@ -65,3 +65,31 @@ This is a decision, not proof that a freeze occurred. Source height/hash, addres
 ownership mapping, enforcement on legacy nodes and supply reconciliation remain
 required. An API shutdown or database copy alone cannot enforce the freeze.
 Independently operated old forks cannot be erased by a mainnet migration.
+
+## Managed legacy freeze accepted 2026-10-05
+
+`legacy-migration.candidate.json` binds the exact SHA256 of the five-host freeze
+report to terminal height 10, file commitments, recipient and 45,000,000,000
+native units (450 HBT). The source nullifier depends on the source boundary,
+not the report timestamp: a refreshed observation cannot authorize another import.
+The .153 HA-controlled master transition is recorded in the supplied report.
+
+`migration_model.py` is an OFFLINE accounting model, not a production importer.
+Its tests verify reconciliation, altered-recipient/amount rejection, overflow,
+wrong-chain rejection and duplicate rejection after JSON state reload. This is
+not a crash/restart test of the mainnet daemon and does not credit any live wallet.
+Run: `python3 -m unittest discover -s deploy/mainnet -p test_migration_model.py -v`.
+
+Production integration must commit consumed sources and balances atomically to
+the same authenticated consensus state/checkpoint and enforce the import rule
+on replay. A sidecar receipt or local flag alone is insufficient. Do not change
+`activation_allowed` to true to bypass this integration.
+
+The approved founder billion is additional to 450 imported HBT: the proposed
+initial total is 1,000,000,450 HBT before rewards. Zero additional migration
+issuance refers to the 450-HBT transfer, not to the separate founder allocation.
+Legacy copies outside the managed fleet are outside the freeze evidence scope.
+
+Public sites must currently describe legacy as archived, testnet separately,
+and mainnet as not activated. No mainnet balances, availability or release
+readiness may be claimed from the offline accounting tests.

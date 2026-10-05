@@ -1,0 +1,50 @@
+{
+  "schema": "hashburst-mainnet-legacy-migration-candidate-v1",
+  "status": "offline_model_verified_not_activatable",
+  "activation_allowed": false,
+  "mainnet_import_executed": false,
+  "evidence": {
+    "filename": "FLEET-FREEZE-HA-1791220850167915000.json",
+    "sha256": "d0f2246fc26e9e72c6117ac0d6f6805c7427a8cc1b106613c822a1cbb7e0a6f6",
+    "scope": "five managed legacy services at observation times",
+    "fleet_freeze_verified": true,
+    "verifier_commit": "0289779049a680a7f419be81d4d69504a9b97fbe"
+  },
+  "import": {
+    "source_chain_id": 1337,
+    "source_height": 10,
+    "source_hash": "0000a8bef0916f373a97fa8c311b095258f00cf7f2a24a3ff2f875156ca27ae1",
+    "target_chain_id": 4735489,
+    "recipient": "0xd1da8d04d767685e53440dbc56803af350a65333",
+    "amount_units": "45000000000",
+    "units_per_hbt": "100000000",
+    "source_nullifier": "f1bed2fa0b08af476aa141431fc4722461a6da2e3d010d456e7f29356ff15360",
+    "additional_migration_issuance_units": "0"
+  },
+  "source_files": {
+    "blockchain.dat": "d6eda91edad1b4858a1b3ddd97347f468aab998168ec818eefa67d5becabc06b",
+    "blockchain.idx": "e2ff5d9437fe2f789197e3fe5a8863ed25cc5f5a5c3ee17c5218ee511508d68f"
+  },
+  "source_state_root": "33f6f441083e985f75502269b8c7e9bb4e621c43286c8232ba17b8f36e57de81",
+  "reconciliation": {
+    "legacy_import_hbt": "450",
+    "founder_allocation_hbt": "1000000000",
+    "founder_allocation_is_additive": true,
+    "total_before_mining_hbt": "1000000450",
+    "total_native_units": "100000045000000000",
+    "faucet_is_subset_of_founder": true
+  },
+  "separation": {
+    "network": "mainnet",
+    "chain_id": 4735489,
+    "config_root": "/etc/hashburst-hvm-mainnet",
+    "state_root": "/var/lib/hashburst-hvm-mainnet",
+    "identity_policy": "fresh mainnet validator and P2P identities; no testnet key or journal copies"
+  },
+  "activation_blockers": [
+    "consensus-bound one-time import/bootstrap with authenticated consumed-source commitment",
+    "approved complete protocol and validator manifest",
+    "generated and verified common mainnet checkpoint",
+    "mainnet runtime provisioning, restart and reward acceptance"
+  ]
+}
