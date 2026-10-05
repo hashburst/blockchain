@@ -15,10 +15,10 @@ The **Hashburst structure** has built in **Python, PHP, and Go** for decentraliz
 ### 1. **Python Version**
 
 #### File Structure:
-- `ledger/` → Contains user data files encrypted with API keys.
-- `wallets/` → Contains encrypted wallet details.
-- `blocks/` → Contains all voted changes and transactions between users.
-- `masterData.hbx` → Encrypted blockchain data file containing public and private sections.
+- `ledger/` to Contains user data files encrypted with API keys.
+- `wallets/` to Contains encrypted wallet details.
+- `blocks/` to Contains all voted changes and transactions between users.
+- `masterData.hbx` to Encrypted blockchain data file containing public and private sections.
 
                   #### Python Code:
                   
@@ -54,7 +54,7 @@ The **Hashburst structure** has built in **Python, PHP, and Go** for decentraliz
                           'timestamp': timestamp,
                           'proof': proof
 
-The complete Python version of the **Hashburst Blockchain** includes the core functions for encryption, decryption, Proof of History (PoH), user management, and block verification. Here's the continuation of the code and details for the entire framework.
+The complete Python version of the **Hashburst Blockchain** includes the core functions for encryption, decryption, Proof of History (PoH), user management, and block verification. The following examples describe the historical prototype.
 
 ---
 
@@ -130,13 +130,13 @@ The complete Python version of the **Hashburst Blockchain** includes the core fu
 
 ### 2. **PHP Version**
 
-PHP handles encryption and the blockchain structure similarly to the Python version. Here's a brief breakdown of the equivalent PHP code.
+PHP handles encryption and the blockchain structure similarly to the Python version. The following section contains the equivalent PHP example.
 
 #### File Structure:
-- `ledger/` → Contains user data in encrypted JSON files.
-- `wallets/` → Contains encrypted wallet details.
-- `blocks/` → Contains changes and transactions.
-- `masterData.hbx` → Contains the blockchain.
+- `ledger/` to Contains user data in encrypted JSON files.
+- `wallets/` to Contains encrypted wallet details.
+- `blocks/` to Contains changes and transactions.
+- `masterData.hbx` to Contains the blockchain.
 
 #### PHP Code:
 

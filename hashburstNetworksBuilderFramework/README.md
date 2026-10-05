@@ -7,7 +7,7 @@ Additionally, it uses cloud computing to create distributed cluster systems, ali
 
 # Project Structure:
 The package will be structured in a modular way, where each module corresponds to a functionality (e.g., mining, minting, communication, payments, etc.).
-Each feature is implemented through libraries which communicate internally to fulfill the framework’s purpose.
+Each feature is implemented through libraries which communicate internally to fulfill the framework's purpose.
 
 # Directory Structure:
                                                     hashburstNetworksBuilderFramework/

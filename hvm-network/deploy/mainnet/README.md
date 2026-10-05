@@ -1,4 +1,4 @@
-# HVM Mainnet 4735489 — runtime foundation, not an activation release
+# HVM Mainnet 4735489 - runtime foundation, not an activation release
 
 The five managed legacy 1337 services now run a terminal read-only archive. Testnet 4735490 remains separate. The separate executable
 `cmd/hashburst-mainnet` accepts only `network=mainnet`, chain ID 4735489 and an

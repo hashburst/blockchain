@@ -18,7 +18,7 @@ The request for auto-withdrawal splits the mined cryptocurrency among:
 
 ### **API Implementation in PHP**
 
-Here’s a breakdown of the implementation for each API:
+API implementation details:
 
 #### **1. Minting Tokens**
 
@@ -46,7 +46,7 @@ This API handles token transfers from one user to another. It can work for both 
 
 #### **3. Check Token Balance**
 
-This endpoint checks the balance of a given user’s wallet, allowing third-party systems to get real-time token holdings.
+This endpoint checks the balance of a given user's wallet, allowing third-party systems to get real-time token holdings.
 
                   php
                   

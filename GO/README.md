@@ -18,11 +18,11 @@ Implement wallet functionalities using public/private key encryption.
 
 Use net/http for creating a RESTful API to interact with the blockchain.
 Utilize crypto/sha256 for hashing transactions and blocks.
-Manage concurrent processes for mining using Go’s goroutines.
+Manage concurrent processes for mining using Go's goroutines.
 
 To implement the *** Proof of History (PoH) *** based blockchain in Go (as described), we'll need to break down the essential components of the Hashburst Blockchain. 
 Proof of History is a cryptographic clock that allows nodes to verify events in a specific sequence. 
-Here's a simple library structure for the Go implementation of PoH.
+Go PoH library structure.
 
 ### Steps for the Go Implementation:
 
@@ -48,7 +48,7 @@ Introducing a Proof of Work (PoW) mechanism where miners need to find a hash tha
 
 ### Wallets and Cryptography
 
-Add wallet generation using public and private keys. Transactions must be signed by the sender using their private key, and the network verifies the signature with the sender’s public key.
+Add wallet generation using public and private keys. Transactions must be signed by the sender using their private key, and the network verifies the signature with the sender's public key.
 
 - Transaction Management: introduced a Transaction struct and added support for signing and verifying transactions.
 - Mining and Rewards: added a Proof of Work mechanism that requires solving a hash puzzle, rewarding miners for their work.
@@ -64,7 +64,7 @@ This extended code introduces several key functionalities:
 
 ### Using a P2P Library (Go)
 
-Using a P2P library is the most efficient way to implement synchronization between nodes: libp2p allows you to create a P2P network between nodes in Go. Here's how to integrate it:
+Using a P2P library is the most efficient way to implement synchronization between nodes: libp2p allows you to create a P2P network between nodes in Go. Integration example:
 
 - Install libp2p. To use libp2p in Go, first install the library via go get:
 
