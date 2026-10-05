@@ -12,7 +12,7 @@ Production deployment of HashBurst blockchain and sovereign storage nodes is han
 
 [HashBurst Node Installer](https://github.com/hashburst/node-installer)
 
-Current stable release: **v2.1.2**
+Installer releases are versioned independently from HVM Network; consult the release list below.
 
 Release packages and release notes:
 
@@ -37,58 +37,54 @@ The HashBurst framework combines several components:
 * Reinforcement Learning based mining optimization
 * Automated miner deployment and release management
 
-## Proof of History
+## HVM Network: status and chain IDs
 
-Proof of History provides a cryptographic representation of the sequence and timing of blockchain events.
+Status recorded on 2026-10-05; this is an acceptance summary, not a live monitor.
 
-A simplified HashBurst PoH operation combines transaction or block data with a timestamp and produces a cryptographic hash:
+| Network | Chain ID | Verified status |
+| --- | --- | --- |
+| Legacy | 1337 | Five managed nodes serve the immutable terminal archive; 11 blocks, final index 10. |
+| HVM testnet | 4735490 | Separate running network; five-node agreement, incremental recovery and sampled certificate checks completed. |
+| HVM mainnet | 4735489 | Not activated. Bootstrap, economic import and runtime acceptance remain required. |
 
-```text
-proof = SHA512(data + timestamp)
-```
+The terminal legacy block moves exactly **450 HBT** to
+`0xd1Da8D04D767685e53440DbC56803aF350A65333` with **zero new issuance**.
+Managed-fleet archive acceptance does not establish a freeze of unmanaged forks.
+The import candidate remains non-activatable: the offline accounting model is
+not yet a consensus-bound mainnet import implementation.
 
-The resulting proof can be associated with the corresponding block or transaction for chronological verification.
+## HVM ledger and recovery
 
-## Ledger Structure
+`hvm-network` stores block payloads in `blockchain.dat` and positional records
+in `blockchain.idx`. Each index record is 20 bytes:
+`[BlockIndex uint64][FileOffset uint64][BlockSize uint32]` in big-endian order.
+Historical access is on demand with bounded caching. Existing supported payload
+formats are detected by the runtime; renaming files is not a format conversion.
+`masterData.hbx` belongs to older components and is not the HVM runtime ledger.
 
-The blockchain framework uses a filesystem-oriented ledger structure for persistent blockchain data.
+Authenticated local checkpoints and incremental replay reduce repeated recovery
+work. Periodic checkpoint persistence is separate from durable finalized blocks
+and signing journals. Memory use is bounded by more than the cache alone; no
+zero-RAM, zero-allocation or measured energy-saving claim is made.
+PoH verification, BFT certificates and APoW rules are defined by the Go protocol;
+a simple timestamp hash is not a replacement for consensus verification.
 
-Typical paths include:
+## Releases and websites
 
-```text
-ledger/
-|-- users/
-|-- wallets/
-`-- masterData.hbx
-```
+Published candidate: [HVM v0.7.0-rc.2](https://github.com/hashburst/blockchain/releases/tag/hvm-network-v0.7.0-rc.2).
+Next preparation: **hvm-network-v0.7.0-rc.3**, draft only, including the terminal
+archive and migration preparation. A final release requires mainnet acceptance.
+Linux/macOS amd64 and arm64 packages are cross-built; Windows amd64 includes
+wallet and certificate auditor only. Compilation is not a platform runtime certification.
 
-### User Data
+Website sources are prepared under [deploy/web](hvm-network/deploy/web/README.md):
+**HVM Network** in English for https://blockchainapi.one/hashburst and
+**hashburst.io** in Italian and English. Repository content is not evidence of
+website deployment. Publication remains gated and existing VPS services stay unchanged.
 
-```text
-ledger/users/
-```
-
-Contains user-specific blockchain records.
-
-User records can be encrypted using credentials associated with the account or API authorization mechanism.
-
-### Wallet Data
-
-```text
-ledger/wallets/
-```
-
-Contains wallet information associated with blockchain users and supported networks.
-
-### Master Ledger
-
-```text
-ledger/masterData.hbx
-```
-
-Contains the aggregated blockchain ledger data.
-
-The framework includes mechanisms for encrypting ledger information and validating data integrity through cryptographic hashes.
+See [release notes](hvm-network/deploy/release/RC3-PREPARATION.md),
+[mainnet preparation](hvm-network/deploy/mainnet/README.md) and
+[migration candidate](hvm-network/deploy/mainnet/legacy-migration.candidate.json).
 
 ## PHP Implementation
 
