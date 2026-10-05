@@ -20,16 +20,18 @@ import (
 // State is the native HBT projection. Internal address keys are lowercase
 // without 0x. sequences stores the NEXT expected TransactionV2 sequence.
 type State struct {
-	evm       *evmProjection
-	mu        sync.RWMutex
-	balances  map[string]int64  // address -> HBT atomic units (1 HBT = 1e8)
-	sequences map[string]uint64 // address -> next expected V2 sequence
+	consumedImports map[string]string // source nullifier -> authenticated import commitment
+	evm             *evmProjection
+	mu              sync.RWMutex
+	balances        map[string]int64  // address -> HBT atomic units (1 HBT = 1e8)
+	sequences       map[string]uint64 // address -> next expected V2 sequence
 }
 
 func NewState() *State {
 	return &State{
-		balances:  make(map[string]int64),
-		sequences: make(map[string]uint64),
+		balances:        make(map[string]int64),
+		sequences:       make(map[string]uint64),
+		consumedImports: make(map[string]string),
 	}
 }
 
@@ -58,6 +60,9 @@ func (s *State) Clone() *State {
 	defer s.mu.RUnlock()
 	out := NewState()
 	out.evm = s.evm.clone()
+	for k, v := range s.consumedImports {
+		out.consumedImports[k] = v
+	}
 	for k, v := range s.balances {
 		out.balances[k] = v
 	}
@@ -76,6 +81,10 @@ func (s *State) ReplaceWith(other *State) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.evm = other.evm.clone()
+	s.consumedImports = make(map[string]string, len(other.consumedImports))
+	for k, v := range other.consumedImports {
+		s.consumedImports[k] = v
+	}
 	s.balances = make(map[string]int64, len(other.balances))
 	for k, v := range other.balances {
 		s.balances[k] = v
@@ -347,7 +356,23 @@ func (s *State) Root() string {
 	sort.Strings(keys)
 
 	var b bytes.Buffer
-	putNativeRootBytes(&b, []byte("HASHBURST_HBT_STATE_V2"))
+	if len(s.consumedImports) == 0 {
+		putNativeRootBytes(&b, []byte("HASHBURST_HBT_STATE_V2"))
+	} else {
+		putNativeRootBytes(&b, []byte("HASHBURST_HBT_STATE_V3_IMPORTS"))
+		imports := make([]string, 0, len(s.consumedImports))
+		for k := range s.consumedImports {
+			imports = append(imports, k)
+		}
+		sort.Strings(imports)
+		var count [8]byte
+		binary.BigEndian.PutUint64(count[:], uint64(len(imports)))
+		b.Write(count[:])
+		for _, k := range imports {
+			putNativeRootBytes(&b, []byte(k))
+			putNativeRootBytes(&b, []byte(s.consumedImports[k]))
+		}
+	}
 	for _, k := range keys {
 		putNativeRootBytes(&b, []byte(k))
 		var n [8]byte

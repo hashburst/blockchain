@@ -178,7 +178,7 @@ func validateFullChainWithConfig(chain []*Block, cfg ProtocolV2Config, reward fl
 	if len(chain) == 0 {
 		return fmt.Errorf("catena vuota")
 	}
-	if chain[0].Hash != NewGenesisBlock().Hash {
+	if !validProtocolGenesis(chain[0], cfg) {
 		return fmt.Errorf("genesis non corrisponde")
 	}
 	for i := 1; i < len(chain); i++ {

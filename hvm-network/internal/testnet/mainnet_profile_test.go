@@ -9,6 +9,9 @@ func mainnetFixture(t *testing.T) Config {
 	c := fixture(t)
 	c.Network = "mainnet"
 	c.Protocol.ChainID = 4735489
+	imp := blockchain.ApprovedMainnetGenesisImport()
+	c.Protocol.GenesisImport = &imp
+	c.CheckpointHeight = 8
 	c.Protocol.ActivationHeight = 1
 	c.Protocol.ConsensusActivationHeight = 8
 	c.Protocol.EVM = &blockchain.EVMConfig{ActivationHeight: 100000, GasLimit: 200000, BaseFeeWei: 1}
@@ -24,15 +27,17 @@ func TestMainnetProfileIsolation(t *testing.T) {
 		t.Fatal(e)
 	}
 	cases := map[string]func(*Config){
-		"testnet id":       func(c *Config) { c.Protocol.ChainID = 4735490 },
-		"legacy id":        func(c *Config) { c.Protocol.ChainID = 1337 },
-		"no evm":           func(c *Config) { c.Protocol.EVM = nil },
-		"testnet data":     func(c *Config) { c.DataDir = "/var/lib/hashburst-hvm-testnet" },
-		"testnet key":      func(c *Config) { c.P2PKeyFile = "/etc/hashburst-hvm-testnet/p2p.key" },
-		"traversal":        func(c *Config) { c.P2PKeyFile = "/etc/hashburst-hvm-mainnet-ingress/../hashburst-hvm-testnet/p2p.key" },
-		"rpc port":         func(c *Config) { c.RPCListen = "127.0.0.1:18009" },
-		"p2p port":         func(c *Config) { c.P2PPort = 31307 },
-		"observer signing": func(c *Config) { c.ConsensusKeyFile = "/etc/hashburst-hvm-mainnet-ingress/sign.key" },
+		"testnet id":            func(c *Config) { c.Protocol.ChainID = 4735490 },
+		"legacy id":             func(c *Config) { c.Protocol.ChainID = 1337 },
+		"economic genesis only": func(c *Config) { c.CheckpointHeight = 0 },
+		"missing import":        func(c *Config) { c.Protocol.GenesisImport = nil },
+		"no evm":                func(c *Config) { c.Protocol.EVM = nil },
+		"testnet data":          func(c *Config) { c.DataDir = "/var/lib/hashburst-hvm-testnet" },
+		"testnet key":           func(c *Config) { c.P2PKeyFile = "/etc/hashburst-hvm-testnet/p2p.key" },
+		"traversal":             func(c *Config) { c.P2PKeyFile = "/etc/hashburst-hvm-mainnet-ingress/../hashburst-hvm-testnet/p2p.key" },
+		"rpc port":              func(c *Config) { c.RPCListen = "127.0.0.1:18009" },
+		"p2p port":              func(c *Config) { c.P2PPort = 31307 },
+		"observer signing":      func(c *Config) { c.ConsensusKeyFile = "/etc/hashburst-hvm-mainnet-ingress/sign.key" },
 		"validator data": func(c *Config) {
 			c.Role = "validator"
 			c.ValidatorID = "test"
