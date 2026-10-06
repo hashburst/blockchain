@@ -66,11 +66,7 @@ recomputes the plan, compares canonical payloads and verifies every signature.
 It does not trust submitted accounting totals. Missing signatures, changed
 amounts or recipients, wrong chains and changed protocol commitments are rejected.
 
-This is not a live funding command, checkpoint assembler or replay guard. It
-neither credits balances nor records a consumed sequence. Repeated planning is
-read-only; eventual execution must enforce sequences and balance sufficiency.
-The ordinary block validator still requires one mining reward per block. The
-testnet assembler therefore remains unsuitable for a zero-issuance mainnet
-bootstrap. Production activation requires a consensus-bound initialization
-transition, full replay/checkpoint recovery tests, real signed funding and
-registrations, and a separately reviewed TEP federation membership check.
+Funding preparation and signature verification do not submit transactions.
+For offline execution into a new checkpoint, use the bounded zero-issuance
+assembler described in [BOOTSTRAP-PROCEDURE.md](BOOTSTRAP-PROCEDURE.md).
+Runtime acceptance and TEP membership checks remain separate requirements.

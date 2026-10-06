@@ -27,7 +27,7 @@ jobs:
         run: go test ./... -count=1 -timeout 12m
       - name: Race and recovery safety
         working-directory: hvm-network
-        run: go test -race ./blockchain -run 'RecoveryCheckpoint|PersistentRecovery|LockConflict|APoW|EVMHistorical' -count=1 -timeout 10m
+        run: go test -race ./blockchain -run 'RecoveryCheckpoint|PersistentRecovery|LockConflict|APoW|EVMHistorical|TestMainnetBootstrap|TestMainnetImport' -count=1 -timeout 10m
       - name: Mainnet identity isolation
         working-directory: hvm-network
         run: go test -race ./internal/mainnetidentity ./cmd/hvm-mainnet-identity -count=1
