@@ -99,3 +99,50 @@ restart/signing-journal checks and public RPC acceptance. Do not substitute
 legacy/testnet services or flip the flag to bypass those checks. Final release
 and website activation claims must reference the accepted source and runtime
 reports. No automatic production installer is supplied by this candidate.
+
+## Runtime bootstrap boundary
+
+The initial validator checkpoint ends at mainnet_bootstrap_end. The first BFT
+block is at mainnet_bootstrap_end + 1. The runtime accepts this exact boundary,
+not an earlier economic checkpoint. After replay it requires 4..6 funded active
+validators; a validator host must belong to that active set. This additional
+initial-state check also runs on an observer. Existing post-activation recovery
+continues to use the normal dynamic validator rules.
+
+Before any service start, install one accepted ledger generation into each
+host's dedicated mainnet data directory and use a reviewed per-host configuration.
+Run the following commands as the future runtime user, with the production binary:
+
+```
+hashburst-mainnet --config /etc/hashburst-hvm-mainnet/config.json --provision
+hashburst-mainnet --config /etc/hashburst-hvm-mainnet/config.json --check
+```
+
+Provision is a one-time operation: it creates the config/identity pin and signing
+journals. A retry after successful provision uses --check, never deletes journals
+or replaces the ledger. The observer uses its separate mainnet-ingress directory
+and config. Both commands replay and validate state but do not open listeners.
+A successful check is not fleet acceptance.
+
+## Fleet acceptance record
+
+Record the source commit and binary SHA256, protocol commitment, checkpoint hash,
+state root, validator-set root and public identity for every host. After starting
+only the dedicated mainnet services, verify chain ID 4735489 and compare block
+hashes and native/validator commitments at the same finalized height on all nodes.
+Equal heights alone are insufficient. Verify each quorum certificate against the
+registered production validator set and record later finalized-height advancement.
+Repeat after a controlled observer restart and then one validator restart, with
+the voting-power quorum available throughout. Check journal prefix preservation
+and new finality after each restart. Never restore an old signing journal.
+
+Reconcile the founder balance, funded operators, bond escrows and fees against
+funding-plan.json at the bootstrap checkpoint, and verify the consumed legacy
+import is still present after recovery. At later heights account separately for
+legitimate transaction fees and protocol rewards; the initial allocation must not
+be compared blindly against a later circulating supply. A repeated bootstrap or
+import must be rejected without changing balances or the import commitment.
+
+Final publication needs these signed-input and runtime reports. A shell command
+that changes an activation flag or marks a deployment complete cannot produce
+missing evidence. Website content must describe the observed network status.

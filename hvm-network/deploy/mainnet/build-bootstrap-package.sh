@@ -17,7 +17,7 @@ if out == root or root in out.parents:
 out.mkdir(mode=0o700,parents=False,exist_ok=False)
 PY
 output=$(cd "$output" && pwd)
-go -C hvm-network test -race ./internal/mainnetidentity ./cmd/hvm-mainnet-identity
+go -C hvm-network test -race ./internal/mainnetidentity ./cmd/hvm-mainnet-identity ./internal/testnet ./cmd/hashburst-mainnet
 go -C hvm-network test -race ./blockchain -run 'TestMainnetBootstrap|TestMainnetImport' -count=1
 for target in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
   mkdir "$output/$target"

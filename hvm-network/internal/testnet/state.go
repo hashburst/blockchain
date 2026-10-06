@@ -138,6 +138,9 @@ func prepare(c Config, provision bool, recovery bool) (out *State, err error) {
 	if e != nil {
 		return nil, e
 	}
+	if e = validateBootstrapState(c, s.Chain); e != nil {
+		return nil, e
+	}
 	if c.Role == "validator" {
 		raw, e = privateFile(c.ConsensusKeyFile)
 		if e != nil {
@@ -200,4 +203,24 @@ func writeExclusive(path string, b []byte) error {
 	}
 	defer d.Close()
 	return d.Sync()
+}
+
+// validateBootstrapState checks the replayed state, not declarations in the
+// checkpoint metadata. Later restarts retain the normal dynamic validator rules.
+func validateBootstrapState(c Config, chain *blockchain.Blockchain) error {
+	if c.Network != "mainnet" || c.Protocol.MainnetBootstrapEnd == 0 ||
+		uint64(chain.Height()) != c.Protocol.MainnetBootstrapEnd {
+		return nil
+	}
+	set := chain.CurrentValidatorSet(c.Protocol.ConsensusActivationHeight)
+	if len(set.Validators) < 4 || len(set.Validators) > 6 || set.TotalPower() == 0 {
+		return fmt.Errorf("mainnet bootstrap requires 4..6 funded active validators")
+	}
+	if c.Role == "validator" {
+		_, power, ok := set.Find(c.ValidatorID)
+		if !ok || power == 0 {
+			return fmt.Errorf("local validator is not active at mainnet consensus activation")
+		}
+	}
+	return nil
 }

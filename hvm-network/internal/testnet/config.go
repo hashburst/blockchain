@@ -146,7 +146,10 @@ func (c Config) validateMainnetProfile() error {
 	if c.Protocol.GenesisImport == nil {
 		return fmt.Errorf("mainnet requires the approved genesis import commitment")
 	}
-	if c.CheckpointHeight < 1 || !c.Protocol.ConsensusEnabledAt(c.CheckpointHeight) {
+	bootstrapBoundary := c.Protocol.MainnetBootstrapEnd != 0 && c.CheckpointHeight > 0 &&
+		uint64(c.CheckpointHeight) == c.Protocol.MainnetBootstrapEnd &&
+		c.Protocol.ConsensusActivationHeight == c.Protocol.MainnetBootstrapEnd+1
+	if c.CheckpointHeight < 1 || (!bootstrapBoundary && !c.Protocol.ConsensusEnabledAt(c.CheckpointHeight)) {
 		return fmt.Errorf("economic genesis alone is not an activatable validator checkpoint")
 	}
 
