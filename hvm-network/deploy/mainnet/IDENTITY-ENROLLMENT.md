@@ -41,3 +41,36 @@ federation before accepting a production validator set.
 
 Production protocol values and host roles remain separate activation inputs.
 Tests use synthetic local identities and do not constitute production enrollment.
+
+## Founder-funded admission plan
+
+```
+./hvm-mainnet-identity funding-plan --protocol protocol.json \
+  v1.public.json v2.public.json v3.public.json v4.public.json > funding-plan.json
+./hvm-mainnet-identity verify-funding --protocol protocol.json \
+  --signed-funding founder-transfers.json \
+  v1.public.json v2.public.json v3.public.json v4.public.json
+```
+
+The planner validates 4..6 signed enrollments and rejects duplicate node IDs,
+operators, consensus keys, peers, TEP identities and endpoints. It orders founder
+transfers by operator address, with account sequences starting at zero for a
+pristine genesis. Each operator receives the minimum bond plus the registration
+fee. Founder transfer fees use the core transfer compute budget. Checked
+arithmetic limits spending to the separately approved founder allocation; the
+450 imported HBT are not needed for admission costs.
+
+The output contains unsigned transfers. The founder signs their exact canonical
+payloads locally; private keys are not supplied to the coordinator. Verification
+recomputes the plan, compares canonical payloads and verifies every signature.
+It does not trust submitted accounting totals. Missing signatures, changed
+amounts or recipients, wrong chains and changed protocol commitments are rejected.
+
+This is not a live funding command, checkpoint assembler or replay guard. It
+neither credits balances nor records a consumed sequence. Repeated planning is
+read-only; eventual execution must enforce sequences and balance sufficiency.
+The ordinary block validator still requires one mining reward per block. The
+testnet assembler therefore remains unsuitable for a zero-issuance mainnet
+bootstrap. Production activation requires a consensus-bound initialization
+transition, full replay/checkpoint recovery tests, real signed funding and
+registrations, and a separately reviewed TEP federation membership check.
