@@ -302,3 +302,8 @@ It uses signed founder funding and a protocol-bound zero-issuance initialization
 interval. Production identities, protocol review and runtime acceptance remain
 required. Mainnet activation and the final release have not been established by
 the offline tests. Legacy 1337 and testnet 4735490 remain separate.
+
+The mainnet runtime recognizes the exact zero-issuance bootstrap checkpoint
+boundary immediately before BFT activation. It validates the replayed active
+validator set before provisioning. Production enrollment, protocol approval and
+fleet finality/restart acceptance remain prerequisites for mainnet activation.
