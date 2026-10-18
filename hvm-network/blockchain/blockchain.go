@@ -213,7 +213,12 @@ func (bc *Blockchain) AddBlock(minerAddress string) error {
 	if bc.v2Config.ConsensusEnabledAt(nextHeight) {
 		return fmt.Errorf("validator consensus active at height %d: use BuildConsensusProposal/FinalizeConsensusProposal", nextHeight)
 	}
-	rewardTX := NewSystemReward(minerAddress, bc.MiningReward)
+	reward := bc.MiningReward
+	if bc.v2Config.bootstrapAt(nextHeight) {
+		reward = 0
+		minerAddress = bc.v2Config.GenesisImport.Recipient
+	}
+	rewardTX := NewSystemReward(minerAddress, reward)
 	txs := append([]*Transaction{rewardTX}, bc.PendingTXs...)
 
 	var newBlock *Block
@@ -353,6 +358,12 @@ func ValidateBlockAgainstConfig(prev *Block, b *Block, miningReward float64, cfg
 		return fmt.Errorf("timestamp precedente al blocco padre")
 	}
 
+	if cfg.bootstrapAt(b.Index) {
+		if err := validateBootstrapPayload(b, cfg); err != nil {
+			return err
+		}
+		miningReward = 0
+	}
 	v2Enabled := cfg.EnabledAt(b.Index)
 	expectedVersion := BlockVersionV2
 	if cfg.EVMEnabledAt(b.Index) {

@@ -27,6 +27,7 @@ const (
 // values are provisional while ActivationHeight is disabled; before testnet or
 // mainnet activation they must be frozen in a versioned protocol release.
 type ProtocolV2Config struct {
+	MainnetBootstrapEnd       uint64                  `json:"mainnet_bootstrap_end,omitempty"`
 	GenesisImport             *MainnetGenesisImport   `json:"genesis_import,omitempty"`
 	APoW                      *APoWConfig             `json:"apow,omitempty"`
 	EVM                       *EVMConfig              `json:"evm,omitempty"`
@@ -100,6 +101,18 @@ func (c ProtocolV2Config) EffectivePoHTicks() int {
 }
 
 func (c ProtocolV2Config) Validate() error {
+	if c.MainnetBootstrapEnd != 0 {
+		if c.ChainID != MainnetChainID || c.GenesisImport == nil || c.MainnetBootstrapEnd < 3 || c.MainnetBootstrapEnd > 4096 || c.ActivationHeight != 1 || c.ConsensusActivationHeight != c.MainnetBootstrapEnd+1 || c.Validator.ActivationDelay > c.MainnetBootstrapEnd-2 {
+			return fmt.Errorf("invalid bounded mainnet bootstrap schedule")
+		}
+		if c.EVM != nil && c.EVM.ActivationHeight <= c.MainnetBootstrapEnd {
+			return fmt.Errorf("EVM must activate after bootstrap")
+		}
+		if c.APoW != nil && c.APoW.ActivationHeight <= c.MainnetBootstrapEnd {
+			return fmt.Errorf("APoW must activate after bootstrap")
+		}
+	}
+
 	if c.GenesisImport != nil {
 		if err := c.GenesisImport.Validate(c.ChainID); err != nil {
 			return err
