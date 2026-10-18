@@ -71,3 +71,38 @@ func TestMainnetProfileIsolation(t *testing.T) {
 		t.Fatal("network missing from pin")
 	}
 }
+
+func TestMainnetBootstrapCheckpointBoundary(t *testing.T) {
+	c := mainnetFixture(t)
+	c.Protocol.MainnetBootstrapEnd = 3
+	c.Protocol.ConsensusActivationHeight = 4
+	c.Protocol.Validator.ActivationDelay = 1
+	c.CheckpointHeight = 3
+	if e := c.Validate(); e != nil {
+		t.Fatal(e)
+	}
+	for _, height := range []int{0, 1, 2} {
+		bad := c
+		bad.CheckpointHeight = height
+		if bad.Validate() == nil {
+			t.Fatalf("accepted incomplete checkpoint %d", height)
+		}
+	}
+	bad := c
+	bad.Protocol.ConsensusActivationHeight = 5
+	if bad.Validate() == nil {
+		t.Fatal("accepted bootstrap/consensus gap")
+	}
+	c.Protocol.LegacyPoWDifficulty = 1
+	c.Protocol.PoHTicksPerBlock = 4000
+	bc := blockchain.NewBlockchainWithDirAndV2Config(t.TempDir(), c.Protocol)
+	defer bc.CloseHistory()
+	for i := 0; i < 3; i++ {
+		if e := bc.AddBlock(c.Protocol.GenesisImport.Recipient); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if validateBootstrapState(c, bc) == nil {
+		t.Fatal("accepted replayed checkpoint without validators")
+	}
+}
