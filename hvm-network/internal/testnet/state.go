@@ -5,7 +5,6 @@ import (
 	"fmt"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"golang.org/x/sys/unix"
 	"hashburst/blockchain"
 	"hashburst/wallet"
 	"log"
@@ -28,7 +27,7 @@ func (s *State) Close() {
 		_ = s.Chain.CloseHistory()
 	}
 	if s.lock != nil {
-		_ = unix.Flock(int(s.lock.Fd()), unix.LOCK_UN)
+		_ = unlockRuntime(s.lock)
 		_ = s.lock.Close()
 		s.lock = nil
 	}
@@ -67,19 +66,16 @@ func prepare(c Config, provision bool, recovery bool) (out *State, err error) {
 	if !st.IsDir() || st.Mode().Perm()&0022 != 0 {
 		return nil, fmt.Errorf("state directory must not be group/world writable")
 	}
-	fd, e := unix.Open(filepath.Join(real, "runtime.lock"), unix.O_CREAT|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0600)
+	lock, e := openRuntimeLock(filepath.Join(real, "runtime.lock"))
 	if e != nil {
 		return nil, e
 	}
-	s := &State{Config: c, lock: os.NewFile(uintptr(fd), "runtime.lock")}
+	s := &State{Config: c, lock: lock}
 	defer func() {
 		if err != nil {
 			s.Close()
 		}
 	}()
-	if e = unix.Flock(fd, unix.LOCK_EX|unix.LOCK_NB); e != nil {
-		return nil, fmt.Errorf("state already in use: %w", e)
-	}
 	raw, e := privateFile(c.P2PKeyFile)
 	if e != nil {
 		return nil, e

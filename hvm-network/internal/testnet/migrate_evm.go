@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"syscall"
 
 	"hashburst/blockchain"
 )
@@ -86,10 +85,8 @@ func atomicReplace(path string, data []byte) error {
 	if e = f.Chmod(st.Mode().Perm()); e != nil {
 		return e
 	}
-	if stat, ok := st.Sys().(*syscall.Stat_t); ok && os.Geteuid() == 0 {
-		if e = f.Chown(int(stat.Uid), int(stat.Gid)); e != nil {
-			return e
-		}
+	if e = preserveOwner(f, st); e != nil {
+		return e
 	}
 	if _, e = f.Write(data); e != nil {
 		return e
