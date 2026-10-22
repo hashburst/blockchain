@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -122,7 +121,7 @@ func OpenStore(dir string, anchor Anchor) (out *Store, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err = lockExclusive(lock); err != nil {
 		lock.Close()
 		return nil, err
 	}
