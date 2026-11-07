@@ -80,6 +80,18 @@ jobs:
             echo "Requested mutation phase remains fail-closed pending its dedicated reviewed gate." >&2
             exit 78
           fi
+      - name: Verify mutation dispatcher remains fail-closed beyond identities
+        if: github.event.inputs.phase == 'identities'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for phase in checkpoint deploy acceptance; do
+            if bash hvm-network/deploy/mainnet/run-phase.sh "$phase" >/dev/null 2>&1; then
+              echo "Unexpectedly authorized mutation phase: $phase" >&2
+              exit 1
+            fi
+          done
+          echo "HVM_POST_IDENTITIES_MUTATION_PHASES_FAIL_CLOSED_OK"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
