@@ -17,3 +17,14 @@ VPS CPU utilization is a workload proxy, not an electricity meter. The v1 decisi
 ## Expansion
 
 The policy input/output contract is node-agnostic so the same controller can later include six additional VPS, standby validators, HashBurst full nodes, and physical/Neurallity cluster-miners. Actuation will be a separate reviewed gate using cgroup/systemd controls with rollback; it is intentionally absent here.
+
+
+## Actuator v1 simulation gate
+
+The first actuator gate is deliberately non-mutating. It validates the security and control contract before any systemd/cgroup backend exists.
+
+An actuation envelope binds the orchestrator decision SHA-256 to a unique nonce and a maximum 300-second validity window. The actuator recomputes the decision digest, rejects tampering, rejects expired/not-yet-valid envelopes and persists consumed nonces to reject replay.
+
+A two-CPU minimum delta implements the first hysteresis rule: smaller changes are held rather than oscillating the miner budget. The simulation backend models pre/post HVM and TEP health. A failed post-health check returns rolled_back and does not commit the proposed budget.
+
+The controlled phase actuator-simulate performs no SSH, remote write, systemd mutation, cgroup write, signal or miner restart. A real systemd/cgroup backend requires a separate reviewed gate after this simulation is accepted.
