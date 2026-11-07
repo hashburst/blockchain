@@ -7,7 +7,7 @@ DEPLOY="$ROOT/deploy/mainnet"
 SSH_KEY=/etc/hashburst-control/fleet_ed25519
 KNOWN=/etc/hashburst-control/fleet_known_hosts
 OUT="$ROOT/../mainnet-identities"
-REMOTE_ROOT=/root/hashburst-hvm-mainnet-identity-gate
+REMOTE_ROOT=/var/tmp/hashburst-hvm-mainnet-identity-gate
 IDENTITY_DIR=/etc/hashburst-hvm-mainnet/identity
 P2P_PORT=31317
 
