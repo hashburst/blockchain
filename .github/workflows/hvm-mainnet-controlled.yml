@@ -1,0 +1,65 @@
+name: HVM mainnet controlled fleet
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: Authorized phase
+        required: true
+        type: choice
+        options: [preflight, benchmark, identities, checkpoint, deploy, acceptance]
+permissions:
+  contents: read
+concurrency:
+  group: hvm-mainnet-controlled-fleet
+  cancel-in-progress: false
+jobs:
+  fleet:
+    runs-on: [self-hosted, linux, x64, hashburst-control, founder-180]
+    environment: hvm-mainnet-production
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce coordinator identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" = "77.90.188.180"
+          test -r /etc/hashburst-control/fleet_known_hosts
+          test -r /etc/hashburst-control/fleet_ed25519
+          test "$(stat -c '%a' /etc/hashburst-control/fleet_ed25519)" = "600"
+      - name: Read-only preflight
+        if: inputs.phase == 'preflight'
+        shell: bash
+        env:
+          HOME: /var/lib/hashburst-actions
+        run: |
+          set -euo pipefail
+          export GIT_SSH_COMMAND="ssh -i /etc/hashburst-control/fleet_ed25519 -o UserKnownHostsFile=/etc/hashburst-control/fleet_known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
+          python3 hvm-network/deploy/mainnet/preflight.py | tee mainnet-preflight.log
+      - name: Benchmark gate
+        if: inputs.phase == 'benchmark'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x hvm-network/deploy/mainnet/run-benchmark.sh
+          hvm-network/deploy/mainnet/run-benchmark.sh
+      - name: Mutation phases are fail-closed until protocol freeze
+        if: inputs.phase == 'identities' || inputs.phase == 'checkpoint' || inputs.phase == 'deploy' || inputs.phase == 'acceptance'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f hvm-network/deploy/mainnet/protocol.freeze.json
+          test -f hvm-network/deploy/mainnet/economics.freeze.json
+          test -x hvm-network/deploy/mainnet/run-phase.sh
+          hvm-network/deploy/mainnet/run-phase.sh "${{ inputs.phase }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hvm-mainnet-${{ inputs.phase }}-${{ github.run_id }}
+          path: |
+            mainnet-*.json
+            mainnet-*.log
+          if-no-files-found: ignore
+          retention-days: 90
