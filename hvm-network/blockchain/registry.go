@@ -84,7 +84,7 @@ type NodeRecordV2 struct {
 }
 
 func (r NodeRecordV2) effectiveRoles() []NodeRole {
-	out := make([]NodeRole, 0, len(r.Roles)+1)
+	out := make([]NodeRole, 0, len(r.Roles))
 	seen := make(map[NodeRole]struct{})
 	for _, role := range r.Roles {
 		if role == "" {
