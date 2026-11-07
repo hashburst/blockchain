@@ -71,6 +71,7 @@ jobs:
           set -euo pipefail
           test -f hvm-network/deploy/mainnet/protocol.freeze.json
           test -f hvm-network/deploy/mainnet/economics.freeze.json
+          python3 hvm-network/deploy/mainnet/check-freeze.py | tee mainnet-freeze.log
           test -x hvm-network/deploy/mainnet/run-phase.sh
           hvm-network/deploy/mainnet/run-phase.sh "${{ github.event.inputs.phase }}"
       - uses: actions/upload-artifact@v7
