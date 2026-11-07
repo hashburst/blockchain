@@ -1,1 +1,16 @@
-{"name":"hashburst-hbt-strict","version":"0.1.0","private":true,"scripts":{"build":"node build.cjs"},"devDependencies":{"@openzeppelin/contracts":"5.4.0","solc":"0.8.30"}}
+{
+  "name": "hashburst-hbt-strict",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.cjs"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "5.4.0",
+    "solc": "0.8.30"
+  },
+  "overrides": {
+    "follow-redirects": "1.16.2",
+    "tmp": "0.2.7"
+  }
+}
