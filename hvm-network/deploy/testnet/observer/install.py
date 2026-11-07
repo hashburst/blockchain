@@ -14,7 +14,7 @@ def main():
  for p in [CONF,DATA,BIN,UNIT]:
   if p.exists() or p.is_symlink():raise RuntimeError('existing observer installation retained: '+str(p))
  for port in (18009,31307):
-  with socket.socket() as s:s.bind(('0.0.0.0',port))
+  with socket.socket() as s:s.bind(('64.31.4.9',port))
  for host in ['77.90.188.153','77.90.188.154','77.90.188.155','77.90.188.157']:
   with socket.create_connection((host,31307),timeout=8):pass
  user='hashburst-hvm-ingress'
