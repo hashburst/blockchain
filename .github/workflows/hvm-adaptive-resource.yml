@@ -1,0 +1,14 @@
+name: HashBurst adaptive resource orchestrator v1
+on:
+  pull_request:
+    paths:
+      - 'hvm-network/deploy/mainnet/adaptive-resource/**'
+      - '.github/workflows/hvm-mainnet-controlled.yml'
+permissions:
+  contents: read
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 hvm-network/deploy/mainnet/adaptive-resource/test_orchestrator.py
