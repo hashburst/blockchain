@@ -11,6 +11,8 @@ trap 'rm -f "$OUT/hvm-mainnet-identity"; rm -rf "$OUT"; rm -f mainnet-identities
 REMOTE_ROOT=/var/tmp/hashburst-hvm-mainnet-identity-gate
 IDENTITY_DIR=/etc/hashburst-hvm-mainnet/identity
 P2P_PORT=31317
+LEGACY_PROTOCOL_SHA256=9979333faf55b815ac127a8a90d705982ba1658bb0801f72f7216fb3876aa7ff
+IDENTITY_ARCHIVE_ROOT=/etc/hashburst-hvm-mainnet/identity-archive
 
 fail(){ echo "IDENTITIES_GATE_FAIL: $*" >&2; exit 1; }
 [[ "$PHASE" == identities ]] || fail "only identities is implemented; checkpoint/deploy/acceptance remain fail-closed"
@@ -33,7 +35,27 @@ SCP=(scp -q -i "$SSH_KEY" -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyCheckin
 for ip in "${HOSTS[@]}"; do
   node="${NODE_IDS[$ip]}"
   echo "IDENTITY_LOCAL_GENERATION_BEGIN ip=$ip node=$node"
-  "${SSH[@]}" "root@$ip" "test ! -e '$IDENTITY_DIR' && test ! -L '$IDENTITY_DIR' && mkdir -p '$REMOTE_ROOT'"
+  "${SSH[@]}" "root@$ip" "set -euo pipefail
+    test ! -L '$IDENTITY_DIR'
+    if [ -e '$IDENTITY_DIR' ]; then
+      test -d '$IDENTITY_DIR'
+      test -f '$IDENTITY_DIR/public.json'
+      legacy_hash=\$(python3 -c 'import json; print(json.load(open("$IDENTITY_DIR/public.json"))["protocol_sha256"])')
+      test \"\$legacy_hash\" = '$LEGACY_PROTOCOL_SHA256'
+      test \"\$(stat -c '%a' '$IDENTITY_DIR')\" = 700
+      for f in p2p.key consensus.key operator.key reward.key public.json; do
+        test -f '$IDENTITY_DIR/'\$f
+        test \"\$(stat -c '%a' '$IDENTITY_DIR/'\$f)\" = 600
+      done
+      mkdir -p '$IDENTITY_ARCHIVE_ROOT'
+      chmod 0700 '$IDENTITY_ARCHIVE_ROOT'
+      archive='$IDENTITY_ARCHIVE_ROOT/$LEGACY_PROTOCOL_SHA256'
+      test ! -e \"\$archive\"
+      mv '$IDENTITY_DIR' \"\$archive\"
+      echo 'IDENTITY_LEGACY_ARCHIVED protocol=$LEGACY_PROTOCOL_SHA256'
+    fi
+    test ! -e '$IDENTITY_DIR'
+    mkdir -p '$REMOTE_ROOT'"
   "${SCP[@]}" "$DEPLOY/protocol.freeze.json" "root@$ip:$REMOTE_ROOT/protocol.json"
   tar -C "$ROOT" -cf - go.mod go.sum cmd internal blockchain consensus protocolv2 wallet |     "${SSH[@]}" "root@$ip" "set -e; rm -rf '$REMOTE_ROOT/src'; mkdir -m 0700 '$REMOTE_ROOT/src'; tar -C '$REMOTE_ROOT/src' -xf -"
   "${SSH[@]}" "root@$ip" "set -euo pipefail
