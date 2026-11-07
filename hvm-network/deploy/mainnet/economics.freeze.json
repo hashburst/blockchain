@@ -1,13 +1,67 @@
 {
-  "schema":"hashburst-mainnet-economics-freeze-v1","status":"frozen_candidate_pending_identity_checkpoint_runtime_acceptance","network":"mainnet","chain_id":4735489,
-  "native_asset":{"name":"HashBurst Coin","symbol":"HBT","native_units_per_hbt":"100000000","evm_wei_per_hbt":"1000000000000000000"},
-  "initial_supply":{"legacy_import_hbt":"450","legacy_import_units":"45000000000","founder_allocation_hbt":"1000000000","founder_allocation_units":"100000000000000000","bootstrap_new_issuance_units":"0","total_initial_hbt":"1000000450","total_initial_units":"100000045000000000"},
-  "legacy_import":{"source_chain_id":1337,"source_height":10,"source_hash":"0000a8bef0916f373a97fa8c311b095258f00cf7f2a24a3ff2f875156ca27ae1","source_nullifier":"f1bed2fa0b08af476aa141431fc4722461a6da2e3d010d456e7f29356ff15360","freeze_evidence_sha256":"d0f2246fc26e9e72c6117ac0d6f6805c7427a8cc1b106613c822a1cbb7e0a6f6","additional_migration_issuance_units":"0"},
-  "treasury":{"address":"0xd1da8d04d767685e53440dbc56803af350a65333","fee_collector":"0xd1da8d04d767685e53440dbc56803af350a65333","slash_collector":"0xd1da8d04d767685e53440dbc56803af350a65333"},
-  "validators":{"count":4,"minimum_bond_hbt":"1000","minimum_bond_units":"100000000000","initial_total_bond_hbt":"4000","equal_initial_voting_power":true,"double_vote_slash_bps":500},
-  "apow_emission":{"reward_hbt":"50","reward_units":"5000000000","condition":"exactly one subsidy to the proof-bound beneficiary only for a finalized APoW block","target_block_seconds":60,"theoretical_blocks_per_year":"525600","theoretical_target_annual_issuance_hbt":"26280000","theoretical_initial_supply_inflation_percent":"2.627998817400532","schedule":"fixed APoW v1 subsidy; any change requires a reviewed protocol upgrade"},
-  "faucet":{"enabled":true,"budget_hbt":"1000000","budget_units":"100000000000000","source":"subset of founder allocation; never additional issuance"},
-  "protocol_freeze_sha256":"b86847a33c6ed7b824b453120fd1be4e30878513bc48316c38c679ae31cf56e4",
-  "activation_allowed":false,
-  "remaining_gates":["fresh validator identities and TEP membership bindings","founder-signed validator funding plan","deterministic validator checkpoint and replay reconciliation","five-host provision/check","BFT finality, restart and public RPC acceptance"]
+  "schema": "hashburst-mainnet-economics-freeze-v1",
+  "status": "frozen_candidate_pending_identity_checkpoint_runtime_acceptance",
+  "network": "mainnet",
+  "chain_id": 4735489,
+  "native_asset": {
+    "name": "HashBurst Coin",
+    "symbol": "HBT",
+    "native_units_per_hbt": "100000000",
+    "evm_wei_per_hbt": "1000000000000000000"
+  },
+  "initial_supply": {
+    "legacy_import_hbt": "450",
+    "legacy_import_units": "45000000000",
+    "founder_allocation_hbt": "1000000000",
+    "founder_allocation_units": "100000000000000000",
+    "bootstrap_new_issuance_units": "0",
+    "total_initial_hbt": "1000000450",
+    "total_initial_units": "100000045000000000"
+  },
+  "legacy_import": {
+    "source_chain_id": 1337,
+    "source_height": 10,
+    "source_hash": "0000a8bef0916f373a97fa8c311b095258f00cf7f2a24a3ff2f875156ca27ae1",
+    "source_nullifier": "f1bed2fa0b08af476aa141431fc4722461a6da2e3d010d456e7f29356ff15360",
+    "freeze_evidence_sha256": "d0f2246fc26e9e72c6117ac0d6f6805c7427a8cc1b106613c822a1cbb7e0a6f6",
+    "additional_migration_issuance_units": "0"
+  },
+  "treasury": {
+    "address": "0xd1da8d04d767685e53440dbc56803af350a65333",
+    "fee_collector": "0xd1da8d04d767685e53440dbc56803af350a65333",
+    "slash_collector": "0xd1da8d04d767685e53440dbc56803af350a65333"
+  },
+  "validators": {
+    "count": 4,
+    "minimum_bond_hbt": "1000",
+    "minimum_bond_units": "100000000000",
+    "initial_total_bond_hbt": "4000",
+    "equal_initial_voting_power": true,
+    "double_vote_slash_bps": 500
+  },
+  "apow_emission": {
+    "reward_hbt": "50",
+    "reward_units": "5000000000",
+    "condition": "exactly one subsidy to the proof-bound beneficiary only for a finalized APoW block",
+    "target_block_seconds": 60,
+    "theoretical_blocks_per_year": "525600",
+    "theoretical_target_annual_issuance_hbt": "26280000",
+    "theoretical_initial_supply_inflation_percent": "2.627998817400532",
+    "schedule": "fixed APoW v1 subsidy; any change requires a reviewed protocol upgrade"
+  },
+  "faucet": {
+    "enabled": true,
+    "budget_hbt": "1000000",
+    "budget_units": "100000000000000",
+    "source": "subset of founder allocation; never additional issuance"
+  },
+  "protocol_freeze_sha256": "137be9295e9ed33f91799ebdadfbf3d39f40867f636f1307c0c126a9c48c9e46",
+  "activation_allowed": false,
+  "remaining_gates": [
+    "fresh validator identities and TEP membership bindings",
+    "founder-signed validator funding plan",
+    "deterministic validator checkpoint and replay reconciliation",
+    "five-host provision/check",
+    "BFT finality, restart and public RPC acceptance"
+  ]
 }
