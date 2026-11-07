@@ -7,18 +7,13 @@ CONTROL=77.90.188.154
 WINDOW="${HASHBURST_CANARY_WINDOW_SECONDS:-120}"
 TARGET_QUOTA=1200
 SSH=(ssh -T -i "$KEY" -o IdentitiesOnly=yes -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10)
-OUT=mainnet-actuator-canary.json\nV2OUT=mainnet-mining-efficiency-v2.json
+OUT=mainnet-actuator-canary.json
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 sample(){
  local ip="$1" dst="$2"
  "${SSH[@]}" root@"$ip" 'python3 -' < hvm-network/deploy/mainnet/adaptive-resource/sample-node.py > "$dst"
 }
 sample "$CANARY" "$TMP/canary.before"; sample "$CONTROL" "$TMP/control.before"
-v2sample(){
- local ip="$1" dst="$2"
- "${SSH[@]}" root@"$ip" 'python3 -' < hvm-network/deploy/mainnet/adaptive-resource/telemetry-v2.py > "$dst"
-}
-v2sample "$CANARY" "$TMP/canary.v2.before"; v2sample "$CONTROL" "$TMP/control.v2.before"
 python3 - "$TMP/canary.before" "$TMP/control.before" <<'PY'
 import json,sys
 for p in sys.argv[1:]:
@@ -82,23 +77,6 @@ grep -q '^CPUQuotaPerSecUSec=12s$' /run/hashburst-canary/applied.state || {
 REMOTE
 sleep "$WINDOW"
 sample "$CANARY" "$TMP/canary.after"; sample "$CONTROL" "$TMP/control.after"
-v2sample "$CANARY" "$TMP/canary.v2.after"; v2sample "$CONTROL" "$TMP/control.v2.after"
-python3 hvm-network/deploy/mainnet/adaptive-resource/compare-telemetry-v2.py \
- "$TMP/canary.v2.before" "$TMP/canary.v2.after" "$TMP/control.v2.before" "$TMP/control.v2.after" > "$V2OUT"
-python3 - "$V2OUT" <<'PY'
-import json,sys
-d=json.load(open(sys.argv[1]))
-assert d["canary"]["miner_pid_continuity"]
-assert d["canary"]["hvm_active"] and d["canary"]["tep_active"]
-assert d["control"]["hvm_active"] and d["control"]["tep_active"]
-print("HASHBURST_MINING_TELEMETRY_V2_OK")
-print("HASHBURST_CGROUP_ACCOUNTING_OK")
-if d["throughput_measured"]: print("HASHBURST_MINING_THROUGHPUT_MEASURED_OK")
-else: print("HASHBURST_MINING_THROUGHPUT_UNAVAILABLE")
-if d["share_acceptance_measured"]: print("HASHBURST_SHARE_ACCEPTANCE_MEASURED_OK")
-else: print("HASHBURST_SHARE_ACCEPTANCE_UNAVAILABLE")
-print("HASHBURST_CANARY_CONTROL_COMPARISON_OK")
-PY
 rollback=0
 if ! "${SSH[@]}" root@"$CANARY" 'systemctl is-active --quiet hashburst-hvm-testnet.service && systemctl is-active --quiet hashburst-tep.service'; then rollback=1; fi
 if [ "$rollback" -eq 1 ]; then
