@@ -28,7 +28,7 @@ jobs:
           test "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" = "77.90.188.180"
           test -r /etc/hashburst-control/fleet_known_hosts
           test -r /etc/hashburst-control/fleet_ed25519
-          test "$(stat -c '%a' /etc/hashburst-control/fleet_ed25519)" = "600"
+          test "$(stat -c '%a' /etc/hashburst-control/fleet_ed25519)" = "640"
       - name: Read-only preflight
         if: inputs.phase == 'preflight'
         shell: bash
