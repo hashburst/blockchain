@@ -13,7 +13,7 @@ def exact(s,n):
  return b
 def ws():
  with socket.create_connection((HOST,443),timeout=15) as raw:
-  with ssl.create_default_context().wrap_socket(raw,server_hostname=HOST) as s:
+  tls=ssl.create_default_context()\n  tls.minimum_version=ssl.TLSVersion.TLSv1_2\n  with tls.wrap_socket(raw,server_hostname=HOST) as s:
    key=base64.b64encode(os.urandom(16)).decode()
    s.sendall(('GET '+PREFIX+'/ws HTTP/1.1\r\nHost: '+HOST+'\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: '+key+'\r\nOrigin: https://'+HOST+'\r\n\r\n').encode())
    headers=b''

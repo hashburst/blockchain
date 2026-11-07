@@ -64,7 +64,7 @@ def check(expected_ip):
     for port in (18009, 31307):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             try:
-                sock.bind(('0.0.0.0', port))
+                sock.bind((expected_ip, port))
                 report['tcp_ports_free'][str(port)] = True
             except OSError:
                 report['tcp_ports_free'][str(port)] = False
