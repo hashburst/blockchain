@@ -28,6 +28,8 @@ jobs:
       - run: python3 -m py_compile hvm-network/deploy/wallet/prompt.py
       - run: python3 hvm-network/deploy/wallet/test_prompt.py
       - run: python3 hvm-network/deploy/mainnet/test_parameter_proposal.py
+      - run: python3 hvm-network/deploy/mainnet/test_control_runner.py
+      - run: bash -n hvm-network/deploy/mainnet/probe-control-runner.sh
       - run: python3 -m py_compile hvm-network/deploy/mainnet/preflight-node.py hvm-network/deploy/mainnet/preflight.py hvm-network/deploy/mainnet/propose-parameters.py
       - name: Public API and faucet policy guards
         shell: bash
