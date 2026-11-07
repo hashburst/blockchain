@@ -1,0 +1,14 @@
+{
+  "mainnet_bootstrap_end": 8,
+  "genesis_import": {"source_chain_id":1337,"source_height":10,"source_hash":"0000a8bef0916f373a97fa8c311b095258f00cf7f2a24a3ff2f875156ca27ae1","recipient":"0xd1da8d04d767685e53440dbc56803af350a65333","units":45000000000,"founder_units":100000000000000000,"freeze_evidence_sha256":"d0f2246fc26e9e72c6117ac0d6f6805c7427a8cc1b106613c822a1cbb7e0a6f6"},
+  "apow":{"gas_limit":15000000,"activation_height":9,"initial_bits":20,"min_bits":16,"max_bits":32,"window":60,"target_seconds":60},
+  "evm":{"activation_height":9,"gas_limit":15000000,"base_fee_wei":1000000000},
+  "chain_id":4735489,"activation_height":1,
+  "fee_policy":{"fee_rate_units_per_million":1000,"base_tx_units":100},
+  "fee_collector":"0xd1da8d04d767685e53440dbc56803af350a65333",
+  "max_tx_data_bytes":1048576,"legacy_pow_difficulty":4,"poh_ticks_per_block":400000,"consensus_activation_height":9,
+  "validator":{"min_bond_units":100000000000,"activation_delay_blocks":2,"unbonding_blocks":100,"jail_blocks":20,"double_vote_slash_bps":500},
+  "consensus_network":{"proposal_timeout":3000000000,"prevote_timeout":2000000000,"precommit_timeout":2000000000,"round_timeout_delta":500000000,"max_round":64,"max_future_height":2,"max_message_bytes":4194304},
+  "require_node_registration_v2":true,
+  "slash_collector":"0xd1da8d04d767685e53440dbc56803af350a65333"
+}
