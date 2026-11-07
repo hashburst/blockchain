@@ -6,7 +6,7 @@ on:
         description: Authorized phase
         required: true
         type: choice
-        options: [preflight, benchmark, identities, checkpoint, deploy, acceptance]
+        options: [preflight, benchmark, diagnostics, identities, checkpoint, deploy, acceptance]
 permissions:
   contents: read
 concurrency:
@@ -18,7 +18,7 @@ jobs:
     environment: hvm-mainnet-production
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Enforce coordinator identity
@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$AUTHORIZED_PHASE" in
-            preflight|benchmark|identities|checkpoint|deploy|acceptance) ;;
+            preflight|benchmark|diagnostics|identities|checkpoint|deploy|acceptance) ;;
             *) echo "Invalid or missing authorized phase: $AUTHORIZED_PHASE" >&2; exit 64 ;;
           esac
           echo "HVM_AUTHORIZED_PHASE=$AUTHORIZED_PHASE"
@@ -57,6 +57,13 @@ jobs:
           set -euo pipefail
           test -x hvm-network/deploy/mainnet/run-benchmark.sh
           hvm-network/deploy/mainnet/run-benchmark.sh
+      - name: Read-only HashBurst load diagnostics
+        if: github.event.inputs.phase == 'diagnostics'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x hvm-network/deploy/mainnet/load-diagnostics.sh
+          hvm-network/deploy/mainnet/load-diagnostics.sh
       - name: Mutation phases are fail-closed until protocol freeze
         if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
         shell: bash
@@ -66,7 +73,7 @@ jobs:
           test -f hvm-network/deploy/mainnet/economics.freeze.json
           test -x hvm-network/deploy/mainnet/run-phase.sh
           hvm-network/deploy/mainnet/run-phase.sh "${{ github.event.inputs.phase }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: hvm-mainnet-${{ github.event.inputs.phase }}-${{ github.run_id }}
