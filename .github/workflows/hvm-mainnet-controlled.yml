@@ -6,7 +6,7 @@ on:
         description: Authorized phase
         required: true
         type: choice
-        options: [preflight, benchmark, diagnostics, orchestrator-dryrun, actuator-simulate, actuator-canary-153, identities, checkpoint, deploy, acceptance]
+        options: [preflight, benchmark, diagnostics, identities, checkpoint, deploy, acceptance]
 permissions:
   contents: read
 concurrency:
@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$AUTHORIZED_PHASE" in
-            preflight|benchmark|diagnostics|orchestrator-dryrun|actuator-simulate|actuator-canary-153|identities|checkpoint|deploy|acceptance) ;;
+            preflight|benchmark|diagnostics|identities|checkpoint|deploy|acceptance) ;;
             *) echo "Invalid or missing authorized phase: $AUTHORIZED_PHASE" >&2; exit 64 ;;
           esac
           echo "HVM_AUTHORIZED_PHASE=$AUTHORIZED_PHASE"
@@ -64,35 +64,7 @@ jobs:
           set -euo pipefail
           test -x hvm-network/deploy/mainnet/load-diagnostics.sh
           hvm-network/deploy/mainnet/load-diagnostics.sh
-      - name: HashBurst Adaptive Resource Orchestrator dry-run
-        if: github.event.inputs.phase == 'orchestrator-dryrun'
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -x hvm-network/deploy/mainnet/adaptive-resource/run-dryrun.sh
-          python3 hvm-network/deploy/mainnet/adaptive-resource/test_orchestrator.py | tee mainnet-orchestrator-policy-tests.log
-          hvm-network/deploy/mainnet/adaptive-resource/run-dryrun.sh | tee mainnet-orchestrator-dryrun.log
-      - name: HashBurst Adaptive Resource Actuator simulation
-        if: github.event.inputs.phase == 'actuator-simulate'
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 hvm-network/deploy/mainnet/adaptive-resource/test_actuator.py | tee mainnet-actuator-simulation.log
-          printf '%s\n' '{"schema":"hashburst-actuator-gate-v1","backend":"simulation","remote_mutation":false,"systemd_mutation":false,"miner_restart":false,"status":"passed"}' > mainnet-actuator-simulation.json
-          echo HASHBURST_ADAPTIVE_RESOURCE_ACTUATOR_SIMULATION_GATE_OK
-      - name: HashBurst Adaptive Resource Actuator canary .153
-        if: github.event.inputs.phase == 'actuator-canary-153'
-        shell: bash
-        env:
-          HASHBURST_CANARY_WINDOW_SECONDS: '120'
-        run: |
-          set -euo pipefail
-          python3 hvm-network/deploy/mainnet/check-freeze.py | tee mainnet-canary-freeze.log
-          python3 hvm-network/deploy/mainnet/adaptive-resource/test_orchestrator.py | tee mainnet-canary-policy-tests.log
-          python3 hvm-network/deploy/mainnet/adaptive-resource/test_actuator.py | tee mainnet-canary-actuator-tests.log
-          python3 hvm-network/deploy/mainnet/adaptive-resource/test_canary.py | tee mainnet-canary-scope-tests.log
-          test -x hvm-network/deploy/mainnet/adaptive-resource/run-canary.sh
-          hvm-network/deploy/mainnet/adaptive-resource/run-canary.sh | tee mainnet-actuator-canary.log
+
       - name: Mutation phases are fail-closed until protocol freeze
         if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
         shell: bash
