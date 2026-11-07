@@ -25,7 +25,7 @@ def check(expected_ip,role):
     r['ports']={}
     for port in (18010,31308):
         with socket.socket() as s:
-            try:s.bind(('0.0.0.0',port));r['ports'][str(port)]='free'
+            try:s.bind((expected_ip,port));r['ports'][str(port)]='free'
             except OSError:r['ports'][str(port)]='in-use'
     if role=='validator' and any(v!='free' for v in r['ports'].values()):r['errors'].append('candidate mainnet port unavailable')
     r['ok']=not r['errors'];return r
