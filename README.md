@@ -307,3 +307,12 @@ The mainnet runtime recognizes the exact zero-issuance bootstrap checkpoint
 boundary immediately before BFT activation. It validates the replayed active
 validator set before provisioning. Production enrollment, protocol approval and
 fleet finality/restart acceptance remain prerequisites for mainnet activation.
+
+## Native Windows portability
+
+Native full-node Windows support is in development. The portability candidate
+replaces Unix-only file locks with Windows process locks and adds native Windows
+CI. Compilation and lock tests do not establish production readiness: ACLs,
+durable recovery, migrations, runtime finality and installation still require
+acceptance. See [Windows development scope](hvm-network/deploy/windows/README.md).
+Published Windows packages remain wallet/auditor packages until those gates pass.
