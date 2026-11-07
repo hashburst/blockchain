@@ -9,7 +9,7 @@ Coordinator:
 - production Environment: hvm-mainnet-production
 
 Security boundary:
-1. Fleet SSH private key is generated on the coordinator and remains only at /etc/hashburst-control/fleet_ed25519 (0600).
+1. Fleet SSH private key is generated on the coordinator and remains only at /etc/hashburst-control/fleet_ed25519 (0640; root-owned, readable only by the hashburst-actions group).
 2. GitHub Actions receives no fleet private key and no founder wallet key.
 3. /etc/hashburst-control/fleet_known_hosts is pinned; StrictHostKeyChecking=yes.
 4. The runner account must not be root. sudo is allowed only through reviewed wrapper commands, not arbitrary shell.
