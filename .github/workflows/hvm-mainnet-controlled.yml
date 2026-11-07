@@ -91,6 +91,7 @@ jobs:
           python3 hvm-network/deploy/mainnet/adaptive-resource/test_orchestrator.py | tee mainnet-canary-policy-tests.log
           python3 hvm-network/deploy/mainnet/adaptive-resource/test_actuator.py | tee mainnet-canary-actuator-tests.log
           python3 hvm-network/deploy/mainnet/adaptive-resource/test_canary.py | tee mainnet-canary-scope-tests.log
+          python3 hvm-network/deploy/mainnet/adaptive-resource/test_telemetry_v2.py | tee mainnet-telemetry-v2-tests.log
           test -x hvm-network/deploy/mainnet/adaptive-resource/run-canary.sh
           hvm-network/deploy/mainnet/adaptive-resource/run-canary.sh | tee mainnet-actuator-canary.log
       - name: Mutation phases are fail-closed until protocol freeze
