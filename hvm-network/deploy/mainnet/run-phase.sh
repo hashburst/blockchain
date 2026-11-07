@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PHASE="${1:-}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEPLOY="$ROOT/deploy/mainnet"
 SSH_KEY=/etc/hashburst-control/fleet_ed25519
 KNOWN=/etc/hashburst-control/fleet_known_hosts
