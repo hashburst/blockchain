@@ -40,7 +40,7 @@ for ip in "${HOSTS[@]}"; do
     if [ -e '$IDENTITY_DIR' ]; then
       test -d '$IDENTITY_DIR'
       test -f '$IDENTITY_DIR/public.json'
-      legacy_hash=\$(python3 -c 'import json; print(json.load(open("$IDENTITY_DIR/public.json"))["protocol_sha256"])')
+      legacy_hash=\$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["protocol_sha256"])' '$IDENTITY_DIR/public.json')
       test \"\$legacy_hash\" = '$LEGACY_PROTOCOL_SHA256'
       test \"\$(stat -c '%a' '$IDENTITY_DIR')\" = 700
       for f in p2p.key consensus.key operator.key reward.key public.json; do
