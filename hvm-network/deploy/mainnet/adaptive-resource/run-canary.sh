@@ -20,20 +20,60 @@ for p in sys.argv[1:]:
  d=json.load(open(p))
  assert d["hvm"]["state"]=="active" and d["tep"]["state"]=="active"
 PY
-# Canary-only mutation. Scope is a transient systemd scope attached to the existing cpuminer PID.
-# No miner restart and no persistent unit file is written.
+# Recover only a previous interrupted canary's nice value, if the same miner PID is still alive.
+# This repairs run 42392714865 safely before attempting a new mutation.
+"${SSH[@]}" root@"$CANARY" 'bash -se' <<'REMOTE'
+set -euo pipefail
+if test -r /run/hashburst-canary/cpuminer.pid && test -r /run/hashburst-canary/previous.nice; then
+ oldpid="$(cat /run/hashburst-canary/cpuminer.pid)"
+ curpid="$(pgrep -xo cpuminer || true)"
+ if test -n "$curpid" && test "$oldpid" = "$curpid"; then
+  oldnice="$(cat /run/hashburst-canary/previous.nice)"
+  renice -n "$oldnice" -p "$curpid" >/dev/null || true
+ fi
+fi
+REMOTE
+# Canary-only mutation. Use the existing systemd unit that owns cpuminer and apply a runtime
+# cgroup CPUQuota; do not restart the miner and do not write a persistent unit file.
 "${SSH[@]}" root@"$CANARY" "bash -se" <<'REMOTE'
 set -euo pipefail
 pid="$(pgrep -xo cpuminer)"
 test -n "$pid"
 systemctl is-active --quiet hashburst-hvm-testnet.service
 systemctl is-active --quiet hashburst-tep.service
+cg="$(awk -F: '$1=="0"{print $3}' "/proc/$pid/cgroup")"
+test -n "$cg"
+unit="$(basename "$cg")"
+case "$unit" in
+ *.service|*.scope) ;;
+ *) echo "cpuminer is not owned by a dedicated systemd service/scope: $cg" >&2; exit 65 ;;
+esac
+systemctl show "$unit" -p LoadState --value | grep -Fx active >/dev/null || {
+ # LoadState is normally "loaded"; retain a precise diagnostic instead of mutating.
+ load="$(systemctl show "$unit" -p LoadState --value || true)"
+ test "$load" = "loaded" || { echo "cpuminer systemd unit is not loaded: $unit ($load)" >&2; exit 66; }
+}
+quota_before="$(systemctl show "$unit" -p CPUQuotaPerSecUSec --value)"
+nice_before="$(ps -o ni= -p "$pid" | tr -d ' ')"
 mkdir -p /run/hashburst-canary
 printf '%s\n' "$pid" > /run/hashburst-canary/cpuminer.pid
-printf '%s\n' "$(ps -o ni= -p "$pid" | tr -d ' ')" > /run/hashburst-canary/previous.nice
+printf '%s\n' "$unit" > /run/hashburst-canary/cpuminer.unit
+printf '%s\n' "$nice_before" > /run/hashburst-canary/previous.nice
+printf '%s\n' "$quota_before" > /run/hashburst-canary/previous.quota
+rollback_apply(){
+ systemctl set-property --runtime "$unit" CPUQuota=infinity >/dev/null 2>&1 || true
+ renice -n "$nice_before" -p "$pid" >/dev/null 2>&1 || true
+}
+trap rollback_apply ERR
+systemctl set-property --runtime "$unit" CPUQuota=1200%
 renice -n 10 -p "$pid" >/dev/null
-systemd-run --unit=hashburst-mining-canary --scope --slice=system.slice -p CPUQuota=1200% --pid="$pid" /bin/true >/dev/null
-systemctl show hashburst-mining-canary.scope -p CPUQuotaPerSecUSec -p ActiveState > /run/hashburst-canary/applied.state
+trap - ERR
+systemctl show "$unit" -p CPUQuotaPerSecUSec -p ActiveState -p LoadState > /run/hashburst-canary/applied.state
+grep -q '^CPUQuotaPerSecUSec=12s$' /run/hashburst-canary/applied.state || {
+ echo "CPUQuota verification failed for $unit" >&2
+ rollback_apply
+ exit 67
+}
 REMOTE
 sleep "$WINDOW"
 sample "$CANARY" "$TMP/canary.after"; sample "$CONTROL" "$TMP/control.after"
@@ -43,8 +83,9 @@ if [ "$rollback" -eq 1 ]; then
  "${SSH[@]}" root@"$CANARY" 'bash -se' <<'REMOTE'
 set -euo pipefail
 pid="$(cat /run/hashburst-canary/cpuminer.pid)"
+unit="$(cat /run/hashburst-canary/cpuminer.unit)"
 oldnice="$(cat /run/hashburst-canary/previous.nice)"
-systemctl stop hashburst-mining-canary.scope || true
+systemctl set-property --runtime "$unit" CPUQuota=infinity || true
 renice -n "$oldnice" -p "$pid" >/dev/null || true
 REMOTE
 fi
