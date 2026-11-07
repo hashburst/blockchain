@@ -7,6 +7,7 @@ DEPLOY="$ROOT/deploy/mainnet"
 SSH_KEY=/etc/hashburst-control/fleet_ed25519
 KNOWN=/etc/hashburst-control/fleet_known_hosts
 OUT="$ROOT/../mainnet-identities"
+trap 'rm -f "$OUT/hvm-mainnet-identity"; rm -rf "$OUT"; rm -f mainnet-identities.json' EXIT
 REMOTE_ROOT=/var/tmp/hashburst-hvm-mainnet-identity-gate
 IDENTITY_DIR=/etc/hashburst-hvm-mainnet/identity
 P2P_PORT=31317
@@ -46,9 +47,10 @@ for ip in "${HOSTS[@]}"; do
     test \"\$(stat -c '%a' '$IDENTITY_DIR')\" = 700
     for f in p2p.key consensus.key operator.key reward.key public.json; do test \"\$(stat -c '%a' '$IDENTITY_DIR/'\$f)\" = 600; done
     sha256sum '$IDENTITY_DIR/public.json' | awk '{print \$1}'
-  " > "$OUT/$ip.remote.log"
+  " > /dev/null
   "${SCP[@]}" "root@$ip:$IDENTITY_DIR/public.json" "$OUT/$ip.public.json"
   chmod 0600 "$OUT/$ip.public.json"
+  grep -q '"protocol_sha256"' "$OUT/$ip.public.json" || fail "public enrollment missing protocol commitment for $ip"
   echo "IDENTITY_PUBLIC_EXPORT_OK ip=$ip sha256=$(sha256sum "$OUT/$ip.public.json" | awk '{print $1}')"
 done
 
