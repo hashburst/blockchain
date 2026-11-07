@@ -1,0 +1,26 @@
+name: HVM Windows portability candidate
+on:
+  pull_request:
+    paths: ['hvm-network/**', 'evm/execution/**', '.github/workflows/hvm-windows-portability.yml']
+  push:
+    branches: [release/windows-mainnet-support]
+permissions:
+  contents: read
+jobs:
+  locks:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: |
+            hvm-network/go.sum
+            evm/execution/go.sum
+      - run: go -C evm/execution test -run '^TestStoreLockProcessExclusion$' -count=1
+      - run: go -C hvm-network test ./internal/testnet -run '^TestRuntimeLockProcessExclusion$' -count=1
+      - run: go -C hvm-network build ./cmd/hashburst-mainnet ./cmd/hashburst-testnet ./cmd/hvm-apow-miner
