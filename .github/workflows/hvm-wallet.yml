@@ -2,7 +2,10 @@ name: HVM native wallet candidate
 on:
   push:
     branches: [feat/hvm-apow-strict]
-    paths: ['hvm-network/wallet/**', 'hvm-network/cmd/hashburst-wallet/**', 'hvm-network/deploy/wallet/**', 'hvm-network/deploy/mainnet/**', '.github/workflows/hvm-wallet.yml']
+    paths: ['hvm-network/wallet/**', 'hvm-network/cmd/hashburst-wallet/**', 'hvm-network/deploy/wallet/**', 'hvm-network/deploy/mainnet/**', 'hvm-network/deploy/faucet/**', '.github/workflows/hvm-wallet.yml']
+  pull_request:
+    branches: [master]
+    paths: ['hvm-network/wallet/**', 'hvm-network/cmd/hashburst-wallet/**', 'hvm-network/deploy/wallet/**', 'hvm-network/deploy/mainnet/**', 'hvm-network/deploy/faucet/**', '.github/workflows/hvm-wallet.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,6 +27,15 @@ jobs:
       - run: go -C hvm-network build ./cmd/hashburst-wallet
       - run: python3 -m py_compile hvm-network/deploy/wallet/prompt.py
       - run: python3 hvm-network/deploy/wallet/test_prompt.py
+      - run: python3 hvm-network/deploy/mainnet/test_parameter_proposal.py
+      - run: python3 -m py_compile hvm-network/deploy/mainnet/preflight-node.py hvm-network/deploy/mainnet/preflight.py hvm-network/deploy/mainnet/propose-parameters.py
+      - name: Public API and faucet policy guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'HVM_NATIVE_WALLET_PUBLIC_API_V1_DEFINED' hvm-network/deploy/wallet/PUBLIC-API.md
+          grep -q 'HVM_PUBLIC_FAUCET_POLICY_APPROVED_NETWORKS_4735489_4735490' hvm-network/deploy/faucet/POLICY.md
+          ! grep -Eqi '(private[_ -]?key|seed|mnemonic).{0,24}(=|:)[[:space:]]*[0-9a-f]{64}' hvm-network/deploy/wallet/PUBLIC-API.md hvm-network/deploy/faucet/POLICY.md
   candidates:
     needs: test
     runs-on: ubuntu-latest
@@ -51,10 +63,12 @@ jobs:
           done
           cp hvm-network/deploy/wallet/prompt.py candidate/
           cp hvm-network/deploy/wallet/README.md candidate/WALLET.md
+          cp hvm-network/deploy/wallet/PUBLIC-API.md candidate/
+          cp hvm-network/deploy/faucet/POLICY.md candidate/FAUCET-POLICY.md
           cp hvm-network/deploy/mainnet/economics.draft.json candidate/
           printf '%s\n' "$GITHUB_SHA" > candidate/SOURCE_COMMIT
           printf '%s\n' 'CANDIDATE ONLY. No approved mainnet manifest, no automatic activation.' 'CPU reference miner only; GPU/ASIC/Stratum not implemented.' 'Cross-compiled node binaries are not live-network acceptance evidence.' > candidate/STATUS.txt
-          (cd candidate && sha256sum hashburst-* hvm-apow-miner prompt.py WALLET.md economics.draft.json SOURCE_COMMIT STATUS.txt > SHA256SUMS)
+          (cd candidate && sha256sum hashburst-* hvm-apow-miner prompt.py WALLET.md PUBLIC-API.md FAUCET-POLICY.md economics.draft.json SOURCE_COMMIT STATUS.txt > SHA256SUMS)
           tar -czf "HashBurst-candidate-${TARGET}.tar.gz" candidate
       - uses: actions/upload-artifact@v4
         with:
