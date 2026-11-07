@@ -73,8 +73,13 @@ jobs:
           test -f hvm-network/deploy/mainnet/protocol.freeze.json
           test -f hvm-network/deploy/mainnet/economics.freeze.json
           python3 hvm-network/deploy/mainnet/check-freeze.py | tee mainnet-freeze.log
-          test -x hvm-network/deploy/mainnet/run-phase.sh
-          hvm-network/deploy/mainnet/run-phase.sh "${{ github.event.inputs.phase }}"
+          test -f hvm-network/deploy/mainnet/run-phase.sh
+          if [ "${{ github.event.inputs.phase }}" = "identities" ]; then
+            bash hvm-network/deploy/mainnet/run-phase.sh identities
+          else
+            echo "Requested mutation phase remains fail-closed pending its dedicated reviewed gate." >&2
+            exit 78
+          fi
       - uses: actions/upload-artifact@v7
         if: always()
         with:
