@@ -12,14 +12,17 @@ WORK="$ROOT/../mainnet-checkpoint-preparation"
 OUT="$WORK/economic-checkpoint"
 IDENTITIES="$WORK/identities"
 EXPECTED_FREEZE=d0f2246fc26e9e72c6117ac0d6f6805c7427a8cc1b106613c822a1cbb7e0a6f6
-trap 'rm -rf "$WORK"' EXIT
-
-fail(){ echo "CHECKPOINT_PREPARATION_FAIL: $*" >&2; exit 1; }
+fail(){ echo "CHECKPOINT_PREPARATION_FAIL: $*" | tee -a mainnet-checkpoint-preparation.log >&2; exit 1; }
+on_err(){ rc=$?; echo "CHECKPOINT_PREPARATION_UNEXPECTED_EXIT rc=$rc line=$1 command=$2" | tee -a mainnet-checkpoint-preparation.log >&2; exit "$rc"; }
+trap 'on_err "$LINENO" "$BASH_COMMAND"' ERR
 [[ "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" == 77.90.188.180 ]] || fail "wrong coordinator"
 [[ -r "$SSH_KEY" && -r "$KNOWN" ]] || fail "fleet SSH material unavailable"
 python3 "$DEPLOY/check-freeze.py" | tee mainnet-checkpoint-freeze.log
-command -v go >/dev/null 2>&1 || fail "Go unavailable"
-[[ "$(go env GOVERSION)" == go1.25.7* ]] || fail "Go 1.25.7 required"
+GO_BIN="$(command -v go || true)"
+[[ -n "$GO_BIN" ]] || fail "Go unavailable"
+GO_VERSION="$("$GO_BIN" env GOVERSION 2>/dev/null || true)"
+echo "CHECKPOINT_COORDINATOR_GO=$GO_BIN version=$GO_VERSION" | tee -a mainnet-checkpoint-preparation.log
+[[ "$GO_VERSION" == go1.25.7* ]] || fail "Go 1.25.7 required; found $GO_VERSION"
 
 rm -rf "$WORK"
 mkdir -m 0700 "$WORK" "$IDENTITIES"
@@ -58,7 +61,7 @@ PY
 cp "$DEPLOY/protocol.freeze.json" mainnet-founder-signing-protocol.json
 for p in "${PUBS[@]}"; do cp "$p" "mainnet-founder-$(basename "$p")"; done
 sha256sum mainnet-funding-plan.json mainnet-founder-signing-protocol.json mainnet-founder-*.public.json > mainnet-founder-signing-SHA256SUMS.log
-echo "FOUNDER_SIGNING_PACKAGE_PUBLIC_ONLY_PRIVATE_KEY_NOT_REQUESTED" | tee mainnet-checkpoint-preparation.log
+echo "FOUNDER_SIGNING_PACKAGE_PUBLIC_ONLY_PRIVATE_KEY_NOT_REQUESTED" | tee -a mainnet-checkpoint-preparation.log
 
 [[ -f "$FREEZE" ]] || fail "missing accepted freeze evidence at $FREEZE"
 [[ "$(sha256sum "$FREEZE" | awk '{print $1}')" == "$EXPECTED_FREEZE" ]] || fail "freeze evidence digest mismatch"
