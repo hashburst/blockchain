@@ -177,7 +177,7 @@ for p in files:
  q=json.loads(base64.b64decode(validator["data"], validate=True).decode("utf-8"))
  vals={
   "node":r["node_id"],"operator":registration["Sender"],"peer":r["peer_id"],
-  "consensus":q["consensus_pub_key"],"tep":r["tep_pubkey"],"endpoint":r["multiaddrs"][0],
+  "consensus":q["consensus_pubkey"],"tep":r["tep_pubkey"],"endpoint":r["multiaddrs"][0],
  }
  for k,v in vals.items():
   if v in seen[k]: raise SystemExit(f"duplicate {k}: {v}")
