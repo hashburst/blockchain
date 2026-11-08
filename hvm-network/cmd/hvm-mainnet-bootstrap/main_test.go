@@ -80,3 +80,32 @@ func TestPreparationRejectsDifferentFreezeBeforeOutput(t *testing.T) {
 		t.Fatal("output created before verification")
 	}
 }
+
+func TestRecoveryAttestationRejectsWithoutExactTerminalGeneration(t *testing.T) {
+	c := fixtureProtocol(t)
+	dir := t.TempDir()
+	a := recoveryAttestation{}
+	a.Schema = "hashburst-mainnet-legacy-freeze-reattestation-v1"
+	a.Status = "recovery_attestation_not_original_evidence"
+	a.LostEvidence.Filename = "FLEET-FREEZE-HA-1791220850167915000.json"
+	a.LostEvidence.SHA256 = freezeHash
+	a.LostEvidence.VerifierCommit = "0289779049a680a7f419be81d4d69504a9b97fbe"
+	a.TerminalGeneration.SourceChainID = c.GenesisImport.SourceChainID
+	a.TerminalGeneration.SourceHeight = c.GenesisImport.SourceHeight
+	a.TerminalGeneration.SourceHash = c.GenesisImport.SourceHash
+	a.TerminalGeneration.DatSHA256 = terminalDatHash
+	a.TerminalGeneration.IdxSHA256 = terminalIdxHash
+	a.TerminalGeneration.Recipient = c.GenesisImport.Recipient
+	a.TerminalGeneration.Units = "45000000000"
+	a.TerminalGeneration.AdditionalIssuance = "0"
+	raw, e := json.Marshal(a)
+	if e != nil { t.Fatal(e) }
+	if _, e = verifyRecoveryAttestation(raw, filepath.Join(dir, "missing-terminal"), c); e == nil {
+		t.Fatal("re-attestation bypassed exact terminal generation")
+	}
+	a.ActivationAllowed = true
+	raw, _ = json.Marshal(a)
+	if _, e = verifyRecoveryAttestation(raw, filepath.Join(dir, "missing-terminal"), c); e == nil {
+		t.Fatal("activatable re-attestation accepted")
+	}
+}
