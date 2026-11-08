@@ -7,6 +7,7 @@ SSH_KEY=/etc/hashburst-control/fleet_ed25519
 KNOWN=/etc/hashburst-control/fleet_known_hosts
 EVIDENCE_ROOT=/var/lib/hashburst-actions/mainnet-evidence
 FREEZE="$EVIDENCE_ROOT/FLEET-FREEZE-HA-1791220850167915000.json"
+REATTEST="$DEPLOY/legacy-freeze.reattestation.v1.json"
 SOURCE="$EVIDENCE_ROOT/legacy-terminal-generation"
 WORK="$ROOT/../mainnet-checkpoint-preparation"
 OUT="$WORK/economic-checkpoint"
@@ -63,12 +64,19 @@ for p in "${PUBS[@]}"; do cp "$p" "mainnet-founder-$(basename "$p")"; done
 sha256sum mainnet-funding-plan.json mainnet-founder-signing-protocol.json mainnet-founder-*.public.json > mainnet-founder-signing-SHA256SUMS.log
 echo "FOUNDER_SIGNING_PACKAGE_PUBLIC_ONLY_PRIVATE_KEY_NOT_REQUESTED" | tee -a mainnet-checkpoint-preparation.log
 
-[[ -f "$FREEZE" ]] || fail "missing accepted freeze evidence at $FREEZE"
-[[ "$(sha256sum "$FREEZE" | awk '{print $1}')" == "$EXPECTED_FREEZE" ]] || fail "freeze evidence digest mismatch"
 [[ -f "$SOURCE/blockchain.dat" && -f "$SOURCE/blockchain.idx" ]] || fail "missing offline legacy terminal generation under $SOURCE"
-echo "CHECKPOINT_LEGACY_EVIDENCE_PRESENT_HASH_PINNED"
+[[ "$(sha256sum "$SOURCE/blockchain.dat" | awk '{print $1}')" == "d6eda91edad1b4858a1b3ddd97347f468aab998168ec818eefa67d5becabc06b" ]] || fail "terminal blockchain.dat digest mismatch"
+[[ "$(sha256sum "$SOURCE/blockchain.idx" | awk '{print $1}')" == "e2ff5d9437fe2f789197e3fe5a8863ed25cc5f5a5c3ee17c5218ee511508d68f" ]] || fail "terminal blockchain.idx digest mismatch"
+if [[ -f "$FREEZE" ]] && [[ "$(sha256sum "$FREEZE" | awk '{print $1}')" == "$EXPECTED_FREEZE" ]]; then
+  echo "CHECKPOINT_LEGACY_EVIDENCE_PRESENT_HASH_PINNED"
+  REATTEST_ARG=()
+else
+  [[ -f "$REATTEST" ]] || fail "original freeze evidence unavailable and reviewed re-attestation missing"
+  echo "CHECKPOINT_LEGACY_EVIDENCE_RECOVERY_REATTESTATION_SELECTED original_sha256=$EXPECTED_FREEZE reattestation_sha256=$(sha256sum "$REATTEST" | awk '{print $1}')"
+  REATTEST_ARG=(--re-attestation "$REATTEST")
+fi
 
-"$WORK/hvm-mainnet-bootstrap" --protocol "$DEPLOY/protocol.freeze.json" --freeze-report "$FREEZE" --source "$SOURCE" --out "$OUT"
+"$WORK/hvm-mainnet-bootstrap" --protocol "$DEPLOY/protocol.freeze.json" --freeze-report "$FREEZE" "${REATTEST_ARG[@]}" --source "$SOURCE" --out "$OUT"
 test -f "$OUT/CHECKPOINT.json"
 python3 - "$OUT/CHECKPOINT.json" <<'PY'
 import json,sys
