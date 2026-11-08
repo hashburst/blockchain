@@ -6,7 +6,7 @@ on:
         description: Authorized phase
         required: true
         type: choice
-        options: [preflight, benchmark, diagnostics, identities, checkpoint, deploy, acceptance]
+        options: [preflight, benchmark, diagnostics, evidence-recovery, identities, checkpoint, deploy, acceptance]
 permissions:
   contents: read
 concurrency:
@@ -43,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$AUTHORIZED_PHASE" in
-            preflight|benchmark|diagnostics|identities|checkpoint|deploy|acceptance) ;;
+            preflight|benchmark|diagnostics|evidence-recovery|identities|checkpoint|deploy|acceptance) ;;
             *) echo "Invalid or missing authorized phase: $AUTHORIZED_PHASE" >&2; exit 64 ;;
           esac
           echo "HVM_AUTHORIZED_PHASE=$AUTHORIZED_PHASE"
@@ -72,6 +72,13 @@ jobs:
           test -x hvm-network/deploy/mainnet/load-diagnostics.sh
           hvm-network/deploy/mainnet/load-diagnostics.sh
 
+      - name: Recover exact legacy freeze evidence
+        if: github.event.inputs.phase == 'evidence-recovery'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x hvm-network/deploy/mainnet/recover-freeze-evidence.sh
+          hvm-network/deploy/mainnet/recover-freeze-evidence.sh
       - name: Mutation phases are fail-closed until protocol freeze
         if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
         shell: bash
