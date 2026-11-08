@@ -35,7 +35,8 @@ jobs:
           test "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" = "77.90.188.180"
           test -r /etc/hashburst-control/fleet_known_hosts
           test -r /etc/hashburst-control/fleet_ed25519
-          test "$(stat -c '%a' /etc/hashburst-control/fleet_ed25519)" = "640"
+          test "$(stat -c '%a' /etc/hashburst-control/fleet_ed25519)" = "600"
+          test "$(stat -c '%U:%G' /etc/hashburst-control/fleet_ed25519)" = "root:root"
       - name: Confirm authorized dispatch phase
         shell: bash
         env:
