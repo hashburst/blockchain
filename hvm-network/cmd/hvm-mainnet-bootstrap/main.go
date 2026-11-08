@@ -29,6 +29,9 @@ type recoveryAttestation struct {
   Filename string `json:"filename"`
   SHA256 string `json:"sha256"`
   VerifierCommit string `json:"verifier_commit"`
+  Schema string `json:"schema"`
+  Scope string `json:"scope"`
+  RecoveryStatus string `json:"recovery_status"`
  } `json:"lost_evidence"`
  TerminalGeneration struct {
   SourceChainID uint64 `json:"source_chain_id"`
@@ -40,6 +43,7 @@ type recoveryAttestation struct {
   Units string `json:"units"`
   AdditionalIssuance string `json:"additional_migration_issuance_units"`
  } `json:"terminal_generation"`
+ Guarantees []string `json:"guarantees"`
 }
 
 func readBounded(path string) ([]byte, error) {
@@ -97,7 +101,15 @@ func verifyRecoveryAttestation(raw []byte, source string, cfg blockchain.Protoco
  if a.Schema != "hashburst-mainnet-legacy-freeze-reattestation-v1" ||
   a.Status != "recovery_attestation_not_original_evidence" || a.ActivationAllowed ||
   a.ProductionImportExecuted || a.LostEvidence.Filename != "FLEET-FREEZE-HA-1791220850167915000.json" ||
-  a.LostEvidence.SHA256 != freezeHash || a.LostEvidence.VerifierCommit != "0289779049a680a7f419be81d4d69504a9b97fbe" {
+  a.LostEvidence.SHA256 != freezeHash || a.LostEvidence.VerifierCommit != "0289779049a680a7f419be81d4d69504a9b97fbe" ||
+  a.LostEvidence.Schema != "hashburst-managed-legacy-freeze-ha-v1" ||
+  a.LostEvidence.Scope != "five managed legacy services at observation times" ||
+  a.LostEvidence.RecoveryStatus != "original_bytes_not_found_after_controlled_coordinator_and_fleet_search" ||
+  len(a.Guarantees) != 4 ||
+  a.Guarantees[0] != "does_not_claim_to_reproduce_or_replace_the_lost_original_bytes" ||
+  a.Guarantees[1] != "does_not_change_the_consensus_bound_historical_freeze_sha256" ||
+  a.Guarantees[2] != "requires_exact_terminal_generation_file_hashes_and_full_legacy_terminal_verification" ||
+  a.Guarantees[3] != "does_not_activate_mainnet_or_execute_production_import" {
   return "", fmt.Errorf("unapproved recovery attestation")
  }
  dat, e := readBounded(filepath.Join(source, "blockchain.dat")); if e != nil { return "", e }
