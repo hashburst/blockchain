@@ -27,7 +27,7 @@ func TestPublishEconomicCheckpointAndRefuseOverwrite(t *testing.T) {
 		t.Fatal(e)
 	}
 	out := filepath.Join(dir, "candidate")
-	if e = publishCheckpoint(c, g, out); e != nil {
+	if e = publishCheckpoint(c, g, out, ""); e != nil {
 		t.Fatal(e)
 	}
 	raw, e := os.ReadFile(filepath.Join(out, "CHECKPOINT.json"))
@@ -45,7 +45,7 @@ func TestPublishEconomicCheckpointAndRefuseOverwrite(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if publishCheckpoint(c, g, out) == nil {
+	if publishCheckpoint(c, g, out, "") == nil {
 		t.Fatal("overwrote existing generation")
 	}
 	after, e := os.ReadFile(filepath.Join(out, "ledger", "blockchain.dat"))
