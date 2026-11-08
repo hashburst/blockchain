@@ -21,6 +21,13 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Verify checkpoint gate executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x hvm-network/deploy/mainnet/run-checkpoint-preparation.sh
+          test "$(git ls-files -s hvm-network/deploy/mainnet/run-checkpoint-preparation.sh | awk '{print $1}')" = "100755"
+          echo "HVM_CHECKPOINT_GATE_EXECUTABLE_MODE_OK"
       - name: Enforce coordinator identity
         shell: bash
         run: |
