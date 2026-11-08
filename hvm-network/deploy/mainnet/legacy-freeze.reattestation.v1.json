@@ -1,0 +1,30 @@
+{
+  "schema": "hashburst-mainnet-legacy-freeze-reattestation-v1",
+  "status": "recovery_attestation_not_original_evidence",
+  "activation_allowed": false,
+  "production_import_executed": false,
+  "lost_evidence": {
+    "filename": "FLEET-FREEZE-HA-1791220850167915000.json",
+    "sha256": "d0f2246fc26e9e72c6117ac0d6f6805c7427a8cc1b106613c822a1cbb7e0a6f6",
+    "verifier_commit": "0289779049a680a7f419be81d4d69504a9b97fbe",
+    "schema": "hashburst-managed-legacy-freeze-ha-v1",
+    "scope": "five managed legacy services at observation times",
+    "recovery_status": "original_bytes_not_found_after_controlled_coordinator_and_fleet_search"
+  },
+  "terminal_generation": {
+    "source_chain_id": 1337,
+    "source_height": 10,
+    "source_hash": "0000a8bef0916f373a97fa8c311b095258f00cf7f2a24a3ff2f875156ca27ae1",
+    "blockchain_dat_sha256": "d6eda91edad1b4858a1b3ddd97347f468aab998168ec818eefa67d5becabc06b",
+    "blockchain_idx_sha256": "e2ff5d9437fe2f789197e3fe5a8863ed25cc5f5a5c3ee17c5218ee511508d68f",
+    "recipient": "0xd1da8d04d767685e53440dbc56803af350a65333",
+    "units": "45000000000",
+    "additional_migration_issuance_units": "0"
+  },
+  "guarantees": [
+    "does_not_claim_to_reproduce_or_replace_the_lost_original_bytes",
+    "does_not_change_the_consensus_bound_historical_freeze_sha256",
+    "requires_exact_terminal_generation_file_hashes_and_full_legacy_terminal_verification",
+    "does_not_activate_mainnet_or_execute_production_import"
+  ]
+}
