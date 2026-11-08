@@ -73,7 +73,7 @@ func TestPreparationRejectsDifferentFreezeBeforeOutput(t *testing.T) {
 	if e := writeJSON(f, map[string]bool{"fleet_freeze_verified": true}); e != nil {
 		t.Fatal(e)
 	}
-	if prepare(p, f, filepath.Join(dir, "no-source"), out) == nil {
+	if prepare(p, f, "", filepath.Join(dir, "no-source"), out) == nil {
 		t.Fatal("accepted fabricated report")
 	}
 	if _, e := os.Stat(out); !os.IsNotExist(e) {
