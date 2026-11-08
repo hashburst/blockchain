@@ -113,6 +113,8 @@ jobs:
           path: |
             mainnet-*.json
             mainnet-*.log
-            mainnet-founder-*.public.json
+            hvm-network/mainnet-*.json
+            hvm-network/mainnet-*.log
+            hvm-network/mainnet-founder-*.public.json
           if-no-files-found: ignore
           retention-days: 90
