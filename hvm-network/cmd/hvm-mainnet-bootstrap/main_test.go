@@ -90,6 +90,9 @@ func TestRecoveryAttestationRejectsWithoutExactTerminalGeneration(t *testing.T) 
 	a.LostEvidence.Filename = "FLEET-FREEZE-HA-1791220850167915000.json"
 	a.LostEvidence.SHA256 = freezeHash
 	a.LostEvidence.VerifierCommit = "0289779049a680a7f419be81d4d69504a9b97fbe"
+	a.LostEvidence.Schema = "hashburst-managed-legacy-freeze-ha-v1"
+	a.LostEvidence.Scope = "five managed legacy services at observation times"
+	a.LostEvidence.RecoveryStatus = "original_bytes_not_found_after_controlled_coordinator_and_fleet_search"
 	a.TerminalGeneration.SourceChainID = c.GenesisImport.SourceChainID
 	a.TerminalGeneration.SourceHeight = c.GenesisImport.SourceHeight
 	a.TerminalGeneration.SourceHash = c.GenesisImport.SourceHash
@@ -98,6 +101,12 @@ func TestRecoveryAttestationRejectsWithoutExactTerminalGeneration(t *testing.T) 
 	a.TerminalGeneration.Recipient = c.GenesisImport.Recipient
 	a.TerminalGeneration.Units = "45000000000"
 	a.TerminalGeneration.AdditionalIssuance = "0"
+	a.Guarantees = []string{
+		"does_not_claim_to_reproduce_or_replace_the_lost_original_bytes",
+		"does_not_change_the_consensus_bound_historical_freeze_sha256",
+		"requires_exact_terminal_generation_file_hashes_and_full_legacy_terminal_verification",
+		"does_not_activate_mainnet_or_execute_production_import",
+	}
 	raw, e := json.Marshal(a)
 	if e != nil { t.Fatal(e) }
 	if _, e = verifyRecoveryAttestation(raw, filepath.Join(dir, "missing-terminal"), c); e == nil {
@@ -107,5 +116,31 @@ func TestRecoveryAttestationRejectsWithoutExactTerminalGeneration(t *testing.T) 
 	raw, _ = json.Marshal(a)
 	if _, e = verifyRecoveryAttestation(raw, filepath.Join(dir, "missing-terminal"), c); e == nil {
 		t.Fatal("activatable re-attestation accepted")
+	}
+}
+
+func TestVersionedRecoveryAttestationMatchesVerifierSchema(t *testing.T) {
+	c := fixtureProtocol(t)
+	raw, e := os.ReadFile(filepath.Join("..", "..", "deploy", "mainnet", "legacy-freeze.reattestation.v1.json"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	var a recoveryAttestation
+	if e = json.Unmarshal(raw, &a); e != nil {
+		t.Fatal(e)
+	}
+	if a.Schema != "hashburst-mainnet-legacy-freeze-reattestation-v1" ||
+		a.LostEvidence.Schema != "hashburst-managed-legacy-freeze-ha-v1" ||
+		len(a.Guarantees) != 4 {
+		t.Fatal("versioned re-attestation does not match verifier schema")
+	}
+	// The production verifier must get past strict JSON/semantic validation and fail only
+	// because this test deliberately supplies no hash-pinned terminal generation.
+	_, e = verifyRecoveryAttestation(raw, filepath.Join(t.TempDir(), "missing-terminal"), c)
+	if e == nil {
+		t.Fatal("versioned re-attestation bypassed exact terminal generation")
+	}
+	if !os.IsNotExist(e) {
+		t.Fatalf("versioned re-attestation rejected before terminal verification: %v", e)
 	}
 }
