@@ -30,6 +30,9 @@ cd "$ROOT"
 go test ./internal/mainnetidentity ./cmd/hvm-mainnet-identity
 go build -trimpath -o "$OUT/hvm-mainnet-identity" ./cmd/hvm-mainnet-identity
 chmod 0700 "$OUT/hvm-mainnet-identity"
+PROTOCOL_COMMITMENT_SHA256="$("$OUT/hvm-mainnet-identity" commitment --protocol "$DEPLOY/protocol.freeze.json")"
+[[ "$PROTOCOL_COMMITMENT_SHA256" =~ ^[0-9a-f]{64}$ ]] || fail "invalid canonical protocol commitment"
+echo "HVM_MAINNET_PROTOCOL_COMMITMENT_SHA256=$PROTOCOL_COMMITMENT_SHA256"
 
 declare -A NODE_IDS=(
   [77.90.188.153]=hvm-mainnet-validator-01
@@ -101,7 +104,7 @@ for ip in "${HOSTS[@]}"; do
     elif [ -n \"\$current_hash\" ]; then
       # A canonical identity that is neither the known legacy commitment nor
       # the current frozen commitment is never overwritten.
-      if [ \"\$current_hash\" != '137be9295e9ed33f91799ebdadfbf3d39f40867f636f1307c0c126a9c48c9e46' ]; then
+      if [ \"\$current_hash\" != '$PROTOCOL_COMMITMENT_SHA256' ]; then
         echo \"IDENTITIES_GATE_FAIL: unknown canonical protocol commitment \$current_hash\" >&2
         exit 1
       fi
