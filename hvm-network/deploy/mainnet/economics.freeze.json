@@ -55,7 +55,6 @@
     "budget_units": "100000000000000",
     "source": "subset of founder allocation; never additional issuance"
   },
-  "protocol_freeze_sha256": "137be9295e9ed33f91799ebdadfbf3d39f40867f636f1307c0c126a9c48c9e46",
   "activation_allowed": false,
   "remaining_gates": [
     "fresh validator identities and TEP membership bindings",
@@ -63,5 +62,7 @@
     "deterministic validator checkpoint and replay reconciliation",
     "five-host provision/check",
     "BFT finality, restart and public RPC acceptance"
-  ]
+  ],
+  "protocol_freeze_manifest_sha256": "137be9295e9ed33f91799ebdadfbf3d39f40867f636f1307c0c126a9c48c9e46",
+  "protocol_commitment_sha256": "64741e670637502ceb32a481a276d6138d5c993d636b42bbdbcc12e395425a1b"
 }
