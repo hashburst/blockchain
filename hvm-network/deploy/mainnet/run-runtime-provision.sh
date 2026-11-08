@@ -7,7 +7,14 @@ REPO_ROOT="$(cd "$ROOT/.." && pwd)"
 EVIDENCE_ROOT=/var/lib/hashburst-actions/mainnet-evidence
 R6_RUN_ID=42514933956
 R6="$EVIDENCE_ROOT/founder-signed-checkpoints/run-$R6_RUN_ID"
-R5_IDENTITIES="$REPO_ROOT/mainnet-checkpoint-preparation/identities"
+R5_IDENTITIES="$REPO_ROOT/mainnet-r7b-accepted-public-identities"
+R5_IDENTITY_RUN_ID=42503488654
+declare -A R5_IDENTITY_SHA256=(
+  [77.90.188.153]=0abe3264bffb9b73c4e4ab8207eeb7056637f9958e2e5b47c45cdc5219bd0267
+  [77.90.188.154]=d3a4a4bb6fe8d03a23be8b2c04baded5802ef7faab3cb3fa9f974576677bfb69
+  [77.90.188.155]=f165f381f1035dc4811866e5d73be06bcbc9eada2dfa1b2f5d37922d99a54d60
+  [77.90.188.157]=ef89a7254902acefcef69326e2979259de9fdb4282fc0cd22a60849f5427a67c
+)
 KNOWN=/etc/hashburst-control/fleet_known_hosts
 SOCK=/run/hashburst-control/ssh-agent.sock
 HOSTS=(77.90.188.153 77.90.188.154 77.90.188.155 77.90.188.157)
@@ -29,12 +36,33 @@ copy(){ local src=$1 ip=$2 dst=$3; SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" "$src" "roo
 [[ "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" == 77.90.188.180 ]] || fail "wrong coordinator"
 [[ -S "$SOCK" && -r "$KNOWN" ]] || fail "controlled SSH unavailable"
 [[ -d "$R6/ledger" && -f "$R6/CHECKPOINT.json" ]] || fail "accepted R6 checkpoint missing"
-[[ -d "$R5_IDENTITIES" ]] || fail "accepted public identities missing"
 python3 "$DEPLOY/check-freeze.py" | tee "$REPO_ROOT/mainnet-r7b-freeze.log"
+
+# Re-export public identity documents only. The exact digests below were
+# accepted and verifier-checked by R5 run 42503488654. No private identity
+# material is read, copied, regenerated or accepted as an input to R7B.
+rm -rf "$R5_IDENTITIES"
+mkdir -m 0700 "$R5_IDENTITIES"
+for ip in "${HOSTS[@]}"; do
+  p="$R5_IDENTITIES/$ip.public.json"
+  SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" "root@$ip:/etc/hashburst-hvm-mainnet/identity/public.json" "$p"
+  chmod 0600 "$p"
+  got="$(sha256sum "$p" | awk '{print $1}')"
+  [[ "$got" == "${R5_IDENTITY_SHA256[$ip]}" ]] || fail "accepted R5 public identity digest mismatch for $ip"
+  echo "R7B_ACCEPTED_R5_PUBLIC_IDENTITY_HASH_OK ip=$ip sha256=$got"
+done
+echo "HVM_R7B_ACCEPTED_R5_PUBLIC_IDENTITIES_4OF4_OK run_id=$R5_IDENTITY_RUN_ID" | tee -a "$LOG"
 
 cd "$ROOT"
 [[ "$(go env GOVERSION)" == go1.25.7* ]] || fail "Go 1.25.7 required"
 go test ./internal/testnet ./blockchain -run 'TestStatePinLockAndRestart|TestRejectMissingCorruptStateAndJournals|TestPersistentObserverLifecycle|TestMainnetBootstrap|TestMainnetImport' -count=1
+go build -trimpath -o "$REPO_ROOT/hvm-mainnet-identity-r7b" ./cmd/hvm-mainnet-identity
+chmod 0700 "$REPO_ROOT/hvm-mainnet-identity-r7b"
+for ip in "${HOSTS[@]}"; do
+  "$REPO_ROOT/hvm-mainnet-identity-r7b" verify --protocol "$DEPLOY/protocol.freeze.json" --public "$R5_IDENTITIES/$ip.public.json"
+  echo "R7B_ACCEPTED_R5_PUBLIC_IDENTITY_VERIFIED ip=$ip"
+done
+echo HVM_R7B_ACCEPTED_R5_PUBLIC_IDENTITIES_VERIFIED_4OF4_OK | tee -a "$LOG"
 go build -trimpath -o "$BINARY" ./cmd/hashburst-mainnet
 chmod 0700 "$BINARY"
 BINARY_SHA=$(sha256sum "$BINARY" | awk '{print $1}')
