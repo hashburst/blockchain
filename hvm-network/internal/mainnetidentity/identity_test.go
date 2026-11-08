@@ -78,3 +78,20 @@ func TestEnrollmentPossessionProtocolBindingAndNoOverwrite(t *testing.T) {
 		t.Fatal("tampered operator accepted")
 	}
 }
+
+func TestProtocolCommitmentRejectsGenericJSONCanonicalizationAlias(t *testing.T) {
+	c := fixture()
+	h, err := ProtocolCommitment(c)
+	if err != nil { t.Fatal(err) }
+	wire, err := json.Marshal(c)
+	if err != nil { t.Fatal(err) }
+	if h == "" { t.Fatal("empty protocol commitment") }
+	var generic any
+	if err = json.Unmarshal(wire, &generic); err != nil { t.Fatal(err) }
+	// The semantic commitment is intentionally defined by the typed protocol
+	// wire form. Other JSON canonicalization schemes are a different digest
+	// domain and must never be accepted as an alias.
+	if Verify(c, Identity{ProtocolHash: "137be9295e9ed33f91799ebdadfbf3d39f40867f636f1307c0c126a9c48c9e46"}) == nil {
+		t.Fatal("generic freeze-manifest digest accepted as signed protocol commitment")
+	}
+}
