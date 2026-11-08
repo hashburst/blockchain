@@ -55,21 +55,23 @@ sha256sum "$REPO_ROOT/hashburst-mainnet-r7" | tee "$REPO_ROOT/mainnet-runtime-bi
 SSH=(ssh -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
 for ip in "${HOSTS[@]}"; do
   echo "R7_HOST_PREFLIGHT_BEGIN ip=$ip"
-  SSH_AUTH_SOCK=/run/hashburst-control/ssh-agent.sock "${SSH[@]}" "root@$ip" "set -euo pipefail
-    test -d '$IDENTITY_DIR'
-    test ! -L '$IDENTITY_DIR'
-    test -f '$IDENTITY_DIR/public.json'
-    test -f '$IDENTITY_DIR/p2p.key'
-    test -f '$IDENTITY_DIR/consensus.key'
-    test "\$(stat -c '%a' '$IDENTITY_DIR')" = 700
-    test "\$(stat -c '%a' '$IDENTITY_DIR/p2p.key')" = 600
-    test "\$(stat -c '%a' '$IDENTITY_DIR/consensus.key')" = 600
-    test ! -L /var/lib/hashburst-hvm-mainnet 2>/dev/null || exit 41
-    if systemctl list-unit-files --no-legend 2>/dev/null | awk '{print \$1}' | grep -Fxq hashburst-hvm-mainnet.service; then
-      test "\$(systemctl is-active hashburst-hvm-mainnet.service 2>/dev/null || true)" != active
-    fi
-    echo R7_HOST_NO_MAINNET_SERVICE_STARTED_OK
-  "
+  SSH_AUTH_SOCK=/run/hashburst-control/ssh-agent.sock "${SSH[@]}" "root@$ip" bash -s -- "$IDENTITY_DIR" <<'REMOTE'
+set -euo pipefail
+identity_dir=$1
+test -d "$identity_dir"
+test ! -L "$identity_dir"
+test -f "$identity_dir/public.json"
+test -f "$identity_dir/p2p.key"
+test -f "$identity_dir/consensus.key"
+test "$(stat -c '%a' "$identity_dir")" = 700
+test "$(stat -c '%a' "$identity_dir/p2p.key")" = 600
+test "$(stat -c '%a' "$identity_dir/consensus.key")" = 600
+test ! -L /var/lib/hashburst-hvm-mainnet 2>/dev/null || exit 41
+if systemctl list-unit-files --no-legend 2>/dev/null | awk '{print $1}' | grep -Fxq hashburst-hvm-mainnet.service; then
+  test "$(systemctl is-active hashburst-hvm-mainnet.service 2>/dev/null || true)" != active
+fi
+echo R7_HOST_NO_MAINNET_SERVICE_STARTED_OK
+REMOTE
   echo "R7_HOST_PREFLIGHT_OK ip=$ip"
 done
 
