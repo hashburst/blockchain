@@ -6,7 +6,7 @@ on:
         description: Authorized phase
         required: true
         type: choice
-        options: [preflight, benchmark, diagnostics, evidence-recovery, identities, checkpoint, deploy, acceptance]
+        options: [preflight, benchmark, diagnostics, evidence-recovery, identities, checkpoint, founder-checkpoint, deploy, acceptance]
 permissions:
   contents: read
 concurrency:
@@ -27,7 +27,10 @@ jobs:
           set -euo pipefail
           test -x hvm-network/deploy/mainnet/run-checkpoint-preparation.sh
           test "$(git ls-files -s hvm-network/deploy/mainnet/run-checkpoint-preparation.sh | awk '{print $1}')" = "100755"
+          test -x hvm-network/deploy/mainnet/run-founder-signed-checkpoint.sh
+          test "$(git ls-files -s hvm-network/deploy/mainnet/run-founder-signed-checkpoint.sh | awk '{print $1}')" = "100755"
           echo "HVM_CHECKPOINT_GATE_EXECUTABLE_MODE_OK"
+          echo "HVM_R6_GATE_EXECUTABLE_MODE_OK"
       - name: Enforce coordinator identity
         shell: bash
         run: |
@@ -48,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$AUTHORIZED_PHASE" in
-            preflight|benchmark|diagnostics|evidence-recovery|identities|checkpoint|deploy|acceptance) ;;
+            preflight|benchmark|diagnostics|evidence-recovery|identities|checkpoint|founder-checkpoint|deploy|acceptance) ;;
             *) echo "Invalid or missing authorized phase: $AUTHORIZED_PHASE" >&2; exit 64 ;;
           esac
           echo "HVM_AUTHORIZED_PHASE=$AUTHORIZED_PHASE"
@@ -85,7 +88,7 @@ jobs:
           test -x hvm-network/deploy/mainnet/recover-freeze-evidence.sh
           hvm-network/deploy/mainnet/recover-freeze-evidence.sh
       - name: Mutation phases are fail-closed until protocol freeze
-        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
+        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
         shell: bash
         env:
           SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
@@ -103,13 +106,17 @@ jobs:
               test -x hvm-network/deploy/mainnet/run-checkpoint-preparation.sh
               bash hvm-network/deploy/mainnet/run-checkpoint-preparation.sh
               ;;
+            founder-checkpoint)
+              test -x hvm-network/deploy/mainnet/run-founder-signed-checkpoint.sh
+              bash hvm-network/deploy/mainnet/run-founder-signed-checkpoint.sh
+              ;;
             deploy|acceptance)
               echo "Requested mutation phase remains fail-closed pending its dedicated reviewed gate." >&2
               exit 78
               ;;
           esac
       - name: Verify deploy and acceptance remain fail-closed
-        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint'
+        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint'
         shell: bash
         run: |
           set -euo pipefail

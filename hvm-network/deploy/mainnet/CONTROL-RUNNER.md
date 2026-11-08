@@ -9,13 +9,13 @@ Coordinator:
 - production Environment: hvm-mainnet-production
 
 Security boundary:
-1. Fleet SSH private key is generated on the coordinator and remains only at /etc/hashburst-control/fleet_ed25519 (0640; root-owned, readable only by the hashburst-actions group).
+1. Fleet SSH private key is generated on the coordinator and remains only at /etc/hashburst-control/fleet_ed25519 (0600; root:root). The runner uses the pinned dedicated ssh-agent socket and cannot read the key file directly.
 2. GitHub Actions receives no fleet private key and no founder wallet key.
 3. /etc/hashburst-control/fleet_known_hosts is pinned; StrictHostKeyChecking=yes.
 4. The runner account must not be root. sudo is allowed only through reviewed wrapper commands, not arbitrary shell.
-5. The founder HBT wallet key never exists on this coordinator. Founder funding signatures are imported as public signed JSON.
+5. The founder HBT wallet key never exists on this coordinator. Founder funding signatures are imported only as public signed JSON at the fixed local evidence path documented in FOUNDER-SIGNING.md.
 6. Validator consensus/private identities are generated on their destination validator and are never copied to the coordinator.
-7. preflight and benchmark are read-only. identities/checkpoint/deploy/acceptance fail closed until protocol.freeze.json and economics.freeze.json exist.
+7. preflight and benchmark are read-only. identities/checkpoint/founder-checkpoint require the frozen protocol/economics gates; deploy/acceptance remain explicitly fail-closed until their dedicated reviewed gates exist.
 8. The coordinator is not a validator and has no voting power.
 
 GitHub Environment hvm-mainnet-production should require the founder as reviewer and restrict deployment branches to reviewed mainnet branches/master. Environment approval controls job dispatch; it is not a secret store for fleet SSH credentials.
