@@ -30,7 +30,18 @@ assert d["activation_allowed"] is False
 assert d["runtime_acceptance_required"] is True
 assert d["chain_id"]==4735489
 assert d["bootstrap_issuance_units"]==0
-assert len(d["validator_set"])==4
+vs=d["validator_set"]
+assert isinstance(vs,dict)
+assert vs["height"]==d["checkpoint_height"]+1
+validators=vs["validators"]
+power=vs["power"]
+assert isinstance(validators,list) and len(validators)==4
+assert isinstance(power,list) and power==[1,1,1,1]
+assert all(v["status"]=="ACTIVE" for v in validators)
+assert len({v["id"] for v in validators})==4
+assert len({v["node_id"] for v in validators})==4
+assert len({v["operator_address"] for v in validators})==4
+print("HVM_R7_R6_VALIDATOR_SET_STRUCTURE_VERIFIED")
 print("HVM_R7_R6_CHECKPOINT_BOUNDARY_VERIFIED")
 PY
 

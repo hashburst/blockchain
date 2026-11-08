@@ -31,6 +31,7 @@ jobs:
           test "$(git ls-files -s hvm-network/deploy/mainnet/run-founder-signed-checkpoint.sh | awk '{print $1}')" = "100755"
           echo "HVM_CHECKPOINT_GATE_EXECUTABLE_MODE_OK"
           echo "HVM_R6_GATE_EXECUTABLE_MODE_OK"
+          python3 hvm-network/deploy/mainnet/test-runtime-acceptance-boundary.py
       - name: Enforce coordinator identity
         shell: bash
         run: |

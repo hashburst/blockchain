@@ -1,0 +1,43 @@
+{
+  "schema": "hashburst-mainnet-validator-checkpoint-v1",
+  "activation_allowed": false,
+  "runtime_acceptance_required": true,
+  "chain_id": 4735489,
+  "bootstrap_issuance_units": 0,
+  "checkpoint_height": 8,
+  "validator_set": {
+    "height": 9,
+    "validators": [
+      {
+        "id": "id1",
+        "node_id": "node1",
+        "operator_address": "op1",
+        "status": "ACTIVE"
+      },
+      {
+        "id": "id2",
+        "node_id": "node2",
+        "operator_address": "op2",
+        "status": "ACTIVE"
+      },
+      {
+        "id": "id3",
+        "node_id": "node3",
+        "operator_address": "op3",
+        "status": "ACTIVE"
+      },
+      {
+        "id": "id4",
+        "node_id": "node4",
+        "operator_address": "op4",
+        "status": "ACTIVE"
+      }
+    ],
+    "power": [
+      1,
+      1,
+      1,
+      1
+    ]
+  }
+}
