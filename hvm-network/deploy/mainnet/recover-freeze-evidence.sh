@@ -31,10 +31,10 @@ while IFS= read -r -d '' p; do
     log "FREEZE_EVIDENCE_RECOVERED source=coordinator sha256=$EXPECTED_SHA"
     exit 0
   fi
-done < <(find /var/lib/hashburst-actions /opt /tmp -xdev -type f -name "$EXPECTED_NAME" -print0 2>/dev/null)
+done < <(find /var/lib /opt /root /home /srv /mnt /media /tmp -type f \( -name "$EXPECTED_NAME" -o -name 'FLEET-FREEZE-HA-*.json' \) -print0 2>/dev/null)
 for ip in "${HOSTS[@]}"; do
   log "FREEZE_EVIDENCE_REMOTE_SCAN_BEGIN host=$ip"
-  mapfile -t rows < <("${SSH[@]}" "root@$ip" "find /var/lib /opt /root /tmp -xdev -type f -name '$EXPECTED_NAME' -exec sha256sum {} \\; 2>/dev/null" || true)
+  mapfile -t rows < <("${SSH[@]}" "root@$ip" "find /var/lib /opt /root /home /srv /mnt /media /tmp -type f \\( -name '$EXPECTED_NAME' -o -name 'FLEET-FREEZE-HA-*.json' \\) -exec sha256sum {} \\; 2>/dev/null" || true)
   for row in "${rows[@]}"; do
     got="${row%% *}"
     path="${row#*  }"
