@@ -6,7 +6,7 @@ on:
         description: Authorized phase
         required: true
         type: choice
-        options: [preflight, benchmark, diagnostics, evidence-recovery, identities, checkpoint, founder-checkpoint, deploy, acceptance]
+        options: [preflight, benchmark, diagnostics, evidence-recovery, identities, checkpoint, founder-checkpoint, runtime-acceptance, deploy, acceptance]
 permissions:
   contents: read
 concurrency:
@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$AUTHORIZED_PHASE" in
-            preflight|benchmark|diagnostics|evidence-recovery|identities|checkpoint|founder-checkpoint|deploy|acceptance) ;;
+            preflight|benchmark|diagnostics|evidence-recovery|identities|checkpoint|founder-checkpoint|runtime-acceptance|deploy|acceptance) ;;
             *) echo "Invalid or missing authorized phase: $AUTHORIZED_PHASE" >&2; exit 64 ;;
           esac
           echo "HVM_AUTHORIZED_PHASE=$AUTHORIZED_PHASE"
@@ -88,7 +88,7 @@ jobs:
           test -x hvm-network/deploy/mainnet/recover-freeze-evidence.sh
           hvm-network/deploy/mainnet/recover-freeze-evidence.sh
       - name: Mutation phases are fail-closed until protocol freeze
-        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
+        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'runtime-acceptance' || github.event.inputs.phase == 'runtime-acceptance' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
         shell: bash
         env:
           SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
@@ -109,6 +109,9 @@ jobs:
             founder-checkpoint)
               test -x hvm-network/deploy/mainnet/run-founder-signed-checkpoint.sh
               bash hvm-network/deploy/mainnet/run-founder-signed-checkpoint.sh
+              ;;
+            runtime-acceptance)
+              bash hvm-network/deploy/mainnet/run-runtime-acceptance.sh
               ;;
             deploy|acceptance)
               echo "Requested mutation phase remains fail-closed pending its dedicated reviewed gate." >&2
