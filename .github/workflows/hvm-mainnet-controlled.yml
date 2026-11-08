@@ -74,24 +74,31 @@ jobs:
           test -f hvm-network/deploy/mainnet/economics.freeze.json
           python3 hvm-network/deploy/mainnet/check-freeze.py | tee mainnet-freeze.log
           test -f hvm-network/deploy/mainnet/run-phase.sh
-          if [ "${{ github.event.inputs.phase }}" = "identities" ]; then
-            bash hvm-network/deploy/mainnet/run-phase.sh identities
-          else
-            echo "Requested mutation phase remains fail-closed pending its dedicated reviewed gate." >&2
-            exit 78
-          fi
-      - name: Verify mutation dispatcher remains fail-closed beyond identities
-        if: github.event.inputs.phase == 'identities'
+          case "${{ github.event.inputs.phase }}" in
+            identities)
+              bash hvm-network/deploy/mainnet/run-phase.sh identities
+              ;;
+            checkpoint)
+              test -x hvm-network/deploy/mainnet/run-checkpoint-preparation.sh
+              bash hvm-network/deploy/mainnet/run-checkpoint-preparation.sh
+              ;;
+            deploy|acceptance)
+              echo "Requested mutation phase remains fail-closed pending its dedicated reviewed gate." >&2
+              exit 78
+              ;;
+          esac
+      - name: Verify deploy and acceptance remain fail-closed
+        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint'
         shell: bash
         run: |
           set -euo pipefail
-          for phase in checkpoint deploy acceptance; do
+          for phase in deploy acceptance; do
             if bash hvm-network/deploy/mainnet/run-phase.sh "$phase" >/dev/null 2>&1; then
               echo "Unexpectedly authorized mutation phase: $phase" >&2
               exit 1
             fi
           done
-          echo "HVM_POST_IDENTITIES_MUTATION_PHASES_FAIL_CLOSED_OK"
+          echo "HVM_DEPLOY_ACCEPTANCE_PHASES_FAIL_CLOSED_OK"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
