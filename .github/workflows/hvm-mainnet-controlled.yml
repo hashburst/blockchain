@@ -39,6 +39,7 @@ jobs:
           test "$(stat -c '%U:%G' /etc/hashburst-control/fleet_ed25519)" = "root:root"
           test -S /run/hashburst-control/ssh-agent.sock
           test -r /run/hashburst-control/ssh-agent.sock
+          test "$(SSH_AUTH_SOCK=/run/hashburst-control/ssh-agent.sock ssh-add -l | wc -l)" = "1"
           SSH_AUTH_SOCK=/run/hashburst-control/ssh-agent.sock ssh-add -l | grep -F 'SHA256:yvsyCOCv11WL/oeoxb6uo+Bb/yV46ouxhshw8ohqS1Y'
       - name: Confirm authorized dispatch phase
         shell: bash
