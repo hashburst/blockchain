@@ -52,8 +52,23 @@ for ip in "${HOSTS[@]}"; do
     command -v curl >/dev/null
     test ! -L '$IDENTITY_DIR'
     test ! -L '$IDENTITY_ARCHIVE_ROOT'
-    tep_json=\$(curl --fail --silent --show-error --max-time 5 --noproxy '*' http://127.0.0.1:47778/)
-    python3 -c 'import json,sys; d=json.load(sys.stdin); k=d.get(sys.argv[1]); assert d.get(sys.argv[2]) is True and isinstance(k,str) and len(k)==64 and len(bytes.fromhex(k))==32 and any(bytes.fromhex(k))' pubkey app_ready <<<\"\$tep_json\"
+    tep_json=''
+    for attempt in 1 2 3; do
+      if tep_json=\$(curl --fail --silent --show-error --max-time 5 --noproxy '*' http://127.0.0.1:47778/); then
+        break
+      fi
+      echo \"IDENTITY_PREFLIGHT_TEP_RETRY attempt=\$attempt\" >&2
+      sleep 2
+    done
+    if [ -z \"\$tep_json\" ]; then
+      echo 'IDENTITIES_GATE_FAIL: TEP readiness endpoint unavailable after 3 attempts' >&2
+      exit 1
+    fi
+    if ! python3 -c 'import json,sys; d=json.load(sys.stdin); k=d.get(sys.argv[1]); assert d.get(sys.argv[2]) is True and isinstance(k,str) and len(k)==64 and len(bytes.fromhex(k))==32 and any(bytes.fromhex(k))' pubkey app_ready <<<\"\$tep_json\"; then
+      echo 'IDENTITIES_GATE_FAIL: TEP readiness payload invalid or app_ready is not true' >&2
+      exit 1
+    fi
+    echo 'IDENTITY_PREFLIGHT_TEP_READY'
     mkdir -p '$REMOTE_ROOT'
   "
   "${SCP[@]}" "$DEPLOY/protocol.freeze.json" "root@$ip:$REMOTE_ROOT/protocol.json"
