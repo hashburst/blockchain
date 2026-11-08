@@ -105,20 +105,26 @@ for ip in "${HOSTS[@]}"; do
   copy "$BINARY" "$ip" "$OPT/hashburst-mainnet"
   copy "$CONFIGS/$ip.json" "$ip" "$ETC/node.json"
   copy "$DEPLOY/hashburst-hvm-mainnet.service" "$ip" "/etc/systemd/system/$SERVICE"
-  remote "$ip" "set -euo pipefail
-    test "\$(sha256sum '$stage/blockchain.dat' | awk '{print \$1}')" = '$LEDGER_DAT_SHA'
-    test "\$(sha256sum '$stage/blockchain.idx' | awk '{print \$1}')" = '$LEDGER_IDX_SHA'
-    test "\$(sha256sum '$OPT/hashburst-mainnet' | awk '{print \$1}')" = '$BINARY_SHA'
-    install -m 0600 -o '$REMOTE_USER' -g '$REMOTE_USER' '$ETC/identity/p2p.key' '$ETC/p2p.key'
-    install -m 0600 -o '$REMOTE_USER' -g '$REMOTE_USER' '$ETC/identity/consensus.key' '$ETC/consensus.key'
-    chown -R '$REMOTE_USER:$REMOTE_USER' '$stage'
-    chmod 0700 '$stage'
-    chmod 0755 '$OPT/hashburst-mainnet'
-    chown root:root '$OPT/hashburst-mainnet' '$ETC/node.json' '/etc/systemd/system/$SERVICE'
-    chmod 0644 '$ETC/node.json' '/etc/systemd/system/$SERVICE'
-    mv '$stage' '$STATE'
-    systemctl daemon-reload
-    echo R7B_HOST_STAGE_OK ip=$ip"
+  SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$ip" bash -s -- \
+    "$stage" "$STATE" "$OPT" "$ETC" "$REMOTE_USER" "$SERVICE" \
+    "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA" "$BINARY_SHA" "$ip" <<'REMOTE'
+set -euo pipefail
+stage=$1; state=$2; opt=$3; etc=$4; runtime_user=$5
+service=$6; ledger_dat_sha=$7; ledger_idx_sha=$8; binary_sha=$9; ip=${10}
+test "$(sha256sum "$stage/blockchain.dat" | awk '{print $1}')" = "$ledger_dat_sha"
+test "$(sha256sum "$stage/blockchain.idx" | awk '{print $1}')" = "$ledger_idx_sha"
+test "$(sha256sum "$opt/hashburst-mainnet" | awk '{print $1}')" = "$binary_sha"
+install -m 0600 -o "$runtime_user" -g "$runtime_user" "$etc/identity/p2p.key" "$etc/p2p.key"
+install -m 0600 -o "$runtime_user" -g "$runtime_user" "$etc/identity/consensus.key" "$etc/consensus.key"
+chown -R "$runtime_user:$runtime_user" "$stage"
+chmod 0700 "$stage"
+chmod 0755 "$opt/hashburst-mainnet"
+chown root:root "$opt/hashburst-mainnet" "$etc/node.json" "/etc/systemd/system/$service"
+chmod 0644 "$etc/node.json" "/etc/systemd/system/$service"
+mv "$stage" "$state"
+systemctl daemon-reload
+echo "R7B_HOST_STAGE_OK ip=$ip"
+REMOTE
 done
 echo HVM_R7B_STAGE_4OF4_OK | tee -a "$LOG"
 
@@ -208,12 +214,16 @@ echo "HVM_R7B_CONVERGENCE_4OF4_OK height=$FINALIZED commitment=$REF" | tee -a "$
 
 # Acceptance ends stopped and disabled. State/journals remain for evidence and later reviewed activation.
 for ip in "${HOSTS[@]}"; do
-  remote "$ip" "set -euo pipefail
-    systemctl stop '$SERVICE'
-    systemctl disable '$SERVICE' >/dev/null 2>&1 || true
-    test "\$(systemctl is-active '$SERVICE' 2>/dev/null || true)" != active
-    runuser -u '$REMOTE_USER' -- '$OPT/hashburst-mainnet' --config '$ETC/node.json' --check
-    echo R7B_HOST_STOPPED_POST_ACCEPTANCE_OK ip=$ip"
+  SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$ip" bash -s -- \
+    "$SERVICE" "$REMOTE_USER" "$OPT" "$ETC" "$ip" <<'REMOTE'
+set -euo pipefail
+service=$1; runtime_user=$2; opt=$3; etc=$4; ip=$5
+systemctl stop "$service"
+systemctl disable "$service" >/dev/null 2>&1 || true
+test "$(systemctl is-active "$service" 2>/dev/null || true)" != active
+runuser -u "$runtime_user" -- "$opt/hashburst-mainnet" --config "$etc/node.json" --check
+echo "R7B_HOST_STOPPED_POST_ACCEPTANCE_OK ip=$ip"
+REMOTE
 done
 
 {
