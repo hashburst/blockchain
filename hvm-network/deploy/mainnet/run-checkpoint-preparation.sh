@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DEPLOY="$ROOT/deploy/mainnet"
-SSH_KEY=/etc/hashburst-control/fleet_ed25519
 KNOWN=/etc/hashburst-control/fleet_known_hosts
+: "${SSH_AUTH_SOCK:=/run/hashburst-control/ssh-agent.sock}"
 EVIDENCE_ROOT=/var/lib/hashburst-actions/mainnet-evidence
 FREEZE="$EVIDENCE_ROOT/FLEET-FREEZE-HA-1791220850167915000.json"
 REATTEST="$DEPLOY/legacy-freeze.reattestation.v1.json"
@@ -17,7 +17,8 @@ fail(){ echo "CHECKPOINT_PREPARATION_FAIL: $*" | tee -a mainnet-checkpoint-prepa
 on_err(){ rc=$?; echo "CHECKPOINT_PREPARATION_UNEXPECTED_EXIT rc=$rc line=$1 command=$2" | tee -a mainnet-checkpoint-preparation.log >&2; exit "$rc"; }
 trap 'on_err "$LINENO" "$BASH_COMMAND"' ERR
 [[ "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" == 77.90.188.180 ]] || fail "wrong coordinator"
-[[ -r "$SSH_KEY" && -r "$KNOWN" ]] || fail "fleet SSH material unavailable"
+[[ -r "$KNOWN" && -S "$SSH_AUTH_SOCK" ]] || fail "fleet SSH agent or known_hosts unavailable"
+ssh-add -l | grep -F 'SHA256:yvsyCOCv11WL/oeoxb6uo+Bb/yV46ouxhshw8ohqS1Y' >/dev/null || fail "pinned fleet SSH identity unavailable from agent"
 python3 "$DEPLOY/check-freeze.py" | tee mainnet-checkpoint-freeze.log
 GO_BIN="$(command -v go || true)"
 [[ -n "$GO_BIN" ]] || fail "Go unavailable"
@@ -40,8 +41,7 @@ declare -A NODE_IDS=(
  [77.90.188.157]=hvm-mainnet-validator-04
 )
 HOSTS=(77.90.188.153 77.90.188.154 77.90.188.155 77.90.188.157)
-SSH=(ssh -i "$SSH_KEY" -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
-SCP=(scp -q -i "$SSH_KEY" -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
+SCP=(scp -q -o IdentitiesOnly=yes -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
 for ip in "${HOSTS[@]}"; do
  p="$IDENTITIES/$ip.public.json"
  "${SCP[@]}" "root@$ip:/etc/hashburst-hvm-mainnet/identity/public.json" "$p"
