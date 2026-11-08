@@ -21,6 +21,18 @@ for marker in required:
     assert marker in gate, marker
 assert "founder-transfers.json" not in gate
 assert "wallet.key" not in gate
+assert "operator.key" not in gate
+assert "reward.key" not in gate
+assert "identity/public.json" in gate
+assert "R5_IDENTITY_RUN_ID=42503488654" in gate
+for digest in (
+    "0abe3264bffb9b73c4e4ab8207eeb7056637f9958e2e5b47c45cdc5219bd0267",
+    "d3a4a4bb6fe8d03a23be8b2c04baded5802ef7faab3cb3fa9f974576677bfb69",
+    "f165f381f1035dc4811866e5d73be06bcbc9eada2dfa1b2f5d37922d99a54d60",
+    "ef89a7254902acefcef69326e2979259de9fdb4282fc0cd22a60849f5427a67c",
+):
+    assert digest in gate
+assert "HVM_R7B_ACCEPTED_R5_PUBLIC_IDENTITIES_VERIFIED_4OF4_OK" in gate
 assert gate.count("<<'REMOTE'") >= 2
 assert 'test "\\$(sha256sum' not in gate
 assert 'test "\\$(systemctl is-active' not in gate
