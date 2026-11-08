@@ -132,10 +132,16 @@ seen={k:set() for k in ("node","operator","peer","consensus","tep","endpoint")}
 summary=[]
 for p in files:
  d=json.loads(p.read_text())
- r=json.loads(d["registration"]["data"])
- q=json.loads(d["validator_registration"]["data"])
+ registration=d["registration"]
+ validator=d["validator_registration"]
+ # blockchain.Transaction is the legacy transaction type and intentionally has
+ # no JSON tags: encoding/json therefore emits Data/Sender with Go field names.
+ r=json.loads(registration["Data"])
+ # protocolv2.TransactionV2.Data is []byte; encoding/json emits it as base64.
+ import base64
+ q=json.loads(base64.b64decode(validator["data"], validate=True).decode("utf-8"))
  vals={
-  "node":r["node_id"],"operator":d["registration"]["sender"],"peer":r["peer_id"],
+  "node":r["node_id"],"operator":registration["Sender"],"peer":r["peer_id"],
   "consensus":q["consensus_pub_key"],"tep":r["tep_pubkey"],"endpoint":r["multiaddrs"][0],
  }
  for k,v in vals.items():
