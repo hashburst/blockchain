@@ -41,7 +41,7 @@ declare -A NODE_IDS=(
  [77.90.188.157]=hvm-mainnet-validator-04
 )
 HOSTS=(77.90.188.153 77.90.188.154 77.90.188.155 77.90.188.157)
-SCP=(scp -q -o IdentitiesOnly=yes -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
+SCP=(scp -q -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
 for ip in "${HOSTS[@]}"; do
  p="$IDENTITIES/$ip.public.json"
  "${SCP[@]}" "root@$ip:/etc/hashburst-hvm-mainnet/identity/public.json" "$p"
