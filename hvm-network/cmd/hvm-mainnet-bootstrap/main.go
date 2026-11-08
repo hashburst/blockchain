@@ -152,10 +152,10 @@ func prepare(protocol, freeze, reattest, source, out string) error {
 	if blocks[10].Hash != cfg.GenesisImport.SourceHash || state.BalanceUnits(cfg.GenesisImport.Recipient) != cfg.GenesisImport.Units {
 		return fmt.Errorf("source terminal commitment mismatch")
 	}
-	return publishCheckpoint(cfg, g, out)
+	return publishCheckpoint(cfg, g, out, reattestHash)
 }
 
-func publishCheckpoint(cfg blockchain.ProtocolV2Config, g *blockchain.Block, out string) error {
+func publishCheckpoint(cfg blockchain.ProtocolV2Config, g *blockchain.Block, out, reattestHash string) error {
 	parent := filepath.Dir(out)
 	real, e := filepath.EvalSymlinks(parent)
 	if e != nil {
