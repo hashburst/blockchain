@@ -21,6 +21,9 @@ for marker in required:
     assert marker in gate, marker
 assert "founder-transfers.json" not in gate
 assert "wallet.key" not in gate
+assert gate.count("<<'REMOTE'") >= 2
+assert 'test "\\$(sha256sum' not in gate
+assert 'test "\\$(systemctl is-active' not in gate
 assert "runtime-provision" in workflow
 assert "bash -n hvm-network/deploy/mainnet/run-runtime-provision.sh" in workflow
 assert 'deploy|acceptance)' in workflow
