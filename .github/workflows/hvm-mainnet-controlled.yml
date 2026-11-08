@@ -88,7 +88,7 @@ jobs:
           test -x hvm-network/deploy/mainnet/recover-freeze-evidence.sh
           hvm-network/deploy/mainnet/recover-freeze-evidence.sh
       - name: Mutation phases are fail-closed until protocol freeze
-        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
+        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
         shell: bash
         env:
           SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
@@ -116,7 +116,7 @@ jobs:
               ;;
           esac
       - name: Verify deploy and acceptance remain fail-closed
-        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint'
+        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint'
         shell: bash
         run: |
           set -euo pipefail
