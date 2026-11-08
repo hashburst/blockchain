@@ -129,6 +129,11 @@ func run(args []string) error {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(plan)
+	case "commitment":
+		h, e := mainnetidentity.ProtocolCommitment(c)
+		if e != nil { return e }
+		fmt.Println(h)
+		return nil
 	case "generate":
 		if e := mainnetidentity.Generate(*out, mainnetidentity.Options{Config: c, NodeID: *node, IP: *ip, P2PPort: *port, TEPPublicKey: *tep}); e != nil {
 			return e
