@@ -47,10 +47,27 @@ func validateConfig(c blockchain.ProtocolV2Config) error {
 	}
 	return c.Validate()
 }
-func protocolHash(c blockchain.ProtocolV2Config) string {
-	b, _ := json.Marshal(c)
+// ProtocolCommitment is the canonical semantic commitment used by signed
+// mainnet identities. It hashes the validated ProtocolV2Config wire form, not
+// the textual freeze manifest. Callers must not substitute a generic JSON
+// canonicalization digest for this value.
+func ProtocolCommitment(c blockchain.ProtocolV2Config) (string, error) {
+	if e := validateConfig(c); e != nil {
+		return "", e
+	}
+	b, e := json.Marshal(c)
+	if e != nil {
+		return "", e
+	}
 	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
+	return hex.EncodeToString(h[:]), nil
+}
+func protocolHash(c blockchain.ProtocolV2Config) string {
+	h, e := ProtocolCommitment(c)
+	if e != nil {
+		return ""
+	}
+	return h
 }
 func digest(v Identity) []byte {
 	v.ConsensusProof = ""
