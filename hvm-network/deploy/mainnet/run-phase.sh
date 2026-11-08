@@ -101,8 +101,14 @@ for ip in "${HOSTS[@]}"; do
     elif [ -n \"\$current_hash\" ]; then
       # A canonical identity that is neither the known legacy commitment nor
       # the current frozen commitment is never overwritten.
-      test \"\$current_hash\" = '137be9295e9ed33f91799ebdadfbf3d39f40867f636f1307c0c126a9c48c9e46'
-      '$REMOTE_ROOT/hvm-mainnet-identity' verify --protocol '$REMOTE_ROOT/protocol.json' --public '$IDENTITY_DIR/public.json'
+      if [ \"\$current_hash\" != '137be9295e9ed33f91799ebdadfbf3d39f40867f636f1307c0c126a9c48c9e46' ]; then
+        echo \"IDENTITIES_GATE_FAIL: unknown canonical protocol commitment \$current_hash\" >&2
+        exit 1
+      fi
+      if ! '$REMOTE_ROOT/hvm-mainnet-identity' verify --protocol '$REMOTE_ROOT/protocol.json' --public '$IDENTITY_DIR/public.json'; then
+        echo 'IDENTITIES_GATE_FAIL: current canonical identity verification failed' >&2
+        exit 1
+      fi
       echo IDENTITY_CURRENT_ALREADY_PRESENT
     fi
 
@@ -117,8 +123,19 @@ for ip in "${HOSTS[@]}"; do
         test \"\$(stat -c '%a' \"\$archive/\$f\")\" = 600
       done
       echo 'IDENTITY_RESUME_FROM_VERIFIED_LEGACY_ARCHIVE'
-      tep_json=\$(curl --fail --silent --show-error --max-time 5 --noproxy '*' http://127.0.0.1:47778/)
-      tep_key=\$(python3 -c 'import json,sys; d=json.load(sys.stdin); k=d.get(sys.argv[1],sys.argv[3]); assert d.get(sys.argv[2]) is True and isinstance(k,str) and len(k)==64 and len(bytes.fromhex(k))==32 and any(bytes.fromhex(k)); print(k.lower())' pubkey app_ready '' <<<\"\$tep_json\")
+      tep_json=''
+      for attempt in 1 2 3; do
+        if tep_json=\$(curl --fail --silent --show-error --max-time 5 --noproxy '*' http://127.0.0.1:47778/); then
+          break
+        fi
+        echo \"IDENTITY_GENERATION_TEP_RETRY attempt=\$attempt\" >&2
+        sleep 2
+      done
+      [ -n \"\$tep_json\" ] || { echo 'IDENTITIES_GATE_FAIL: TEP unavailable before identity generation' >&2; exit 1; }
+      if ! tep_key=\$(python3 -c 'import json,sys; d=json.load(sys.stdin); k=d.get(sys.argv[1],sys.argv[3]); assert d.get(sys.argv[2]) is True and isinstance(k,str) and len(k)==64 and len(bytes.fromhex(k))==32 and any(bytes.fromhex(k)); print(k.lower())' pubkey app_ready '' <<<\"\$tep_json\"); then
+        echo 'IDENTITIES_GATE_FAIL: invalid TEP readiness payload before identity generation' >&2
+        exit 1
+      fi
       '$REMOTE_ROOT/hvm-mainnet-identity' generate --protocol '$REMOTE_ROOT/protocol.json' --out '$IDENTITY_DIR' --node-id '$node' --ip '$ip' --p2p-port '$P2P_PORT' --tep-public-key \$tep_key
     fi
 
