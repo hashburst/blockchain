@@ -21,6 +21,15 @@ fail(){ echo "IDENTITIES_GATE_FAIL: $*" >&2; exit 1; }
 python3 "$DEPLOY/check-freeze.py" | tee mainnet-identities-freeze.log
 rm -rf "$OUT"
 mkdir -m 0700 "$OUT"
+# Build the reviewed identity helper once on the controlled runner. Validators do
+# not need a Go toolchain; only the resulting binary is transferred to them.
+command -v go >/dev/null 2>&1 || fail "Go toolchain unavailable on coordinator"
+go_ver="$(go env GOVERSION 2>/dev/null || true)"
+[[ "$go_ver" == go1.25.7* ]] || fail "coordinator Go toolchain must satisfy frozen go.mod (want go1.25.7, got $go_ver)"
+cd "$ROOT"
+go test ./internal/mainnetidentity ./cmd/hvm-mainnet-identity
+go build -trimpath -o "$OUT/hvm-mainnet-identity" ./cmd/hvm-mainnet-identity
+chmod 0700 "$OUT/hvm-mainnet-identity"
 
 declare -A NODE_IDS=(
   [77.90.188.153]=hvm-mainnet-validator-01
@@ -35,13 +44,35 @@ SCP=(scp -q -i "$SSH_KEY" -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyCheckin
 for ip in "${HOSTS[@]}"; do
   node="${NODE_IDS[$ip]}"
   echo "IDENTITY_LOCAL_GENERATION_BEGIN ip=$ip node=$node"
+
+  # Preflight every dependency that is needed after a legacy archive move.
+  # This MUST complete before any canonical identity is moved.
   "${SSH[@]}" "root@$ip" "set -euo pipefail
+    command -v python3 >/dev/null
+    command -v curl >/dev/null
     test ! -L '$IDENTITY_DIR'
+    test ! -L '$IDENTITY_ARCHIVE_ROOT'
+    tep_json=\$(curl --fail --silent --show-error --max-time 5 --noproxy '*' http://127.0.0.1:47778/)
+    python3 -c 'import json,sys; d=json.load(sys.stdin); k=d.get(sys.argv[1]); assert d.get(sys.argv[2]) is True and isinstance(k,str) and len(k)==64 and len(bytes.fromhex(k))==32 and any(bytes.fromhex(k))' pubkey app_ready <<<\"\$tep_json\"
+    mkdir -p '$REMOTE_ROOT'
+  "
+  "${SCP[@]}" "$DEPLOY/protocol.freeze.json" "root@$ip:$REMOTE_ROOT/protocol.json"
+  "${SCP[@]}" "$OUT/hvm-mainnet-identity" "root@$ip:$REMOTE_ROOT/hvm-mainnet-identity"
+
+  "${SSH[@]}" "root@$ip" "set -euo pipefail
+    chmod 0700 '$REMOTE_ROOT/hvm-mainnet-identity'
+    '$REMOTE_ROOT/hvm-mainnet-identity' verify --protocol '$REMOTE_ROOT/protocol.json' --public '$IDENTITY_ARCHIVE_ROOT/$LEGACY_PROTOCOL_SHA256/public.json' >/dev/null 2>&1 || true
+
+    current_hash=''
     if [ -e '$IDENTITY_DIR' ]; then
       test -d '$IDENTITY_DIR'
       test -f '$IDENTITY_DIR/public.json'
-      legacy_hash=\$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ""))' '$IDENTITY_DIR/public.json' protocol_sha256)
-      test \"\$legacy_hash\" = '$LEGACY_PROTOCOL_SHA256'
+      current_hash=\$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2]))' '$IDENTITY_DIR/public.json' protocol_sha256)
+    fi
+
+    archive='$IDENTITY_ARCHIVE_ROOT/$LEGACY_PROTOCOL_SHA256'
+    if [ \"\$current_hash\" = '$LEGACY_PROTOCOL_SHA256' ]; then
+      test ! -e \"\$archive\"
       test \"\$(stat -c '%a' '$IDENTITY_DIR')\" = 700
       for f in p2p.key consensus.key operator.key reward.key public.json; do
         test -f '$IDENTITY_DIR/'\$f
@@ -49,35 +80,45 @@ for ip in "${HOSTS[@]}"; do
       done
       mkdir -p '$IDENTITY_ARCHIVE_ROOT'
       chmod 0700 '$IDENTITY_ARCHIVE_ROOT'
-      archive='$IDENTITY_ARCHIVE_ROOT/$LEGACY_PROTOCOL_SHA256'
-      test ! -e \"\$archive\"
       mv '$IDENTITY_DIR' \"\$archive\"
       echo 'IDENTITY_LEGACY_ARCHIVED protocol=$LEGACY_PROTOCOL_SHA256'
+      current_hash=''
+    elif [ -n \"\$current_hash\" ]; then
+      # A canonical identity that is neither the known legacy commitment nor
+      # the current frozen commitment is never overwritten.
+      test \"\$current_hash\" = '137be9295e9ed33f91799ebdadfbf3d39f40867f636f1307c0c126a9c48c9e46'
+      '$REMOTE_ROOT/hvm-mainnet-identity' verify --protocol '$REMOTE_ROOT/protocol.json' --public '$IDENTITY_DIR/public.json'
+      echo IDENTITY_CURRENT_ALREADY_PRESENT
     fi
-    test ! -e '$IDENTITY_DIR'
-    mkdir -p '$REMOTE_ROOT'"
-  "${SCP[@]}" "$DEPLOY/protocol.freeze.json" "root@$ip:$REMOTE_ROOT/protocol.json"
-  tar -C "$ROOT" -cf - go.mod go.sum cmd internal blockchain consensus protocolv2 wallet |     "${SSH[@]}" "root@$ip" "set -e; rm -rf '$REMOTE_ROOT/src'; mkdir -m 0700 '$REMOTE_ROOT/src'; tar -C '$REMOTE_ROOT/src' -xf -"
-  "${SSH[@]}" "root@$ip" "set -euo pipefail
-    cd '$REMOTE_ROOT/src'
-    go test ./internal/mainnetidentity ./cmd/hvm-mainnet-identity
-    go build -trimpath -o '$REMOTE_ROOT/hvm-mainnet-identity' ./cmd/hvm-mainnet-identity
-    tep_json=\$(curl --fail --silent --show-error --max-time 5 --noproxy '*' http://127.0.0.1:47778/)
-    tep_key=\$(python3 -c 'import json,sys; d=json.load(sys.stdin); k=d.get("pubkey",""); assert d.get("app_ready") is True and isinstance(k,str) and len(k)==64 and len(bytes.fromhex(k))==32 and any(bytes.fromhex(k)); print(k.lower())' <<<\"\$tep_json\")
-    '$REMOTE_ROOT/hvm-mainnet-identity' generate --protocol '$REMOTE_ROOT/protocol.json' --out '$IDENTITY_DIR' --node-id '$node' --ip '$ip' --p2p-port '$P2P_PORT' --tep-public-key \$tep_key
+
+    if [ ! -e '$IDENTITY_DIR' ]; then
+      test -d \"\$archive\"
+      test -f \"\$archive/public.json\"
+      archive_hash=\$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2]))' \"\$archive/public.json\" protocol_sha256)
+      test \"\$archive_hash\" = '$LEGACY_PROTOCOL_SHA256'
+      test \"\$(stat -c '%a' \"\$archive\")\" = 700
+      for f in p2p.key consensus.key operator.key reward.key public.json; do
+        test -f \"\$archive/\$f\"
+        test \"\$(stat -c '%a' \"\$archive/\$f\")\" = 600
+      done
+      echo 'IDENTITY_RESUME_FROM_VERIFIED_LEGACY_ARCHIVE'
+      tep_json=\$(curl --fail --silent --show-error --max-time 5 --noproxy '*' http://127.0.0.1:47778/)
+      tep_key=\$(python3 -c 'import json,sys; d=json.load(sys.stdin); k=d.get(sys.argv[1],sys.argv[3]); assert d.get(sys.argv[2]) is True and isinstance(k,str) and len(k)==64 and len(bytes.fromhex(k))==32 and any(bytes.fromhex(k)); print(k.lower())' pubkey app_ready '' <<<\"\$tep_json\")
+      '$REMOTE_ROOT/hvm-mainnet-identity' generate --protocol '$REMOTE_ROOT/protocol.json' --out '$IDENTITY_DIR' --node-id '$node' --ip '$ip' --p2p-port '$P2P_PORT' --tep-public-key \$tep_key
+    fi
+
     '$REMOTE_ROOT/hvm-mainnet-identity' verify --protocol '$REMOTE_ROOT/protocol.json' --public '$IDENTITY_DIR/public.json'
     test \"\$(stat -c '%a' '$IDENTITY_DIR')\" = 700
-    for f in p2p.key consensus.key operator.key reward.key public.json; do test \"\$(stat -c '%a' '$IDENTITY_DIR/'\$f)\" = 600; done
-    sha256sum '$IDENTITY_DIR/public.json' | awk '{print \$1}'
-  " > /dev/null
+    for f in p2p.key consensus.key operator.key reward.key public.json; do
+      test \"\$(stat -c '%a' '$IDENTITY_DIR/'\$f)\" = 600
+    done
+  "
   "${SCP[@]}" "root@$ip:$IDENTITY_DIR/public.json" "$OUT/$ip.public.json"
   chmod 0600 "$OUT/$ip.public.json"
   grep -q '"protocol_sha256"' "$OUT/$ip.public.json" || fail "public enrollment missing protocol commitment for $ip"
   echo "IDENTITY_PUBLIC_EXPORT_OK ip=$ip sha256=$(sha256sum "$OUT/$ip.public.json" | awk '{print $1}')"
 done
 
-cd "$ROOT"
-go build -trimpath -o "$OUT/hvm-mainnet-identity" ./cmd/hvm-mainnet-identity
 for ip in "${HOSTS[@]}"; do
   "$OUT/hvm-mainnet-identity" verify --protocol "$DEPLOY/protocol.freeze.json" --public "$OUT/$ip.public.json"
 done
