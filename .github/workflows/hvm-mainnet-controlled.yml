@@ -37,6 +37,9 @@ jobs:
           echo "HVM_R7B_RUNTIME_PROVISION_BASH_SYNTAX_OK"
           python3 hvm-network/deploy/mainnet/test-runtime-acceptance-boundary.py
           python3 hvm-network/deploy/mainnet/test-runtime-provision-boundary.py
+          bash -n hvm-network/deploy/mainnet/run-activation-readiness.sh
+          echo "HVM_R7C_ACTIVATION_READINESS_BASH_SYNTAX_OK"
+          python3 hvm-network/deploy/mainnet/test-activation-readiness-boundary.py
       - name: Enforce coordinator identity
         shell: bash
         run: |
