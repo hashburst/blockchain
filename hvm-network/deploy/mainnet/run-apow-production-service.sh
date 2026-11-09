@@ -48,6 +48,22 @@ remote "set -euo pipefail
  fi"
 echo HVM_R8A_VALIDATOR_AT_REST_MUTATION_BARRIER_OK | tee -a "$LOG"
 
+# Prepare only the controlled staging directories before SCP. The validator
+# remains stopped/disabled; no key, unit or executable is installed here.
+remote "set -euo pipefail
+ test \"\$(systemctl is-active '$VALIDATOR_SERVICE' || true)\" = inactive
+ test \"\$(systemctl is-enabled '$VALIDATOR_SERVICE' || true)\" = disabled
+ getent passwd '$MINER_USER' >/dev/null || useradd --system --home-dir '$KEYDIR' --shell /usr/sbin/nologin '$MINER_USER'
+ uid=\$(id -u '$MINER_USER'); gid=\$(id -g '$MINER_USER')
+ install -d -m 0755 -o root -g root '$BASE'
+ install -d -m 0700 -o '$MINER_USER' -g '$MINER_USER' '$KEYDIR'
+ test ! -L '$BASE'; test ! -L '$KEYDIR'
+ test \"\$(stat -c '%u:%g:%a' '$BASE')\" = \"0:0:755\"
+ test \"\$(stat -c '%u:%g:%a' '$KEYDIR')\" = \"\$uid:\$gid:700\"
+ test \"\$(systemctl is-active '$VALIDATOR_SERVICE' || true)\" = inactive
+ test \"\$(systemctl is-enabled '$VALIDATOR_SERVICE' || true)\" = disabled"
+echo HVM_R8A_STAGING_DIRECTORIES_READY_OK | tee -a "$LOG"
+
 copy "$LOCAL_BIN" "$APOW_HOST" "$BASE/.hvm-apow-miner.r8a-candidate"
 SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$APOW_HOST" bash -s --  "$MINER_USER" "$MINER_SERVICE" "$BASE" "$KEYDIR" "$KEY" "$BIN" "$UNIT" "$ENDPOINT" "$CHAIN_ID" "$MINER_SHA" "$VALIDATOR_SERVICE" <<'REMOTE'
 set -euo pipefail
