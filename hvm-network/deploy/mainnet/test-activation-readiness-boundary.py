@@ -1,6 +1,6 @@
 from pathlib import Path
 
-root = Path(__file__).resolve().parents[3]
+root = Path(__file__).resolve().parents[2]
 gate = (root / "deploy/mainnet/run-activation-readiness.sh").read_text()
 workflow = (root.parent / ".github/workflows/hvm-mainnet-controlled.yml").read_text()
 
