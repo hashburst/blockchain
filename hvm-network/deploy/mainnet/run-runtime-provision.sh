@@ -107,7 +107,7 @@ PY
 fleet_mode=""
 for ip in "${HOSTS[@]}"; do
   mode=$(SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$ip" bash -s -- \
-    "$ETC" "$STATE" "$OPT" "$SERVICE" "$ip" "$BIN_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA" <<'REMOTE'
+    "$ETC" "$STATE" "$OPT" "$SERVICE" "$ip" "$BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA" <<'REMOTE'
 set -euo pipefail
 etc=$1; state=$2; opt=$3; service=$4; ip=$5; bin_sha=$6; dat_sha=$7; idx_sha=$8
 test -d "$etc/identity" && test ! -L "$etc/identity"
