@@ -24,6 +24,10 @@ assert "systemctl restart" not in gate
 assert "rm -f '$STATE" not in gate
 assert "truncate" not in gate
 assert "activation-readiness" in workflow
+assert 'fetch-depth: 0' in workflow
+assert 'git cat-file -e "$R7B_SOURCE_SHA^{commit}"' in gate
+assert 'git merge-base --is-ancestor "$R7B_SOURCE_SHA" "$GITHUB_SHA"' in gate
+assert "R7C_SOURCE_LINEAGE_OK" in gate
 assert "run-activation-readiness.sh" in workflow
 assert 'deploy|acceptance)' in workflow
 assert "Requested mutation phase remains fail-closed" in workflow
