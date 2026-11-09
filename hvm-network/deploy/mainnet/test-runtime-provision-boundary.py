@@ -70,3 +70,17 @@ assert 'd.get("app_ready") is True' not in gate
 assert 'ACCEPTED_PROVISIONED_BINARY_SHA="e50940638449e04d8d732b6f88a2276aa260ef47c257711d80db1fa3c436b4d2"' in gate
 assert '"$ip" "$ACCEPTED_PROVISIONED_BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA"' in gate
 assert 'reason=installed_binary_sha' in gate
+
+
+# Post-#95 provisioned-fleet upgrade contract: the accepted run-41 digest is
+# classifier-only. A resumed fleet must atomically install the current reviewed
+# binary before any systemctl start, without reprovisioning protected state.
+assert 'HVM_R7B_PROVISIONED_BINARY_UPGRADE_4OF4_OK' in gate
+assert 'R7B_HOST_BINARY_UPGRADE_OK' in gate
+assert '.hashburst-mainnet.r7b-candidate' in gate
+assert 'test "$(sha256sum "$opt/hashburst-mainnet" | awk \'{print $1}\')" = "$accepted_sha"' in gate
+assert 'test "$(sha256sum "$opt/.hashburst-mainnet.r7b-candidate" | awk \'{print $1}\')" = "$binary_sha"' in gate
+assert 'mv -f "$opt/.hashburst-mainnet.r7b-candidate" "$opt/hashburst-mainnet"' in gate
+upgrade_pos=gate.index("HVM_R7B_PROVISIONED_BINARY_UPGRADE_4OF4_OK")
+start_pos=gate.index("# Controlled temporary runtime start.")
+assert upgrade_pos < start_pos
