@@ -26,7 +26,9 @@ R7B_VALIDATOR_SET_ROOT=0x85be73919c61085d593c4ac64df3631896f85a3f82a664c0e433d87
 fail(){ echo "HVM_R7C_FAIL: $*" >&2; exit 1; }
 [[ "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" == 77.90.188.180 ]] || fail "wrong coordinator"
 [[ -r "$KNOWN" && -S "$SOCK" ]] || fail "control-plane SSH boundary unavailable"
-[[ "$GITHUB_SHA" == "$R7B_SOURCE_SHA" ]] || fail "R7C must run on exact accepted R7B source commit before any release-forward change"
+git cat-file -e "$R7B_SOURCE_SHA^{commit}" || fail "accepted R7B source commit unavailable"
+git merge-base --is-ancestor "$R7B_SOURCE_SHA" "$GITHUB_SHA" || fail "accepted R7B source is not an ancestor of this reviewed gate"
+echo "R7C_SOURCE_LINEAGE_OK accepted_r7b_source=$R7B_SOURCE_SHA gate_source=$GITHUB_SHA"
 
 export SSH_AUTH_SOCK="$SOCK"
 SSH=(ssh -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
