@@ -1,13 +1,18 @@
 package blockchain
 
-// Testnet pacemaker recovery keeps signed rounds monotonic beyond the former
-// lifetime budget. Legacy and other chain IDs retain their existing policy.
+// HVM pacemaker recovery keeps signed rounds monotonic beyond the former
+// lifetime budget on both production HVM networks. Legacy and unrelated chain IDs
+// retain their existing policy.
 // MaxRound remains the message retention/future window and timeout-backoff cap.
 // int64 bounds are required by validRound/lockedRound and leave room for +1.
 const lastSafeConsensusRound uint64 = 1<<63 - 2
 
+func usesSlidingConsensusRoundWindow(chainID uint64) bool {
+	return chainID == 4735489 || chainID == 4735490
+}
+
 func consensusRoundLimit(cfg ProtocolV2Config) uint64 {
-	if cfg.ChainID == 4735490 {
+	if usesSlidingConsensusRoundWindow(cfg.ChainID) {
 		return lastSafeConsensusRound
 	}
 	return cfg.ConsensusNetwork.MaxRound
@@ -19,7 +24,7 @@ func (r *ConsensusReactor) acceptsRound(round uint64) bool {
 	if round > r.roundLimit() {
 		return false
 	}
-	if r.bc.v2Config.ChainID != 4735490 {
+	if !usesSlidingConsensusRoundWindow(r.bc.v2Config.ChainID) {
 		return true
 	}
 	if round >= r.round {
@@ -37,7 +42,7 @@ func pruneOldRounds[T any](m map[uint64]T, floor uint64) {
 }
 
 func (r *ConsensusReactor) pruneRoundWindowLocked() {
-	if r.bc.v2Config.ChainID != 4735490 || r.round <= r.cfg.MaxRound {
+	if !usesSlidingConsensusRoundWindow(r.bc.v2Config.ChainID) || r.round <= r.cfg.MaxRound {
 		return
 	}
 	floor := r.round - r.cfg.MaxRound
