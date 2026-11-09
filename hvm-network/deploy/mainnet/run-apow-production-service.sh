@@ -51,7 +51,7 @@ echo HVM_R8A_VALIDATOR_AT_REST_MUTATION_BARRIER_OK | tee -a "$LOG"
 copy "$LOCAL_BIN" "$APOW_HOST" "$BASE/.hvm-apow-miner.r8a-candidate"
 SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$APOW_HOST" bash -s --  "$MINER_USER" "$MINER_SERVICE" "$BASE" "$KEYDIR" "$KEY" "$BIN" "$UNIT" "$ENDPOINT" "$CHAIN_ID" "$MINER_SHA" "$VALIDATOR_SERVICE" <<'REMOTE'
 set -euo pipefail
-user=$1; service=$2; base=$3; keydir=$4; key=$5; bin=$6; unit=$7; endpoint=$8; chain=$9; sha=10; validator=11
+user=$1; service=$2; base=$3; keydir=$4; key=$5; bin=$6; unit=$7; endpoint=$8; chain=$9; sha=${10}; validator=${11}
 test "$(systemctl is-active "$validator" || true)" = inactive
 test "$(systemctl is-enabled "$validator" || true)" = disabled
 getent passwd "$user" >/dev/null || useradd --system --home-dir "$keydir" --shell /usr/sbin/nologin "$user"
