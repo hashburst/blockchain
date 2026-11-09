@@ -67,3 +67,9 @@ assert gate.count('HVM_R7B_MUTATION_BARRIER_4OF4_OK') == 1
 assert '"$ip" "$BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA"' in gate
 assert '"$ip" "$BIN_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA"' not in gate
 assert 'd.get("app_ready") is True' not in gate
+
+
+# Run-46 resume regression: recognize only the exact binary provisioned by accepted run #41.
+assert 'ACCEPTED_PROVISIONED_BINARY_SHA="e50940638449e04d8d732b6f88a2276aa260ef47c257711d80db1fa3c436b4d2"' in gate
+assert '"$ip" "$ACCEPTED_PROVISIONED_BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA"' in gate
+assert 'reason=installed_binary_sha' in gate
