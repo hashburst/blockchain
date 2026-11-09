@@ -103,28 +103,41 @@ for node,ip in hosts.items():
 print("HVM_R7B_CONFIGS_BOUND_TO_ACCEPTED_R6_4OF4_OK")
 PY
 
-# Barrier 1: all four hosts must be clean before the first mutation.
+# Barrier 1: fleet must be uniformly clean or uniformly exact R7B-provisioned.
+fleet_mode=""
 for ip in "${HOSTS[@]}"; do
-  SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$ip" bash -s -- \
-    "$ETC" "$STATE" "$OPT" "$SERVICE" "$ip" <<'REMOTE'
+  mode=$(SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$ip" bash -s -- \
+    "$ETC" "$STATE" "$OPT" "$SERVICE" "$ip" "$BIN_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA" <<'REMOTE'
 set -euo pipefail
-etc=$1; state=$2; opt=$3; service=$4; ip=$5
+etc=$1; state=$2; opt=$3; service=$4; ip=$5; bin_sha=$6; dat_sha=$7; idx_sha=$8
 test -d "$etc/identity" && test ! -L "$etc/identity"
 test -f "$etc/identity/public.json" && test -f "$etc/identity/p2p.key" && test -f "$etc/identity/consensus.key"
-test ! -e "$state"
-test ! -e "$opt"
-test ! -e "$etc/node.json"
-! systemctl is-active --quiet "$service"
-! ss -lnt | awk '{print $4}' | grep -Eq '(:18019|:31317)$'
-command -v python3 >/dev/null
-command -v curl >/dev/null
-curl --fail --silent --show-error --max-time 5 --noproxy '*' http://127.0.0.1:47778/ |
-  python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("app_ready") is True; k=d.get("pubkey"); assert isinstance(k,str) and len(k)==64'
-echo "R7B_HOST_CLEAN_PREFLIGHT_OK ip=$ip"
+if test ! -e "$state" && test ! -e "$opt" && test ! -e "$etc/node.json"; then
+  ! systemctl is-active --quiet "$service"
+  ! ss -lnt | awk '{print $4}' | grep -Eq '(:18019|:31317)$'
+  echo clean
+  exit 0
+fi
+test -d "$state" && test ! -L "$state"
+test -d "$opt" && test ! -L "$opt"
+test -f "$etc/node.json" && test ! -L "$etc/node.json"
+test "$(sha256sum "$opt/hashburst-mainnet" | awk '{print $1}')" = "$bin_sha"
+test "$(sha256sum "$state/blockchain.dat" | awk '{print $1}')" = "$dat_sha"
+test "$(sha256sum "$state/blockchain.idx" | awk '{print $1}')" = "$idx_sha"
+test -f "$state/runtime.pin"
+test -f "$state/consensus-votes.jsonl"
+test -f "$state/consensus-bft-signatures.jsonl"
+echo provisioned
 REMOTE
+)
+  [[ "$mode" == clean || "$mode" == provisioned ]] || fail "invalid fleet state classification ip=$ip mode=$mode"
+  [[ -z "$fleet_mode" ]] && fleet_mode="$mode"
+  [[ "$mode" == "$fleet_mode" ]] || fail "mixed clean/provisioned fleet state"
+  echo "R7B_HOST_STATE_CLASSIFIED ip=$ip mode=$mode" | tee -a "$LOG"
 done
-echo HVM_R7B_MUTATION_BARRIER_4OF4_OK | tee -a "$LOG"
+echo "HVM_R7B_MUTATION_BARRIER_4OF4_OK mode=$fleet_mode" | tee -a "$LOG"
 
+if [[ "$fleet_mode" == clean ]]; then
 # Stage the exact accepted generation, reviewed binary/config and local runtime key copies.
 for ip in "${HOSTS[@]}"; do
   stage="/var/lib/.hashburst-hvm-mainnet-r7b-stage"
@@ -171,18 +184,25 @@ for ip in "${HOSTS[@]}"; do
     echo R7B_HOST_PROVISION_CHECK_OK ip=$ip"
 done
 echo HVM_R7B_PROVISION_CHECK_4OF4_OK | tee -a "$LOG"
+else
+  echo HVM_R7B_RESUME_EXACT_PROVISIONED_4OF4_OK | tee -a "$LOG"
+fi
 
-# Fail-closed cleanup: after listeners may start, any error stops/disables all four.
+# Fail-closed cleanup: every non-zero exit after this point stops/disables all four.
+cleanup_armed=0
 cleanup_runtime() {
   rc=$?
-  trap - ERR INT TERM
-  for host in "${HOSTS[@]}"; do
-    remote "$host" "systemctl stop '$SERVICE' >/dev/null 2>&1 || true; systemctl disable '$SERVICE' >/dev/null 2>&1 || true" || true
-  done
-  echo "HVM_R7B_FAIL_CLOSED_RUNTIME_STOPPED_4OF4 rc=$rc" | tee -a "$LOG"
+  trap - EXIT INT TERM
+  if (( cleanup_armed == 1 && rc != 0 )); then
+    for host in "${HOSTS[@]}"; do
+      remote "$host" "systemctl stop '$SERVICE' >/dev/null 2>&1 || true; systemctl disable '$SERVICE' >/dev/null 2>&1 || true" || true
+    done
+    echo "HVM_R7B_FAIL_CLOSED_RUNTIME_STOPPED_4OF4 rc=$rc" | tee -a "$LOG"
+  fi
   exit "$rc"
 }
-trap cleanup_runtime ERR INT TERM
+trap cleanup_runtime EXIT INT TERM
+cleanup_armed=1
 
 # Controlled temporary runtime start. This is acceptance testing, not final activation.
 for ip in "${HOSTS[@]}"; do remote "$ip" "systemctl start '$SERVICE'"; done
@@ -237,6 +257,7 @@ for attempt in $(seq 1 90); do
   peers_ok=1
   for ip in "${HOSTS[@]}"; do
     read -r h f p < <(remote "$ip" "curl -fsS http://127.0.0.1:18019/health | python3 -c '$health_py'")
+    echo "R7B_CONVERGENCE_SAMPLE attempt=$attempt ip=$ip height=$h finalized=$f peers=$p" | tee -a "$LOG"
     (( f < min )) && min=$f
     (( p >= 3 )) || peers_ok=0
   done
@@ -270,6 +291,8 @@ echo "R7B_HOST_STOPPED_POST_ACCEPTANCE_OK ip=$ip"
 REMOTE
 done
 
+cleanup_armed=0
+trap - EXIT INT TERM
 {
  echo "source_commit=$GITHUB_SHA"
  echo "r6_run_id=$R6_RUN_ID"
@@ -280,4 +303,3 @@ done
  echo "FOUNDER_PRIVATE_KEY_NOT_USED"
  echo "HVM_R7B_MAINNET_RUNTIME_CRASH_RECOVERY_ACCEPTANCE_OK"
 } | tee -a "$LOG"
-trap - ERR INT TERM
