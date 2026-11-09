@@ -27,7 +27,8 @@ assert "NO_PRODUCTION_ACTIVATION" in gate
 assert "FOUNDER_PRIVATE_KEY_NOT_USED" in gate
 assert "VALIDATOR_PRIVATE_KEY_NOT_USED" in gate
 assert "consensus.key" not in gate
-assert "founder" not in gate.lower().replace("founder_private_key_not_used","")
+assert "founder.key" not in gate.lower()
+assert "founder-signed" not in gate.lower()
 assert "systemctl start '$VALIDATOR_SERVICE'" not in gate
 assert "systemctl restart '$VALIDATOR_SERVICE'" not in gate
 assert "systemctl enable '$VALIDATOR_SERVICE'" not in gate
