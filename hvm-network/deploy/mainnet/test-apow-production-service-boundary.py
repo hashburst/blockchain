@@ -11,6 +11,9 @@ assert "MINER_SERVICE=hashburst-apow-mainnet.service" in gate
 assert "KEYDIR=/var/lib/hashburst-apow-mainnet" in gate
 assert "ENDPOINT=http://127.0.0.1:18019/apow" in gate
 assert "--chain-id $chain --loop --timeout 120s" in gate
+assert 'sha=${10}; validator=${11}' in gate
+assert "sha=10; validator=11" not in gate
+assert '"$CHAIN_ID" "$MINER_SHA" "$VALIDATOR_SERVICE"' in gate
 assert "Restart=on-failure" in gate
 assert "CPUQuota=25%" in gate
 assert "Nice=15" in gate
