@@ -6,7 +6,7 @@ on:
         description: Authorized phase
         required: true
         type: choice
-        options: [preflight, benchmark, diagnostics, evidence-recovery, identities, checkpoint, founder-checkpoint, runtime-acceptance, runtime-provision, deploy, acceptance]
+        options: [preflight, benchmark, diagnostics, consensus-diagnostics, evidence-recovery, identities, checkpoint, founder-checkpoint, runtime-acceptance, runtime-provision, deploy, acceptance]
 permissions:
   contents: read
 concurrency:
@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$AUTHORIZED_PHASE" in
-            preflight|benchmark|diagnostics|evidence-recovery|identities|checkpoint|founder-checkpoint|runtime-acceptance|runtime-provision|deploy|acceptance) ;;
+            preflight|benchmark|diagnostics|consensus-diagnostics|evidence-recovery|identities|checkpoint|founder-checkpoint|runtime-acceptance|runtime-provision|deploy|acceptance) ;;
             *) echo "Invalid or missing authorized phase: $AUTHORIZED_PHASE" >&2; exit 64 ;;
           esac
           echo "HVM_AUTHORIZED_PHASE=$AUTHORIZED_PHASE"
@@ -85,6 +85,16 @@ jobs:
           set -euo pipefail
           test -x hvm-network/deploy/mainnet/load-diagnostics.sh
           hvm-network/deploy/mainnet/load-diagnostics.sh
+
+      - name: Read-only R7B consensus diagnostics
+        if: github.event.inputs.phase == 'consensus-diagnostics'
+        shell: bash
+        env:
+          SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
+        run: |
+          set -euo pipefail
+          bash -n hvm-network/deploy/mainnet/consensus-diagnostics.sh
+          bash hvm-network/deploy/mainnet/consensus-diagnostics.sh
 
       - name: Recover exact legacy freeze evidence
         if: github.event.inputs.phase == 'evidence-recovery'
