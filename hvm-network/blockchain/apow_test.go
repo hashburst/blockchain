@@ -191,3 +191,136 @@ func TestAPoWReactorStartsWithoutWork(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+
+func TestMainnetR6Height9RoundAbove64RequiresAPoWAndFinalizesWithWork(t *testing.T) {
+	cfg := phase3CTestConfig()
+	cfg.ChainID = MainnetChainID
+	cfg.ConsensusActivationHeight = 9
+	cfg.EVM = &EVMConfig{ActivationHeight: 9, GasLimit: 15000000, BaseFeeWei: 1000000000}
+	// Keep production activation semantics while lowering only proof difficulty so
+	// this liveness regression is deterministic and fast in CI.
+	cfg.APoW = &APoWConfig{GasLimit: 15000000, ActivationHeight: 9, InitialBits: 4, MinBits: 1, MaxBits: 32, Window: 60, TargetSeconds: 60}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	s := setupPhase3DChainsWithConfig(t, cfg)
+	// Reproduce the accepted R6 consensus boundary: four active validators and
+	// a common finalized/pre-consensus head at height 8, with consensus+EVM+APoW
+	// beginning exactly at height 9.
+	for h := 7; h <= 8; h++ {
+		s.nodes[0].SetPendingTransactions(nil, nil)
+		if err := s.nodes[0].AddBlock(s.vals[0].operator.Address()); err != nil {
+			t.Fatalf("build R6 boundary height %d: %v", h, err)
+		}
+		b := s.nodes[0].HeadSnapshot()
+		for i := 1; i < 4; i++ {
+			if err := s.nodes[i].AppendBlock(cloneBlockForConsensus(b)); err != nil {
+				t.Fatalf("replicate R6 boundary height %d to validator %d: %v", h, i, err)
+			}
+		}
+	}
+	for i, bc := range s.nodes {
+		if bc.Height() != 8 || len(bc.CurrentValidatorSet(9).Validators) != 4 {
+			t.Fatalf("validator %d not at R6 height-8/four-validator boundary", i)
+		}
+	}
+	bus, reactors := attachPhase3DReactors(t, s, []bool{true, true, true, true})
+	for i, r := range reactors {
+		// Model run #49 recovery after the historical round-64 lifetime boundary.
+		r.height = 9
+		r.round = 64
+		r.reservedRound = 64
+		r.lockedRound, r.validRound = -1, -1
+		if err := r.persistRecoveryLocked(64); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Start(); err != nil {
+			t.Fatalf("validator %d resume above round 64: %v", i, err)
+		}
+		defer r.Stop()
+		if r.round <= 64 {
+			t.Fatalf("validator %d reused round %d", i, r.round)
+		}
+	}
+	// With the production APoW activation boundary and no admitted work, even
+	// the scheduled proposer cannot construct height 9. This is the exact
+	// nil-prevote/round-change liveness signature observed in run #49/#50.
+	set := s.nodes[0].CurrentValidatorSet(9)
+	p, ok := set.Proposer(9, reactors[0].round)
+	if !ok {
+		t.Fatal("missing scheduled proposer")
+	}
+	var proposerNode *Blockchain
+	for i, v := range s.vals {
+		if strings.EqualFold(v.id, p.ID) {
+			proposerNode = s.nodes[i]
+			break
+		}
+	}
+	if proposerNode == nil {
+		t.Fatal("scheduled proposer fixture missing")
+	}
+	if _, err := proposerNode.BuildConsensusProposal(p.ID, reactors[0].round); err != ErrAPoWUnavailable {
+		t.Fatalf("height 9 without work = %v, want ErrAPoWUnavailable", err)
+	}
+	for _, r := range reactors {
+		if err := r.HandleTimeout(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bus.drain(20000)
+	if s.nodes[0].FinalizedHeight() >= 9 {
+		t.Fatal("height 9 finalized without APoW work")
+	}
+
+	miner, err := wallet.NewWallet()
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := s.nodes[0].APoWJob()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	proof, err := MineAPoW(ctx, *job, miner, miner.Address())
+	cancel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, bc := range s.nodes {
+		if err := bc.SubmitAPoW(*proof); err != nil {
+			t.Fatalf("validator %d rejected common APoW proof: %v", i, err)
+		}
+	}
+
+	done := func() bool {
+		for _, bc := range s.nodes {
+			if bc.FinalizedHeight() < 9 {
+				return false
+			}
+		}
+		return true
+	}
+	for n := 0; n < 12 && !done(); n++ {
+		for _, r := range reactors {
+			if err := r.HandleTimeout(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		bus.drainUntil(40000, done)
+	}
+	if !done() {
+		for i, r := range reactors {
+			t.Logf("validator %d status=%+v finalized=%d", i, r.Status(), s.nodes[i].FinalizedHeight())
+		}
+		t.Fatal("height 9 did not finalize after APoW admission above round 64")
+	}
+	want := s.nodes[0].HeadSnapshot().Hash
+	for i, bc := range s.nodes {
+		b := bc.HeadSnapshot()
+		if b.Index != 9 || bc.FinalizedHeight() != 9 || !strings.EqualFold(b.Hash, want) || b.APoW == nil {
+			t.Fatalf("validator %d final state differs: height=%d finalized=%d hash=%s apow=%v", i, b.Index, bc.FinalizedHeight(), b.Hash, b.APoW != nil)
+		}
+	}
+}
