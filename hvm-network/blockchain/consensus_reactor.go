@@ -809,7 +809,7 @@ func (r *ConsensusReactor) HandleRoundChange(rc consensus.RoundChange) error {
 	// Authenticated catch-up may span the entire replay interval. Retain at
 	// most one future round-change per validator, never an unbounded set of
 	// attacker-selected future rounds. f+1 power is still required to jump.
-	if r.bc.v2Config.ChainID == 4735490 {
+	if usesSlidingConsensusRoundWindow(r.bc.v2Config.ChainID) {
 		if rc.NextRound <= r.round {
 			return nil
 		}
