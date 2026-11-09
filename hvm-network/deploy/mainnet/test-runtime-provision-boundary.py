@@ -34,7 +34,8 @@ for digest in (
     assert digest in gate
 assert "HVM_R7B_ACCEPTED_R5_PUBLIC_IDENTITIES_VERIFIED_4OF4_OK" in gate
 assert gate.count("<<'REMOTE'") >= 3
-assert "curl --fail --silent --show-error --max-time 5 --noproxy '*'" in gate
+assert "curl -fsS http://127.0.0.1:18019/health" in gate
+assert "curl --fail --silent --show-error --max-time 5 --noproxy '*'" not in gate
 assert "HVM_R7B_MUTATION_BARRIER_4OF4_OK" in gate
 assert 'test "\\$(sha256sum' not in gate
 assert 'test "\\$(systemctl is-active' not in gate
