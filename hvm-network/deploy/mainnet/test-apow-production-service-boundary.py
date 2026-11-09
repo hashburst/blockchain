@@ -37,4 +37,9 @@ assert "initial_bits\":20" in gate
 assert "min_bits\":16" in gate
 assert "max_bits\":32" in gate
 assert "target_seconds\":60" in gate
+assert "apow-production-service" in workflow
+assert "run-apow-production-service.sh" in workflow
+assert "test-apow-production-service-boundary.py" in workflow
+assert "Requested mutation phase remains fail-closed" in workflow
+assert "HVM_DEPLOY_ACCEPTANCE_PHASES_FAIL_CLOSED_OK" in workflow
 print("HVM_R8A_STATIC_BOUNDARY_REGRESSION_OK")
