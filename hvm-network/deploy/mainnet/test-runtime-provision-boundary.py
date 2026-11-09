@@ -34,7 +34,6 @@ for digest in (
     assert digest in gate
 assert "HVM_R7B_ACCEPTED_R5_PUBLIC_IDENTITIES_VERIFIED_4OF4_OK" in gate
 assert gate.count("<<'REMOTE'") >= 3
-assert 'd.get("app_ready") is True' in gate
 assert "curl --fail --silent --show-error --max-time 5 --noproxy '*'" in gate
 assert "HVM_R7B_MUTATION_BARRIER_4OF4_OK" in gate
 assert 'test "\\$(sha256sum' not in gate
@@ -62,3 +61,8 @@ assert 'cleanup_armed=1' in gate
 assert 'cleanup_armed=0' in gate
 assert 'R7B_CONVERGENCE_SAMPLE attempt=' in gate
 assert gate.count('HVM_R7B_MUTATION_BARRIER_4OF4_OK') == 1
+
+# Run-42 resume regressions: exact binary digest variable and no obsolete clean-fleet app_ready assertion.
+assert '"$ip" "$BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA"' in gate
+assert '"$ip" "$BIN_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA"' not in gate
+assert 'd.get("app_ready") is True' not in gate
