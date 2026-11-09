@@ -51,7 +51,7 @@ assert gate.count("# Stage the exact accepted generation") == 1
 assert gate.count("HVM_R7B_MAINNET_RUNTIME_CRASH_RECOVERY_ACCEPTANCE_OK") == 1
 assert "grep -Eq '(:18019|:31317)$'" in gate
 assert "HVM_R7B_FAIL_CLOSED_RUNTIME_STOPPED_4OF4" in gate
-assert "trap cleanup_runtime ERR INT TERM" in gate
+assert "trap cleanup_runtime ERR INT TERM" not in gate
 
 # Run-41 resume/fail-closed regressions.
 assert 'fleet must be uniformly clean or uniformly exact R7B-provisioned' in gate
