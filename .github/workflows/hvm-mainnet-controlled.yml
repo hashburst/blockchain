@@ -6,7 +6,7 @@ on:
         description: Authorized phase
         required: true
         type: choice
-        options: [preflight, benchmark, diagnostics, consensus-diagnostics, evidence-recovery, identities, checkpoint, founder-checkpoint, runtime-acceptance, runtime-provision, deploy, acceptance]
+        options: [preflight, benchmark, diagnostics, consensus-diagnostics, evidence-recovery, identities, checkpoint, founder-checkpoint, runtime-acceptance, runtime-provision, activation-readiness, deploy, acceptance]
 permissions:
   contents: read
 concurrency:
@@ -37,6 +37,9 @@ jobs:
           echo "HVM_R7B_RUNTIME_PROVISION_BASH_SYNTAX_OK"
           python3 hvm-network/deploy/mainnet/test-runtime-acceptance-boundary.py
           python3 hvm-network/deploy/mainnet/test-runtime-provision-boundary.py
+          bash -n hvm-network/deploy/mainnet/run-activation-readiness.sh
+          echo "HVM_R7C_ACTIVATION_READINESS_BASH_SYNTAX_OK"
+          python3 hvm-network/deploy/mainnet/test-activation-readiness-boundary.py
       - name: Enforce coordinator identity
         shell: bash
         run: |
@@ -57,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$AUTHORIZED_PHASE" in
-            preflight|benchmark|diagnostics|consensus-diagnostics|evidence-recovery|identities|checkpoint|founder-checkpoint|runtime-acceptance|runtime-provision|deploy|acceptance) ;;
+            preflight|benchmark|diagnostics|consensus-diagnostics|evidence-recovery|identities|checkpoint|founder-checkpoint|runtime-acceptance|runtime-provision|activation-readiness|deploy|acceptance) ;;
             *) echo "Invalid or missing authorized phase: $AUTHORIZED_PHASE" >&2; exit 64 ;;
           esac
           echo "HVM_AUTHORIZED_PHASE=$AUTHORIZED_PHASE"
@@ -104,7 +107,7 @@ jobs:
           test -x hvm-network/deploy/mainnet/recover-freeze-evidence.sh
           hvm-network/deploy/mainnet/recover-freeze-evidence.sh
       - name: Mutation phases are fail-closed until protocol freeze
-        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'runtime-acceptance' || github.event.inputs.phase == 'runtime-provision' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
+        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'runtime-acceptance' || github.event.inputs.phase == 'runtime-provision' || github.event.inputs.phase == 'activation-readiness' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
         shell: bash
         env:
           SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
@@ -131,6 +134,10 @@ jobs:
               ;;
             runtime-provision)
               bash hvm-network/deploy/mainnet/run-runtime-provision.sh
+              ;;
+            activation-readiness)
+              bash -n hvm-network/deploy/mainnet/run-activation-readiness.sh
+              bash hvm-network/deploy/mainnet/run-activation-readiness.sh
               ;;
             deploy|acceptance)
               echo "Requested mutation phase remains fail-closed pending its dedicated reviewed gate." >&2
