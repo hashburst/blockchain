@@ -124,3 +124,56 @@ func TestTestnetRoundExhaustionMixedLocksRecoverAndFinalize(t *testing.T) {
 		}
 	}
 }
+
+
+func TestMainnetReservedRound64RestartWithoutLock(t *testing.T) {
+	cfg := phase3CTestConfig()
+	cfg.ChainID = 4735489
+	s := setupPhase3DChainsWithConfig(t, cfg)
+	bc := s.nodes[0]
+	bc.storage.durable = true
+
+	r, err := NewConsensusReactor(bc, s.vals[0].id, s.vals[0].consensus, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.height = uint64(bc.Height() + 1)
+	r.round = 64
+	r.reservedRound = 64
+	r.lockedRound = -1
+	r.validRound = -1
+	if err = r.persistRecoveryLocked(64); err != nil {
+		t.Fatal(err)
+	}
+	r.Stop()
+
+	if got := consensusRoundLimit(cfg); got != lastSafeConsensusRound {
+		t.Fatalf("mainnet round limit = %d, want sliding limit %d", got, lastSafeConsensusRound)
+	}
+	if err = bc.CheckValidatorRestart(r.validatorID); err != nil {
+		t.Fatalf("mainnet restart at reserved round 64 rejected: %v", err)
+	}
+
+	fresh, err := NewConsensusReactor(bc, r.validatorID, r.signer, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Stop()
+	if err = fresh.Start(); err != nil {
+		t.Fatalf("mainnet reactor could not resume: %v", err)
+	}
+	if fresh.round <= 64 {
+		t.Fatalf("mainnet reused exhausted round: %d", fresh.round)
+	}
+}
+
+func TestLegacyRoundLimitRemainsBounded(t *testing.T) {
+	cfg := phase3CTestConfig()
+	cfg.ChainID = 1337
+	if got := consensusRoundLimit(cfg); got != cfg.ConsensusNetwork.MaxRound {
+		t.Fatalf("legacy round limit changed: got %d want %d", got, cfg.ConsensusNetwork.MaxRound)
+	}
+	if usesSlidingConsensusRoundWindow(cfg.ChainID) {
+		t.Fatal("legacy chain unexpectedly uses sliding round window")
+	}
+}
