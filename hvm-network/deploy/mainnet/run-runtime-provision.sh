@@ -66,6 +66,9 @@ echo HVM_R7B_ACCEPTED_R5_PUBLIC_IDENTITIES_VERIFIED_4OF4_OK | tee -a "$LOG"
 go build -trimpath -o "$BINARY" ./cmd/hashburst-mainnet
 chmod 0700 "$BINARY"
 BINARY_SHA=$(sha256sum "$BINARY" | awk '{print $1}')
+# Exact runtime binary installed by accepted provisioning run 42552309146 (#41).
+# Subsequent commits through this gate changed deploy/test logic only, not Go runtime sources.
+ACCEPTED_PROVISIONED_BINARY_SHA="e50940638449e04d8d732b6f88a2276aa260ef47c257711d80db1fa3c436b4d2"
 LEDGER_DAT_SHA=$(sha256sum "$R6/ledger/blockchain.dat" | awk '{print $1}')
 LEDGER_IDX_SHA=$(sha256sum "$R6/ledger/blockchain.idx" | awk '{print $1}')
 printf 'binary_sha256=%s\nledger_dat_sha256=%s\nledger_idx_sha256=%s\n' "$BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA" | tee "$REPO_ROOT/mainnet-r7b-SHA256SUMS.log"
@@ -107,9 +110,9 @@ PY
 fleet_mode=""
 for ip in "${HOSTS[@]}"; do
   mode=$(SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$ip" bash -s -- \
-    "$ETC" "$STATE" "$OPT" "$SERVICE" "$ip" "$BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA" <<'REMOTE'
+    "$ETC" "$STATE" "$OPT" "$SERVICE" "$ip" "$ACCEPTED_PROVISIONED_BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA" <<'REMOTE'
 set -euo pipefail
-etc=$1; state=$2; opt=$3; service=$4; ip=$5; bin_sha=$6; dat_sha=$7; idx_sha=$8
+etc=$1; state=$2; opt=$3; service=$4; ip=$5; accepted_bin_sha=$6; dat_sha=$7; idx_sha=$8
 test -d "$etc/identity" && test ! -L "$etc/identity"
 test -f "$etc/identity/public.json" && test -f "$etc/identity/p2p.key" && test -f "$etc/identity/consensus.key"
 if test ! -e "$state" && test ! -e "$opt" && test ! -e "$etc/node.json"; then
@@ -121,7 +124,11 @@ fi
 test -d "$state" && test ! -L "$state"
 test -d "$opt" && test ! -L "$opt"
 test -f "$etc/node.json" && test ! -L "$etc/node.json"
-test "$(sha256sum "$opt/hashburst-mainnet" | awk '{print $1}')" = "$bin_sha"
+installed_bin_sha="$(sha256sum "$opt/hashburst-mainnet" | awk '{print $1}')"
+if test "$installed_bin_sha" != "$accepted_bin_sha"; then
+  echo "R7B_CLASSIFY_FAIL ip=$ip reason=installed_binary_sha got=$installed_bin_sha expected=$accepted_bin_sha" >&2
+  exit 41
+fi
 test "$(sha256sum "$state/blockchain.dat" | awk '{print $1}')" = "$dat_sha"
 test "$(sha256sum "$state/blockchain.idx" | awk '{print $1}')" = "$idx_sha"
 test -f "$state/runtime.pin"
