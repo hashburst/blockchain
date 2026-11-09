@@ -55,7 +55,7 @@ echo "HVM_R7B_ACCEPTED_R5_PUBLIC_IDENTITIES_4OF4_OK run_id=$R5_IDENTITY_RUN_ID" 
 
 cd "$ROOT"
 [[ "$(go env GOVERSION)" == go1.25.7* ]] || fail "Go 1.25.7 required"
-go test ./internal/testnet ./blockchain -run 'TestStatePinLockAndRestart|TestRejectMissingCorruptStateAndJournals|TestPersistentObserverLifecycle|TestMainnetBootstrap|TestMainnetImport' -count=1
+go test ./internal/testnet ./blockchain -run 'TestStatePinLockAndRestart|TestRejectMissingCorruptStateAndJournals|TestPersistentObserverLifecycle|TestMainnetBootstrap|TestMainnetImport|TestMainnetR6Height9RoundAbove64RequiresAPoWAndFinalizesWithWork' -count=1
 go build -trimpath -o "$REPO_ROOT/hvm-mainnet-identity-r7b" ./cmd/hvm-mainnet-identity
 chmod 0700 "$REPO_ROOT/hvm-mainnet-identity-r7b"
 for ip in "${HOSTS[@]}"; do
@@ -64,14 +64,18 @@ for ip in "${HOSTS[@]}"; do
 done
 echo HVM_R7B_ACCEPTED_R5_PUBLIC_IDENTITIES_VERIFIED_4OF4_OK | tee -a "$LOG"
 go build -trimpath -o "$BINARY" ./cmd/hashburst-mainnet
-chmod 0700 "$BINARY"
+APOW_MINER="$REPO_ROOT/hvm-apow-miner-r7b"
+go build -trimpath -o "$APOW_MINER" ./cmd/hvm-apow-miner
+chmod 0700 "$BINARY" "$APOW_MINER"
 BINARY_SHA=$(sha256sum "$BINARY" | awk '{print $1}')
-# Exact runtime binary installed by accepted provisioning run 42552309146 (#41).
-# Subsequent commits through this gate changed deploy/test logic only, not Go runtime sources.
-ACCEPTED_PROVISIONED_BINARY_SHA="e50940638449e04d8d732b6f88a2276aa260ef47c257711d80db1fa3c436b4d2"
+APOW_MINER_SHA=$(sha256sum "$APOW_MINER" | awk '{print $1}')
+# Exact at-rest runtime left on all four validators by accepted diagnostic
+# predecessor run #49 (42602837155). This digest is a resume classifier only;
+# the current reviewed binary is atomically installed before controlled start.
+ACCEPTED_PROVISIONED_BINARY_SHA="5a0cc087d757b7659698f92459490ae15bdf4471763360d6d2a0098545268e94"
 LEDGER_DAT_SHA=$(sha256sum "$R6/ledger/blockchain.dat" | awk '{print $1}')
 LEDGER_IDX_SHA=$(sha256sum "$R6/ledger/blockchain.idx" | awk '{print $1}')
-printf 'binary_sha256=%s\nledger_dat_sha256=%s\nledger_idx_sha256=%s\n' "$BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA" | tee "$REPO_ROOT/mainnet-r7b-SHA256SUMS.log"
+printf 'binary_sha256=%s\napow_miner_sha256=%s\nledger_dat_sha256=%s\nledger_idx_sha256=%s\n' "$BINARY_SHA" "$APOW_MINER_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA" | tee "$REPO_ROOT/mainnet-r7b-SHA256SUMS.log"
 
 rm -rf "$CONFIGS"
 mkdir -m 0700 "$CONFIGS"
@@ -229,7 +233,7 @@ cleanup_runtime() {
   trap - EXIT INT TERM
   if (( cleanup_armed == 1 && rc != 0 )); then
     for host in "${HOSTS[@]}"; do
-      remote "$host" "systemctl stop '$SERVICE' >/dev/null 2>&1 || true; systemctl disable '$SERVICE' >/dev/null 2>&1 || true" || true
+      remote "$host" "systemctl stop '$SERVICE' >/dev/null 2>&1 || true; systemctl disable '$SERVICE' >/dev/null 2>&1 || true; systemctl stop 'hashburst-r7b-apow-acceptance.service' >/dev/null 2>&1 || true; rm -f '$OPT/hvm-apow-miner-r7b' /run/hashburst-r7b-apow.key" || true
     done
     echo "HVM_R7B_FAIL_CLOSED_RUNTIME_STOPPED_4OF4 rc=$rc" | tee -a "$LOG"
   fi
@@ -254,6 +258,30 @@ for ip in "${HOSTS[@]}"; do
   remote "$ip" "curl -fsS http://127.0.0.1:18019/health | python3 -c '$health_py'"
   echo "R7B_HOST_RUNTIME_HEALTH_OK ip=$ip" | tee -a "$LOG"
 done
+
+
+# Height 9 is the frozen APoW activation boundary. R7B must exercise the
+# production proposal path with real admitted work; otherwise every proposer
+# correctly times out and the fleet emits only nil PREVOTEs. Use one bounded,
+# ephemeral miner-only identity on validator-01. It is never a validator key,
+# never leaves that host, and is removed by both success and fail-closed cleanup.
+APOW_HOST="${HOSTS[0]}"
+APOW_REMOTE="$OPT/hvm-apow-miner-r7b"
+APOW_KEY=/run/hashburst-r7b-apow.key
+APOW_UNIT=hashburst-r7b-apow-acceptance.service
+copy "$APOW_MINER" "$APOW_HOST" "$APOW_REMOTE"
+remote "$APOW_HOST" "set -euo pipefail
+  chown root:root '$APOW_REMOTE'
+  chmod 0755 '$APOW_REMOTE'
+  test \"\$(sha256sum '$APOW_REMOTE' | awk '{print \$1}')\" = '$APOW_MINER_SHA'
+  rm -f '$APOW_KEY'
+  '$APOW_REMOTE' --generate-key --key-file '$APOW_KEY'
+  test \"\$(stat -c '%a' '$APOW_KEY')\" = 600
+  systemd-run --unit='$APOW_UNIT' --property=Type=simple --property=RuntimeMaxSec=600 \
+    '$APOW_REMOTE' --endpoint http://127.0.0.1:18019/apow --key-file '$APOW_KEY' \
+    --chain-id 4735489 --timeout 120s --loop >/dev/null
+  echo R7B_APOW_ACCEPTANCE_MINER_STARTED"
+echo "HVM_R7B_APOW_ACCEPTANCE_SOURCE_READY host=$APOW_HOST miner_sha256=$APOW_MINER_SHA" | tee -a "$LOG"
 
 # Graceful restart each validator while the other three remain available.
 for ip in "${HOSTS[@]}"; do
@@ -310,6 +338,10 @@ for ip in "${HOSTS[@]}"; do
   echo "R7B_FINALIZED_COMMITMENT_MATCH ip=$ip height=$FINALIZED" | tee -a "$LOG"
 done
 echo "HVM_R7B_CONVERGENCE_4OF4_OK height=$FINALIZED commitment=$REF" | tee -a "$LOG"
+
+# Remove the ephemeral APoW acceptance source before final validator shutdown.
+remote "$APOW_HOST" "systemctl stop '$APOW_UNIT' >/dev/null 2>&1 || true; rm -f '$APOW_REMOTE' '$APOW_KEY'"
+echo HVM_R7B_APOW_ACCEPTANCE_SOURCE_REMOVED_OK | tee -a "$LOG"
 
 # Acceptance ends stopped and disabled. State/journals remain for evidence and later reviewed activation.
 for ip in "${HOSTS[@]}"; do

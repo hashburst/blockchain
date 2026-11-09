@@ -63,16 +63,16 @@ assert 'cleanup_armed=0' in gate
 assert 'R7B_CONVERGENCE_SAMPLE attempt=' in gate
 assert gate.count('HVM_R7B_MUTATION_BARRIER_4OF4_OK') == 1
 
-# Consolidated resume regressions: recognize only the exact binary provisioned by accepted run #41.
+# Consolidated resume regressions: recognize only the exact at-rest binary left by accepted predecessor run #49.
 # The current rebuild digest is intentionally not the classifier contract for an already-provisioned fleet.
 assert '"$ip" "$BIN_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA"' not in gate
 assert 'd.get("app_ready") is True' not in gate
-assert 'ACCEPTED_PROVISIONED_BINARY_SHA="e50940638449e04d8d732b6f88a2276aa260ef47c257711d80db1fa3c436b4d2"' in gate
+assert 'ACCEPTED_PROVISIONED_BINARY_SHA="5a0cc087d757b7659698f92459490ae15bdf4471763360d6d2a0098545268e94"' in gate
 assert '"$ip" "$ACCEPTED_PROVISIONED_BINARY_SHA" "$LEDGER_DAT_SHA" "$LEDGER_IDX_SHA"' in gate
 assert 'reason=installed_binary_sha' in gate
 
 
-# Post-#95 provisioned-fleet upgrade contract: the accepted run-41 digest is
+# Post-#95 provisioned-fleet upgrade contract: the accepted predecessor digest is
 # classifier-only. A resumed fleet must atomically install the current reviewed
 # binary before any systemctl start, without reprovisioning protected state.
 assert 'HVM_R7B_PROVISIONED_BINARY_UPGRADE_4OF4_OK' in gate
@@ -84,3 +84,19 @@ assert 'mv -f "$opt/.hashburst-mainnet.r7b-candidate" "$opt/hashburst-mainnet"' 
 upgrade_pos=gate.index("HVM_R7B_PROVISIONED_BINARY_UPGRADE_4OF4_OK")
 start_pos=gate.index("# Controlled temporary runtime start.")
 assert upgrade_pos < start_pos
+
+# Height-9 APoW liveness contract: the frozen mainnet protocol activates APoW
+# at height 9, so runtime acceptance must admit bounded work before expecting
+# finality. The miner identity is ephemeral, miner-only and removed on both
+# success and fail-closed cleanup.
+assert 'TestMainnetR6Height9RoundAbove64RequiresAPoWAndFinalizesWithWork' in gate
+assert 'go build -trimpath -o "$APOW_MINER" ./cmd/hvm-apow-miner' in gate
+assert 'HVM_R7B_APOW_ACCEPTANCE_SOURCE_READY' in gate
+assert 'HVM_R7B_APOW_ACCEPTANCE_SOURCE_REMOVED_OK' in gate
+assert '--chain-id 4735489' in gate
+assert '--endpoint http://127.0.0.1:18019/apow' in gate
+assert '--generate-key --key-file' in gate
+assert 'hashburst-r7b-apow.key' in gate
+assert 'systemctl stop \'hashburst-r7b-apow-acceptance.service\'' in gate
+assert "rm -f '$OPT/hvm-apow-miner-r7b' /run/hashburst-r7b-apow.key" in gate
+assert gate.index("HVM_R7B_APOW_ACCEPTANCE_SOURCE_READY") < gate.index("# Graceful restart each validator")
