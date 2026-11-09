@@ -18,6 +18,24 @@ assert "NoNewPrivileges=true" in gate
 assert "ProtectSystem=strict" in gate
 assert "RestrictAddressFamilies=AF_INET AF_INET6" in gate
 assert "systemd-analyze verify" in gate
+assert 'sha=${10}; validator=${11}' in gate
+assert "sha=10" not in gate
+assert "validator=11" not in gate
+
+# Execute the same 11-argument positional binding shape used by the remote
+# heredoc. This catches the exact class of failure that made run #54 resolve
+# the validator service as 11.service before any service/key provisioning.
+import subprocess
+probe = r'''set -euo pipefail
+set -- u s b kd k bin unit endpoint 4735489 deadbeef hashburst-hvm-mainnet.service
+user=$1; service=$2; base=$3; keydir=$4; key=$5; bin=$6; unit=$7; endpoint=$8; chain=$9; sha=${10}; validator=${11}
+test "$chain" = 4735489
+test "$sha" = deadbeef
+test "$validator" = hashburst-hvm-mainnet.service
+printf "%s|%s|%s\\n" "$chain" "$sha" "$validator"
+'''
+p = subprocess.run(["bash", "-c", probe], check=True, capture_output=True, text=True)
+assert p.stdout.strip() == "4735489|deadbeef|hashburst-hvm-mainnet.service"
 assert "systemctl start '$MINER_SERVICE'" in gate
 assert "kill -KILL" in gate
 assert "HVM_R8A_APOW_SERVICE_RESTART_RECOVERY_OK" in gate
