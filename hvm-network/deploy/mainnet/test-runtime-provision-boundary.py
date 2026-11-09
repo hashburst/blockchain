@@ -52,3 +52,13 @@ assert gate.count("HVM_R7B_MAINNET_RUNTIME_CRASH_RECOVERY_ACCEPTANCE_OK") == 1
 assert "grep -Eq '(:18019|:31317)$'" in gate
 assert "HVM_R7B_FAIL_CLOSED_RUNTIME_STOPPED_4OF4" in gate
 assert "trap cleanup_runtime ERR INT TERM" in gate
+
+# Run-41 resume/fail-closed regressions.
+assert 'fleet must be uniformly clean or uniformly exact R7B-provisioned' in gate
+assert 'HVM_R7B_RESUME_EXACT_PROVISIONED_4OF4_OK' in gate
+assert 'mixed clean/provisioned fleet state' in gate
+assert 'trap cleanup_runtime EXIT INT TERM' in gate
+assert 'cleanup_armed=1' in gate
+assert 'cleanup_armed=0' in gate
+assert 'R7B_CONVERGENCE_SAMPLE attempt=' in gate
+assert gate.count('HVM_R7B_MUTATION_BARRIER_4OF4_OK') == 1
