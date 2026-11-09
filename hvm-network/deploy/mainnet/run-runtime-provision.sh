@@ -193,6 +193,33 @@ done
 echo HVM_R7B_PROVISION_CHECK_4OF4_OK | tee -a "$LOG"
 else
   echo HVM_R7B_RESUME_EXACT_PROVISIONED_4OF4_OK | tee -a "$LOG"
+
+  # The accepted run-41 binary is only the resume classifier. Before any
+  # controlled start, atomically replace it with the binary built from the
+  # current reviewed commit. Preserve ledger, runtime.pin, journals, config
+  # and validator identity exactly as provisioned.
+  for ip in "${HOSTS[@]}"; do
+    candidate="$OPT/.hashburst-mainnet.r7b-candidate"
+    copy "$BINARY" "$ip" "$candidate"
+    SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$ip" bash -s -- \
+      "$OPT" "$STATE" "$SERVICE" "$BINARY_SHA" "$ACCEPTED_PROVISIONED_BINARY_SHA" "$ip" <<'REMOTE'
+set -euo pipefail
+opt=$1; state=$2; service=$3; binary_sha=$4; accepted_sha=$5; ip=$6
+test "$(systemctl is-active "$service" || true)" != active
+test "$(systemctl is-enabled "$service" || true)" != enabled
+test "$(sha256sum "$opt/hashburst-mainnet" | awk '{print $1}')" = "$accepted_sha"
+test "$(sha256sum "$opt/.hashburst-mainnet.r7b-candidate" | awk '{print $1}')" = "$binary_sha"
+test -f "$state/runtime.pin"
+test -f "$state/consensus-votes.jsonl"
+test -f "$state/consensus-bft-signatures.jsonl"
+chown root:root "$opt/.hashburst-mainnet.r7b-candidate"
+chmod 0755 "$opt/.hashburst-mainnet.r7b-candidate"
+mv -f "$opt/.hashburst-mainnet.r7b-candidate" "$opt/hashburst-mainnet"
+test "$(sha256sum "$opt/hashburst-mainnet" | awk '{print $1}')" = "$binary_sha"
+echo "R7B_HOST_BINARY_UPGRADE_OK ip=$ip sha256=$binary_sha"
+REMOTE
+  done
+  echo "HVM_R7B_PROVISIONED_BINARY_UPGRADE_4OF4_OK sha256=$BINARY_SHA" | tee -a "$LOG"
 fi
 
 # Fail-closed cleanup: every non-zero exit after this point stops/disables all four.
