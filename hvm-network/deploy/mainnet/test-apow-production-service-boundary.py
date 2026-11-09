@@ -14,6 +14,13 @@ assert "--chain-id $chain --loop --timeout 120s" in gate
 assert 'sha=${10}; validator=${11}' in gate
 assert "sha=10; validator=11" not in gate
 assert '"$CHAIN_ID" "$MINER_SHA" "$VALIDATOR_SERVICE"' in gate
+stage_marker = 'echo HVM_R8A_STAGING_DIRECTORIES_READY_OK'
+copy_line = 'copy "$LOCAL_BIN" "$APOW_HOST" "$BASE/.hvm-apow-miner.r8a-candidate"'
+candidate_hash = 'sha256sum "$base/.hvm-apow-miner.r8a-candidate"'
+assert stage_marker in gate
+assert gate.index(stage_marker) < gate.index(copy_line) < gate.index(candidate_hash)
+assert "install -d -m 0755 -o root -g root '$BASE'" in gate
+assert "install -d -m 0700 -o '$MINER_USER' -g '$MINER_USER' '$KEYDIR'" in gate
 assert "Restart=on-failure" in gate
 assert "CPUQuota=25%" in gate
 assert "Nice=15" in gate
