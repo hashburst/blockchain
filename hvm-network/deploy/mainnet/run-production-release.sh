@@ -57,6 +57,21 @@ RUNTIME_SHA=$(sha256sum "$TMP/hashburst-mainnet"|awk '{print $1}')
 for ip in "${VALIDATORS[@]}";do remote "$ip" "test \"\$(sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | cut -d ' ' -f1)\" = '$RUNTIME_SHA'";done
 echo "HVM_R8B_ACCEPTED_RUNTIME_4OF4_OK sha256=$RUNTIME_SHA" | tee -a "$LOG"
 
+rollback=1
+cleanup(){
+ rc=$?;trap - EXIT INT TERM
+ if ((rollback==1 && rc!=0));then
+  for ip in "${VALIDATORS[@]}";do remote "$ip" "systemctl disable --now '$VSERVICE' >/dev/null 2>&1 || true" || true;done
+  remote 77.90.188.153 "systemctl disable --now '$APOW_SERVICE' >/dev/null 2>&1 || true" || true
+  remote "$OBSERVER" "systemctl disable --now '$GW_SERVICE' '$OBS_SERVICE' >/dev/null 2>&1 || true; if test -f /root/.hvm-mainnet-vhost.pre-r9;then cp -f /root/.hvm-mainnet-vhost.pre-r9 /etc/nginx/sites-available/blockchainapi.one.conf;rm -f /etc/nginx/snippets/hvm-mainnet-evm.conf;nginx -t >/dev/null&&systemctl reload nginx||true;fi" || true
+  echo "HVM_R9_FAIL_CLOSED_PRODUCTION_SERVICES_STOPPED rc=$rc" | tee -a "$LOG"
+ fi
+ rm -rf "$TMP"
+ exit "$rc"
+}
+trap cleanup EXIT INT TERM
+echo HVM_R8B_ROLLBACK_ARMED_BEFORE_OBSERVER_MUTATION_OK | tee -a "$LOG"
+
 remote "$OBSERVER" "set -euo pipefail
  getent passwd '$OBS_USER' >/dev/null || useradd --system --user-group --no-create-home --shell /usr/sbin/nologin '$OBS_USER'
  install -d -m 0700 -o '$OBS_USER' -g '$OBS_USER' '$OBS_ETC' '$OBS_STATE'
@@ -110,20 +125,6 @@ UNIT
  test \"\$(systemctl is-enabled '$OBS_SERVICE' || true)\" != enabled
  systemctl is-active --quiet hashburst-hvm-testnet-ingress.service"
 echo "HVM_R8B_MAINNET_OBSERVER_STAGED_UNSIGNED_OK peer_id=$PEER" | tee -a "$LOG"
-
-rollback=1
-cleanup(){
- rc=$?;trap - EXIT INT TERM
- if ((rollback==1 && rc!=0));then
-  for ip in "${VALIDATORS[@]}";do remote "$ip" "systemctl disable --now '$VSERVICE' >/dev/null 2>&1 || true" || true;done
-  remote 77.90.188.153 "systemctl disable --now '$APOW_SERVICE' >/dev/null 2>&1 || true" || true
-  remote "$OBSERVER" "systemctl disable --now '$GW_SERVICE' '$OBS_SERVICE' >/dev/null 2>&1 || true; if test -f /root/.hvm-mainnet-vhost.pre-r9;then cp -f /root/.hvm-mainnet-vhost.pre-r9 /etc/nginx/sites-available/blockchainapi.one.conf;rm -f /etc/nginx/snippets/hvm-mainnet-evm.conf;nginx -t >/dev/null&&systemctl reload nginx||true;fi" || true
-  echo "HVM_R9_FAIL_CLOSED_PRODUCTION_SERVICES_STOPPED rc=$rc" | tee -a "$LOG"
- fi
- rm -rf "$TMP"
- exit "$rc"
-}
-trap cleanup EXIT INT TERM
 
 for ip in "${VALIDATORS[@]}";do remote "$ip" "systemctl enable --now '$VSERVICE'";done
 remote 77.90.188.153 "systemctl enable --now '$APOW_SERVICE'"
