@@ -44,7 +44,7 @@ echo HVM_R8B_VALIDATOR_AT_REST_AND_TESTNET_OBSERVER_PRESERVED_OK | tee -a "$LOG"
 
 cd "$ROOT"
 test "$(go env GOVERSION)" = go1.25.7
-go test ./internal/evmgateway ./blockchain -count=1
+go test ./internal/evmgateway ./blockchain ./cmd/hvm-observer-identity -count=1
 go build -trimpath -o "$REPO/hvm-mainnet-observer-identity" ./cmd/hvm-observer-identity
 go build -trimpath -o "$REPO/hvm-mainnet-evm-gateway" ./cmd/hvm-mainnet-evm-gateway
 go build -trimpath -o "$REPO/hvm-mainnet-production-canary" ./cmd/hvm-mainnet-production-canary
