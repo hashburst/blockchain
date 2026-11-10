@@ -15,7 +15,10 @@ assert 'sha=${10}; validator=${11}' in gate
 assert "sha=10; validator=11" not in gate
 assert '"$CHAIN_ID" "$MINER_SHA" "$VALIDATOR_SERVICE"' in gate
 stage_marker = 'echo HVM_R8A_STAGING_DIRECTORIES_READY_OK'
-copy_line = 'copy "$LOCAL_BIN" "$APOW_HOST" "$BASE/.hvm-apow-miner.r8a-candidate"'
+copy_line = 'copy "$LOCAL_BIN" "$BASE/.hvm-apow-miner.r8a-candidate"'
+wrong_copy_line = 'copy "$LOCAL_BIN" "$APOW_HOST" "$BASE/.hvm-apow-miner.r8a-candidate"'
+assert wrong_copy_line not in gate
+assert 'copy(){ SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" "$1" "root@$APOW_HOST:$2"; }' in gate
 candidate_hash = 'sha256sum "$base/.hvm-apow-miner.r8a-candidate"'
 assert stage_marker in gate
 assert gate.index(stage_marker) < gate.index(copy_line) < gate.index(candidate_hash)
