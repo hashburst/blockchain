@@ -64,7 +64,7 @@ remote "set -euo pipefail
  test \"\$(systemctl is-enabled '$VALIDATOR_SERVICE' || true)\" = disabled"
 echo HVM_R8A_STAGING_DIRECTORIES_READY_OK | tee -a "$LOG"
 
-copy "$LOCAL_BIN" "$APOW_HOST" "$BASE/.hvm-apow-miner.r8a-candidate"
+copy "$LOCAL_BIN" "$BASE/.hvm-apow-miner.r8a-candidate"
 SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$APOW_HOST" bash -s --  "$MINER_USER" "$MINER_SERVICE" "$BASE" "$KEYDIR" "$KEY" "$BIN" "$UNIT" "$ENDPOINT" "$CHAIN_ID" "$MINER_SHA" "$VALIDATOR_SERVICE" <<'REMOTE'
 set -euo pipefail
 user=$1; service=$2; base=$3; keydir=$4; key=$5; bin=$6; unit=$7; endpoint=$8; chain=$9; sha=${10}; validator=${11}
