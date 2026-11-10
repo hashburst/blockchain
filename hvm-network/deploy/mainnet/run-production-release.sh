@@ -50,7 +50,7 @@ go build -trimpath -o "$REPO/hvm-mainnet-evm-gateway" ./cmd/hvm-mainnet-evm-gate
 go build -trimpath -o "$REPO/hvm-mainnet-production-canary" ./cmd/hvm-mainnet-production-canary
 chmod 0755 "$REPO"/hvm-mainnet-{observer-identity,evm-gateway,production-canary}
 
-TMP=$(mktemp -d);trap 'rm -rf "$TMP"' RETURN
+TMP=$(mktemp -d)
 SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" root@77.90.188.153:/opt/hashburst-hvm-mainnet/hashburst-mainnet "$TMP/hashburst-mainnet"
 SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" root@77.90.188.153:/etc/hashburst-hvm-mainnet/node.json "$TMP/validator.json"
 RUNTIME_SHA=$(sha256sum "$TMP/hashburst-mainnet"|awk '{print $1}')
