@@ -54,7 +54,7 @@ TMP=$(mktemp -d)
 SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" root@77.90.188.153:/opt/hashburst-hvm-mainnet/hashburst-mainnet "$TMP/hashburst-mainnet"
 SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" root@77.90.188.153:/etc/hashburst-hvm-mainnet/node.json "$TMP/validator.json"
 RUNTIME_SHA=$(sha256sum "$TMP/hashburst-mainnet"|awk '{print $1}')
-for ip in "${VALIDATORS[@]}";do remote "$ip" "test \"\$(sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet|awk '{print \\$1}')\" = '$RUNTIME_SHA'";done
+for ip in "${VALIDATORS[@]}";do remote "$ip" "test \"\$(sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | cut -d ' ' -f1)\" = '$RUNTIME_SHA'";done
 echo "HVM_R8B_ACCEPTED_RUNTIME_4OF4_OK sha256=$RUNTIME_SHA" | tee -a "$LOG"
 
 remote "$OBSERVER" "set -euo pipefail
