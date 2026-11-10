@@ -8,7 +8,16 @@ assert "HVM_R8B_VALIDATOR_AT_REST_AND_TESTNET_OBSERVER_PRESERVED_OK" in g
 assert "sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | cut -d ' ' -f1" in g
 assert "awk '{print \\\\$1}'" not in g
 assert "role=\"observer\"" in g and "consensus_key_file=\"\"" in g
-assert "rpc_listen=\"127.0.0.1:18020\"" in g
+assert 'data_dir="/var/lib/hashburst-hvm-mainnet-ingress"' in g
+assert 'p2p_key_file="/etc/hashburst-hvm-mainnet-ingress/p2p.key"' in g
+assert 'rpc_listen="127.0.0.1:18019"' in g
+assert "p2p_port=31317" in g
+assert "/var/lib/hashburst-hvm-mainnet-observer" not in g
+assert "/etc/hashburst-hvm-mainnet-observer" not in g
+assert 'rpc_listen="127.0.0.1:18020"' not in g
+assert "p2p_port=31318" not in g
+assert "HVM_R8B_ROLLBACK_ARMED_BEFORE_OBSERVER_MUTATION_OK" in g
+assert g.index("HVM_R8B_ROLLBACK_ARMED_BEFORE_OBSERVER_MUTATION_OK") < g.index("getent passwd '$OBS_USER'")
 assert "HVM_R8B_OBSERVER_BACKED_PUBLIC_RPC_INGRESS_ACCEPTANCE_OK" in g
 assert "admin_peers" in g and "-32601" in g
 assert "HVM_R8C_R8D_PUBLIC_CANARY_EVIDENCE_COLLECTED_OK" in g
