@@ -10,12 +10,12 @@ VALIDATORS=(77.90.188.153 77.90.188.154 77.90.188.155 77.90.188.157)
 OBSERVER=64.31.4.9
 VSERVICE=hashburst-hvm-mainnet.service
 APOW_SERVICE=hashburst-apow-mainnet.service
-OBS_SERVICE=hashburst-hvm-mainnet-observer.service
+OBS_SERVICE=hashburst-hvm-mainnet-ingress.service
 GW_SERVICE=hashburst-hvm-mainnet-evm-gateway.service
-OBS_USER=hashburst-hvm-mainnet-observer
-OBS_ETC=/etc/hashburst-hvm-mainnet-observer
-OBS_STATE=/var/lib/hashburst-hvm-mainnet-observer
-OBS_OPT=/opt/hashburst-hvm-mainnet-observer
+OBS_USER=hashburst-hvm-mainnet-ingress
+OBS_ETC=/etc/hashburst-hvm-mainnet-ingress
+OBS_STATE=/var/lib/hashburst-hvm-mainnet-ingress
+OBS_OPT=/opt/hashburst-hvm-mainnet-ingress
 GW_OPT=/opt/hashburst-hvm-mainnet-evm-gateway
 R6=/var/lib/hashburst-actions/mainnet-evidence/founder-signed-checkpoints/run-42514933956
 R8A_SOURCE=5a5a43c517dabe6aaec80c1df6d8ce0cadd0cf08
@@ -68,7 +68,7 @@ python3 - "$TMP/validator.json" "$TMP/observer.json" "$PEER" <<'PY'
 import json,sys
 c=json.load(open(sys.argv[1]))
 assert c["network"]=="mainnet" and c["protocol"]["chain_id"]==4735489
-c.update(node_id="hvm-mainnet-observer-01",role="observer",peer_id=sys.argv[3],validator_id="",consensus_key_file="",data_dir="/var/lib/hashburst-hvm-mainnet-observer",p2p_key_file="/etc/hashburst-hvm-mainnet-observer/p2p.key",rpc_listen="127.0.0.1:18020",p2p_listen_ip="64.31.4.9",p2p_port=31318)
+c.update(node_id="hvm-mainnet-observer-01",role="observer",peer_id=sys.argv[3],validator_id="",consensus_key_file="",data_dir="/var/lib/hashburst-hvm-mainnet-ingress",p2p_key_file="/etc/hashburst-hvm-mainnet-ingress/p2p.key",rpc_listen="127.0.0.1:18019",p2p_listen_ip="64.31.4.9",p2p_port=31317)
 json.dump(c,open(sys.argv[2],"w"),indent=2);open(sys.argv[2],"a").write("\n")
 PY
 copy "$TMP/hashburst-mainnet" "$OBSERVER" "$OBS_OPT/hashburst-mainnet"
@@ -85,9 +85,9 @@ After=network-online.target
 Wants=network-online.target
 [Service]
 Type=simple
-User=hashburst-hvm-mainnet-observer
-Group=hashburst-hvm-mainnet-observer
-ExecStart=/opt/hashburst-hvm-mainnet-observer/hashburst-mainnet --config /etc/hashburst-hvm-mainnet-observer/node.json
+User=hashburst-hvm-mainnet-ingress
+Group=hashburst-hvm-mainnet-ingress
+ExecStart=/opt/hashburst-hvm-mainnet-ingress/hashburst-mainnet --config /etc/hashburst-hvm-mainnet-ingress/node.json
 Restart=on-failure
 RestartSec=5
 UMask=0077
@@ -101,7 +101,7 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
-ReadWritePaths=/var/lib/hashburst-hvm-mainnet-observer
+ReadWritePaths=/var/lib/hashburst-hvm-mainnet-ingress
 [Install]
 WantedBy=multi-user.target
 UNIT
@@ -137,10 +137,10 @@ echo HVM_R9_VALIDATOR_FEDERATION_ACTIVE_4OF4_OK | tee -a "$LOG"
 
 remote "$OBSERVER" "systemctl enable --now '$OBS_SERVICE'"
 for n in $(seq 1 90);do
- if remote "$OBSERVER" "curl -fsS http://127.0.0.1:18020/health | python3 -c 'import json,sys;d=json.load(sys.stdin);assert d[\"ok\"] and d[\"role\"]==\"observer\" and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=1'" >/dev/null 2>&1;then break;fi
+ if remote "$OBSERVER" "curl -fsS http://127.0.0.1:18019/health | python3 -c 'import json,sys;d=json.load(sys.stdin);assert d[\"ok\"] and d[\"role\"]==\"observer\" and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=1'" >/dev/null 2>&1;then break;fi
  sleep 2
 done
-remote "$OBSERVER" "curl -fsS http://127.0.0.1:18020/health | python3 -c 'import json,sys;d=json.load(sys.stdin);assert d[\"ok\"] and d[\"role\"]==\"observer\" and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=1'"
+remote "$OBSERVER" "curl -fsS http://127.0.0.1:18019/health | python3 -c 'import json,sys;d=json.load(sys.stdin);assert d[\"ok\"] and d[\"role\"]==\"observer\" and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=1'"
 echo HVM_R8B_OBSERVER_BACKED_RPC_RUNTIME_OK | tee -a "$LOG"
 
 copy "$REPO/hvm-mainnet-evm-gateway" "$OBSERVER" "$GW_OPT/hvm-mainnet-evm-gateway"
@@ -150,8 +150,8 @@ remote "$OBSERVER" "set -euo pipefail
  cat > /etc/systemd/system/$GW_SERVICE <<'UNIT'
 [Unit]
 Description=HashBurst HVM mainnet public EVM gateway
-After=network-online.target hashburst-hvm-mainnet-observer.service
-Requires=hashburst-hvm-mainnet-observer.service
+After=network-online.target hashburst-hvm-mainnet-ingress.service
+Requires=hashburst-hvm-mainnet-ingress.service
 [Service]
 DynamicUser=yes
 ExecStart=/opt/hashburst-hvm-mainnet-evm-gateway/hvm-mainnet-evm-gateway
