@@ -5,6 +5,8 @@ r=Path(__file__).with_name("mainnet-evm-routes.conf").read_text()
 assert "R8A_RUN=42761659413" in g
 assert "R8A_ARTIFACT_DIGEST=2b80e4ed1b24656c9d29ebc62e7b834ee18d39c15eb4d55183793b713abc3b85" in g
 assert "HVM_R8B_VALIDATOR_AT_REST_AND_TESTNET_OBSERVER_PRESERVED_OK" in g
+assert "sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | cut -d ' ' -f1" in g
+assert "awk '{print \\\\$1}'" not in g
 assert "role=\"observer\"" in g and "consensus_key_file=\"\"" in g
 assert "rpc_listen=\"127.0.0.1:18020\"" in g
 assert "HVM_R8B_OBSERVER_BACKED_PUBLIC_RPC_INGRESS_ACCEPTANCE_OK" in g
