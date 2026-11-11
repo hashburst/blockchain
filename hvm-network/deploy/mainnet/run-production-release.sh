@@ -168,7 +168,10 @@ TasksMax=64
 WantedBy=multi-user.target
 UNIT
  V=/etc/nginx/sites-available/blockchainapi.one.conf
- test -f \"\$V\";cp -f \"\$V\" /root/.hvm-mainnet-vhost.pre-r9
+ E=/etc/nginx/sites-enabled/blockchainapi.one.conf
+ test -f \"\$V\";test -L \"\$E\"
+ test \"\$(readlink -f \"\$E\")\" = \"\$(readlink -f \"\$V\")\"
+ cp -f \"\$V\" /root/.hvm-mainnet-vhost.pre-r9
  python3 - <<'PY'
 from pathlib import Path
 p=Path('/etc/nginx/sites-available/blockchainapi.one.conf');s=p.read_text()
@@ -179,6 +182,7 @@ if m not in s:
  s=s.replace(a,a+'\n'+m,1);p.write_text(s)
 PY
  systemctl daemon-reload;systemctl enable --now '$GW_SERVICE';nginx -t;systemctl reload nginx
+ nginx -T 2>&1 | grep -Fq 'include /etc/nginx/snippets/hvm-mainnet-evm.conf;'
  systemctl is-active --quiet hashburst-hvm-testnet-ingress.service"
 PUBLIC=https://blockchainapi.one/api/hashburst/hvm/mainnet/evm
 for n in $(seq 1 30);do
