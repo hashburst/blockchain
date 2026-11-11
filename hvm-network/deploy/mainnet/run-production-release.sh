@@ -92,7 +92,15 @@ tar -C "$R6/ledger" -cf - blockchain.dat blockchain.idx | SSH_AUTH_SOCK="$SOCK" 
 remote "$OBSERVER" "set -euo pipefail
  chown root:root '$OBS_OPT/hashburst-mainnet' '$OBS_ETC/node.json';chmod 0755 '$OBS_OPT/hashburst-mainnet';chmod 0644 '$OBS_ETC/node.json'
  chown -R '$OBS_USER:$OBS_USER' '$OBS_STATE' '$OBS_ETC/p2p.key'
- runuser -u '$OBS_USER' -- '$OBS_OPT/hashburst-mainnet' --config '$OBS_ETC/node.json' --provision
+ if test -e '$OBS_STATE/runtime.pin'; then
+   test -f '$OBS_STATE/runtime.pin'
+   test ! -L '$OBS_STATE/runtime.pin'
+   runuser -u '$OBS_USER' -- '$OBS_OPT/hashburst-mainnet' --config '$OBS_ETC/node.json' --check
+   echo HVM_R8B_MAINNET_OBSERVER_EXISTING_PIN_REVALIDATED_OK
+ else
+   runuser -u '$OBS_USER' -- '$OBS_OPT/hashburst-mainnet' --config '$OBS_ETC/node.json' --provision
+   echo HVM_R8B_MAINNET_OBSERVER_FRESH_PROVISION_OK
+ fi
  cat > /etc/systemd/system/$OBS_SERVICE <<'UNIT'
 [Unit]
 Description=HashBurst HVM mainnet non-signing observer
