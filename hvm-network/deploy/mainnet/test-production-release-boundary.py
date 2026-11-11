@@ -19,6 +19,10 @@ assert "p2p_port=31318" not in g
 assert "HVM_R8B_ROLLBACK_ARMED_BEFORE_OBSERVER_MUTATION_OK" in g
 assert g.index("HVM_R8B_ROLLBACK_ARMED_BEFORE_OBSERVER_MUTATION_OK") < g.index("getent passwd '$OBS_USER'")
 assert "HVM_R8B_OBSERVER_BACKED_PUBLIC_RPC_INGRESS_ACCEPTANCE_OK" in g
+assert "E=/etc/nginx/sites-enabled/blockchainapi.one.conf" in g
+assert 'test -L \\"\\$E\\"' in g
+assert 'readlink -f \\"\\$E\\"' in g and 'readlink -f \\"\\$V\\"' in g
+assert "nginx -T 2>&1 | grep -Fq 'include /etc/nginx/snippets/hvm-mainnet-evm.conf;'" in g
 assert "admin_peers" in g and "-32601" in g
 assert "HVM_R8C_R8D_PUBLIC_CANARY_EVIDENCE_COLLECTED_OK" in g
 assert "/var/lib/hashburst-apow-mainnet/miner.key" in g
