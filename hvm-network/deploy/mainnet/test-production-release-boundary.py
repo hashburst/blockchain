@@ -18,6 +18,12 @@ assert 'rpc_listen="127.0.0.1:18020"' not in g
 assert "p2p_port=31318" not in g
 assert "HVM_R8B_ROLLBACK_ARMED_BEFORE_OBSERVER_MUTATION_OK" in g
 assert g.index("HVM_R8B_ROLLBACK_ARMED_BEFORE_OBSERVER_MUTATION_OK") < g.index("getent passwd '$OBS_USER'")
+assert "test -e '$OBS_STATE/runtime.pin'" in g
+assert "test -f '$OBS_STATE/runtime.pin'" in g
+assert "test ! -L '$OBS_STATE/runtime.pin'" in g
+assert "--config '$OBS_ETC/node.json' --check" in g
+assert "HVM_R8B_MAINNET_OBSERVER_EXISTING_PIN_REVALIDATED_OK" in g
+assert "HVM_R8B_MAINNET_OBSERVER_FRESH_PROVISION_OK" in g
 assert "HVM_R8B_OBSERVER_BACKED_PUBLIC_RPC_INGRESS_ACCEPTANCE_OK" in g
 assert "E=/etc/nginx/sites-enabled/blockchainapi.one.conf" in g
 assert 'test -L \\"\\$E\\"' in g
