@@ -90,6 +90,16 @@ assert "HVM_R8C_APOW_FAILURE_DIAGNOSTICS_BEGIN" in g
 assert "journalctl -u '$APOW_SERVICE' -n 120" in g
 assert "for n in $(seq 1 360);do" in g
 assert "bounded 720s acceptance window" in g
+assert "HVM_R8C_APOW_BASELINE_CAPTURED" in g
+assert "baseline_bal" in g
+assert "journalctl -u '$APOW_SERVICE' -n 0 --show-cursor" in g
+assert "--after-cursor '$journal_cursor'" in g
+assert "submitted==1 && bal>baseline_bal" in g
+assert "baseline_balance=$baseline_bal" in g
+assert "newly finalized APoW reward after a current-run local submission" in g
+assert "--since '-15 min'" not in g
+assert '((bal>0))&&break' not in g
+assert "finalized APoW reward observed without local APoW submission evidence" not in g
 assert "/var/lib/hashburst-apow-mainnet/miner.key" in g
 assert "HVM_R8E_CANONICAL_PRODUCTION_RELEASE_MANIFEST_OK" in g
 assert "HVM_R9_FINAL_PRODUCTION_ACTIVATION_DEPLOY_ACCEPTANCE_OK" in g
