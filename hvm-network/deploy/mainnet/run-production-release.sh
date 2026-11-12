@@ -154,8 +154,9 @@ echo HVM_R8B_OBSERVER_BACKED_RPC_RUNTIME_OK | tee -a "$LOG"
 
 copy "$REPO/hvm-mainnet-evm-gateway" "$OBSERVER" "$GW_OPT/hvm-mainnet-evm-gateway"
 copy "$DEPLOY/mainnet-evm-routes.conf" "$OBSERVER" /etc/nginx/snippets/hvm-mainnet-evm.conf
+copy "$DEPLOY/diagnose-mainnet-nginx.sh" "$OBSERVER" /root/hashburst-hvm-mainnet-nginx-diagnostics.sh
 remote "$OBSERVER" "set -euo pipefail
- chown root:root '$GW_OPT/hvm-mainnet-evm-gateway' /etc/nginx/snippets/hvm-mainnet-evm.conf;chmod 0755 '$GW_OPT/hvm-mainnet-evm-gateway';chmod 0644 /etc/nginx/snippets/hvm-mainnet-evm.conf
+ chown root:root '$GW_OPT/hvm-mainnet-evm-gateway' /etc/nginx/snippets/hvm-mainnet-evm.conf;chmod 0755 '$GW_OPT/hvm-mainnet-evm-gateway';chmod 0644 /etc/nginx/snippets/hvm-mainnet-evm.conf;chmod 0700 /root/hashburst-hvm-mainnet-nginx-diagnostics.sh
  cat > /etc/systemd/system/$GW_SERVICE <<'UNIT'
 [Unit]
 Description=HashBurst HVM mainnet public EVM gateway
@@ -182,12 +183,34 @@ UNIT
  cp -f \"\$V\" /root/.hvm-mainnet-vhost.pre-r9
  python3 - <<'PY'
 from pathlib import Path
-p=Path('/etc/nginx/sites-available/blockchainapi.one.conf');s=p.read_text()
-a='    include /etc/nginx/snippets/hvm-testnet-routes.conf;'
-m='    include /etc/nginx/snippets/hvm-mainnet-evm.conf;'
-if m not in s:
- assert s.count(a)==1
- s=s.replace(a,a+'\n'+m,1);p.write_text(s)
+p=Path('/etc/nginx/sites-available/blockchainapi.one.conf')
+lines=p.read_text().splitlines()
+blocks=[]; depth=0; start=None; server_depth=None
+for i,line in enumerate(lines):
+    stripped=line.split('#',1)[0]
+    before=depth
+    if start is None and stripped.strip().startswith('server') and '{' in stripped:
+        start=i; server_depth=before
+    depth += stripped.count('{') - stripped.count('}')
+    if start is not None and depth == server_depth:
+        blocks.append((start,i)); start=None; server_depth=None
+targets=[]
+for a,b in blocks:
+    block='\n'.join(lines[a:b+1])
+    if 'server_name' in block and 'blockchainapi.one' in block and any('listen' in x and '443' in x and 'ssl' in x for x in lines[a:b+1]):
+        targets.append((a,b))
+assert len(targets)==1, f'expected one blockchainapi.one HTTPS server, found {len(targets)}'
+a,b=targets[0]
+anchor='    include /etc/nginx/snippets/hvm-testnet-routes.conf;'
+mainnet='    include /etc/nginx/snippets/hvm-mainnet-evm.conf;'
+inside=lines[a:b+1]
+if mainnet in lines:
+    assert lines.count(mainnet)==1 and mainnet in inside, 'mainnet include exists outside canonical HTTPS server'
+else:
+    assert inside.count(anchor)==1, 'testnet route anchor missing or ambiguous in HTTPS server'
+    pos=a+inside.index(anchor)+1
+    lines.insert(pos,mainnet)
+    p.write_text('\n'.join(lines)+'\n')
 PY
  systemctl daemon-reload;systemctl enable --now '$GW_SERVICE'
  for n in \$(seq 1 30); do
@@ -199,8 +222,16 @@ PY
  echo HVM_R8B_MAINNET_EVM_GATEWAY_LOCAL_OK
  nginx -t;systemctl reload nginx
  nginx -T 2>&1 | grep -Fq 'include /etc/nginx/snippets/hvm-mainnet-evm.conf;'
- local_tls=\$(curl -fsS --max-time 15 --resolve blockchainapi.one:443:127.0.0.1 -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}' https://blockchainapi.one/api/hashburst/hvm/mainnet/evm)
- echo "\$local_tls" | grep -q '"0x484201"'
+ local_tls=
+ for n in \$(seq 1 15); do
+   local_tls=\$(curl -sS --max-time 15 --resolve blockchainapi.one:443:127.0.0.1 -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}' https://blockchainapi.one/api/hashburst/hvm/mainnet/evm 2>/dev/null || true)
+   echo "\$local_tls" | grep -q '"0x484201"' && break
+   sleep 1
+ done
+ if ! echo "\$local_tls" | grep -q '"0x484201"'; then
+   /root/hashburst-hvm-mainnet-nginx-diagnostics.sh || true
+   exit 22
+ fi
  echo HVM_R8B_NGINX_LOCAL_TLS_SNI_ROUTE_OK
  systemctl is-active --quiet hashburst-hvm-testnet-ingress.service"
 PUBLIC=https://blockchainapi.one/api/hashburst/hvm/mainnet/evm

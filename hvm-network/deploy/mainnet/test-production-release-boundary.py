@@ -32,6 +32,17 @@ assert "http://127.0.0.1:18021/rpc" in g
 assert "HVM_R8B_MAINNET_EVM_GATEWAY_LOCAL_OK" in g
 assert "--resolve blockchainapi.one:443:127.0.0.1" in g
 assert "HVM_R8B_NGINX_LOCAL_TLS_SNI_ROUTE_OK" in g
+assert "expected one blockchainapi.one HTTPS server" in g
+assert "mainnet include exists outside canonical HTTPS server" in g
+assert "testnet route anchor missing or ambiguous in HTTPS server" in g
+assert "for n in \\$(seq 1 15); do" in g
+assert "/root/hashburst-hvm-mainnet-nginx-diagnostics.sh || true" in g
+d=Path(__file__).with_name("diagnose-mainnet-nginx.sh").read_text()
+assert "nginx -T" in d
+assert "HTTPS_BLOCKS=" in d
+assert "http://127.0.0.1:18021/rpc" in d
+assert "--resolve blockchainapi.one:443:127.0.0.1" in d
+assert "x-hvm-evm:" in d
 assert "E=/etc/nginx/sites-enabled/blockchainapi.one.conf" in g
 assert 'test -L \\"\\$E\\"' in g
 assert 'readlink -f \\"\\$E\\"' in g and 'readlink -f \\"\\$V\\"' in g
