@@ -60,6 +60,24 @@ assert "HVM_R8D_WS_LOG_SEEN" in canary
 assert "HVM_R8D_WS_PARTIAL_EVIDENCE_EXTEND" in canary
 assert "websocket evidence timeout head_ok=%t log_ok=%t heads_seen=%d logs_seen=%d extended=%t" in canary
 assert "deadline.Reset(30*time.Second)" in canary
+assert "HVM_R8D_WS_NEWHEAD_CAPTURED_PRE_RECEIPT" in canary
+assert "HVM_R8D_WS_LOG_CAPTURED_PRE_RECEIPT" in canary
+assert 'go func(){r,e:=send(ctx,c,k,&rd.ContractAddress' in canary
+assert "for rc==nil { select {" in canary
+assert "bufferedHeads=append(bufferedHeads,h)" in canary
+assert "bufferedLogs=append(bufferedLogs,l)" in canary
+assert "var bufferedHeads []*canonicalHead" in canary
+assert "match:=h.Hash==rc.BlockHash" in canary
+assert "h.Hash()" not in canary
+assert canary.index('EthSubscribe(ctx,logs,"logs"') < canary.index('go func(){r,e:=send(ctx,c,k,&rd.ContractAddress')
+assert canary.index('EthSubscribe(ctx,heads,"newHeads"') < canary.index('go func(){r,e:=send(ctx,c,k,&rd.ContractAddress')
+assert "R8A_MINER_ADDRESS=0x0957c1f8802a58cf1E0eD1E866990Ea66f16236f" in g
+assert "HVM_R8C_CANONICAL_APOW_MINER_LIVE_OK" in g
+assert "HVM_R8C_FINALIZED_APOW_REWARD_OBSERVED_OK" in g
+assert "HVM_R8C_APOW_FAILURE_DIAGNOSTICS_BEGIN" in g
+assert "journalctl -u '$APOW_SERVICE' -n 120" in g
+assert "for n in $(seq 1 360);do" in g
+assert "bounded 720s acceptance window" in g
 assert "/var/lib/hashburst-apow-mainnet/miner.key" in g
 assert "HVM_R8E_CANONICAL_PRODUCTION_RELEASE_MANIFEST_OK" in g
 assert "HVM_R9_FINAL_PRODUCTION_ACTIVATION_DEPLOY_ACCEPTANCE_OK" in g
