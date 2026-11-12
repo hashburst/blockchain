@@ -97,3 +97,36 @@ func TestWebsocketEightSubscriptionsAndCleanup(t *testing.T) {
 		t.Fatal("upstream retained")
 	}
 }
+
+func TestWebsocketForwardsSubscriptionNotifications(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+		c, e := u.Upgrade(w, r, nil)
+		if e != nil { return }
+		defer c.Close()
+		for i := 0; i < 2; i++ {
+			_, raw, e := c.ReadMessage(); if e != nil { return }
+			var req request; if json.Unmarshal(raw, &req) != nil { return }
+			subID := "sub-head"; if i == 1 { subID = "sub-log" }
+			if e=c.WriteJSON(map[string]any{"jsonrpc":"2.0","id":req.ID,"result":subID});e!=nil{return}
+			result:=map[string]any{"number":"0x9","hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}
+			if i==1 { result=map[string]any{"transactionHash":"0x2222222222222222222222222222222222222222222222222222222222222222","blockHash":"0x1111111111111111111111111111111111111111111111111111111111111111"} }
+			if e=c.WriteJSON(map[string]any{"jsonrpc":"2.0","method":"eth_subscription","params":map[string]any{"subscription":subID,"result":result}});e!=nil{return}
+		}
+	}))
+	defer up.Close()
+	g := httptest.NewServer(New("", "ws"+strings.TrimPrefix(up.URL,"http"), "https://blockchainapi.one"))
+	defer g.Close()
+	c,_,e:=websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(g.URL,"http")+"/ws",nil);if e!=nil{t.Fatal(e)}
+	defer c.Close();c.SetReadDeadline(time.Now().Add(3*time.Second))
+	for i,kind:=range []string{"newHeads","logs"} {
+		params:=[]any{kind};if kind=="logs"{params=append(params,map[string]any{"address":"0x0000000000000000000000000000000000000001"})}
+		if e=c.WriteJSON(map[string]any{"jsonrpc":"2.0","id":i+1,"method":"eth_subscribe","params":params});e!=nil{t.Fatal(e)}
+		for n:=0;n<2;n++ {
+			_,raw,e:=c.ReadMessage();if e!=nil{t.Fatal(e)}
+			var msg map[string]any;if json.Unmarshal(raw,&msg)!=nil{t.Fatal("invalid forwarded json")}
+			if n==0 && msg["id"]==nil{t.Fatalf("subscription response not forwarded: %s",raw)}
+			if n==1 && msg["method"]!="eth_subscription"{t.Fatalf("notification not forwarded: %s",raw)}
+		}
+	}
+}
