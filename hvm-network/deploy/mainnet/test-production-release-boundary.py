@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from pathlib import Path
 g=Path(__file__).with_name("run-production-release.sh").read_text()
-r=Path(__file__).with_name("mainnet-evm-routes.conf").read_text()
-assert "R8A_RUN=42761659413" in g
+r=Path(__file__).with_name("mainnet-evm-routes.conf").read_text()\nm=(Path(__file__).resolve().parents[2]/"cmd/hvm-mainnet-evm-gateway/main.go").read_text()
+assert 'evmgateway.New(\"http://127.0.0.1:18019/evm\", \"ws://127.0.0.1:18019/evm/ws\"' in m\nassert \"127.0.0.1:18020\" not in m\nassert \"R8A_RUN=42761659413\" in g
 assert "R8A_ARTIFACT_DIGEST=2b80e4ed1b24656c9d29ebc62e7b834ee18d39c15eb4d55183793b713abc3b85" in g
 assert "HVM_R8B_VALIDATOR_AT_REST_AND_TESTNET_OBSERVER_PRESERVED_OK" in g
 assert "sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | cut -d ' ' -f1" in g
@@ -25,6 +25,10 @@ assert "--config '$OBS_ETC/node.json' --check" in g
 assert "HVM_R8B_MAINNET_OBSERVER_EXISTING_PIN_REVALIDATED_OK" in g
 assert "HVM_R8B_MAINNET_OBSERVER_FRESH_PROVISION_OK" in g
 assert "HVM_R8B_OBSERVER_BACKED_PUBLIC_RPC_INGRESS_ACCEPTANCE_OK" in g
+assert "http://127.0.0.1:18021/rpc" in g
+assert "HVM_R8B_MAINNET_EVM_GATEWAY_LOCAL_OK" in g
+assert "--resolve blockchainapi.one:443:127.0.0.1" in g
+assert "HVM_R8B_NGINX_LOCAL_TLS_SNI_ROUTE_OK" in g
 assert "E=/etc/nginx/sites-enabled/blockchainapi.one.conf" in g
 assert 'test -L \\"\\$E\\"' in g
 assert 'readlink -f \\"\\$E\\"' in g and 'readlink -f \\"\\$V\\"' in g

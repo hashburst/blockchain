@@ -189,8 +189,19 @@ if m not in s:
  assert s.count(a)==1
  s=s.replace(a,a+'\n'+m,1);p.write_text(s)
 PY
- systemctl daemon-reload;systemctl enable --now '$GW_SERVICE';nginx -t;systemctl reload nginx
+ systemctl daemon-reload;systemctl enable --now '$GW_SERVICE'
+ for n in \$(seq 1 30); do
+   out=\$(curl -fsS --max-time 5 -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}' http://127.0.0.1:18021/rpc 2>/dev/null || true)
+   echo "\$out" | grep -q '"0x484201"' && break
+   sleep 1
+ done
+ echo "\$out" | grep -q '"0x484201"'
+ echo HVM_R8B_MAINNET_EVM_GATEWAY_LOCAL_OK
+ nginx -t;systemctl reload nginx
  nginx -T 2>&1 | grep -Fq 'include /etc/nginx/snippets/hvm-mainnet-evm.conf;'
+ local_tls=\$(curl -fsS --max-time 15 --resolve blockchainapi.one:443:127.0.0.1 -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}' https://blockchainapi.one/api/hashburst/hvm/mainnet/evm)
+ echo "\$local_tls" | grep -q '"0x484201"'
+ echo HVM_R8B_NGINX_LOCAL_TLS_SNI_ROUTE_OK
  systemctl is-active --quiet hashburst-hvm-testnet-ingress.service"
 PUBLIC=https://blockchainapi.one/api/hashburst/hvm/mainnet/evm
 for n in $(seq 1 30);do
