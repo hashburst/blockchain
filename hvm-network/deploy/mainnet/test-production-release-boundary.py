@@ -55,6 +55,14 @@ assert "HVM_R8D_WS_LOG_SEEN" in canary
 assert "HVM_R8D_WS_PARTIAL_EVIDENCE_EXTEND" in canary
 assert "websocket evidence timeout head_ok=%t log_ok=%t heads_seen=%d logs_seen=%d extended=%t" in canary
 assert "deadline.Reset(30*time.Second)" in canary
+assert "HVM_R8D_WS_NEWHEAD_CAPTURED_PRE_RECEIPT" in canary
+assert "HVM_R8D_WS_LOG_CAPTURED_PRE_RECEIPT" in canary
+assert 'go func(){r,e:=send(ctx,c,k,&rd.ContractAddress' in canary
+assert "for rc==nil { select {" in canary
+assert "bufferedHeads=append(bufferedHeads,h)" in canary
+assert "bufferedLogs=append(bufferedLogs,l)" in canary
+assert canary.index('EthSubscribe(ctx,logs,"logs"') < canary.index('go func(){r,e:=send(ctx,c,k,&rd.ContractAddress')
+assert canary.index('EthSubscribe(ctx,heads,"newHeads"') < canary.index('go func(){r,e:=send(ctx,c,k,&rd.ContractAddress')
 assert "/var/lib/hashburst-apow-mainnet/miner.key" in g
 assert "HVM_R8E_CANONICAL_PRODUCTION_RELEASE_MANIFEST_OK" in g
 assert "HVM_R9_FINAL_PRODUCTION_ACTIVATION_DEPLOY_ACCEPTANCE_OK" in g
