@@ -137,14 +137,24 @@ echo "HVM_R8B_MAINNET_OBSERVER_STAGED_UNSIGNED_OK peer_id=$PEER" | tee -a "$LOG"
 
 for ip in "${VALIDATORS[@]}";do remote "$ip" "systemctl enable --now '$VSERVICE'";done
 remote 77.90.188.153 "systemctl enable --now '$APOW_SERVICE'"
-for n in $(seq 1 60);do
+for n in $(seq 1 120);do
  ok=1
  for ip in "${VALIDATORS[@]}";do
-  remote "$ip" "body=\$(curl -fsS http://127.0.0.1:18019/health 2>/dev/null || true); test -n \"\$body\"; python3 -c 'import json,sys;d=json.loads(sys.argv[1]);assert d[\"ok\"] and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=3' \"\$body\"" >/dev/null 2>&1||ok=0
+  remote "$ip" "body=\$(curl -fsS --max-time 3 http://127.0.0.1:18019/health 2>/dev/null || true); test -n \"\$body\"; python3 -c 'import json,sys;d=json.loads(sys.argv[1]);assert d[\"ok\"] and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=3' \"\$body\"" >/dev/null 2>&1||ok=0
  done
- ((ok==1))&&break;sleep 2
+ ((ok==1))&&break
+ if ((n%15==0));then echo "HVM_R8B_VALIDATOR_FEDERATION_WAIT attempt=$n" | tee -a "$LOG";fi
+ sleep 2
 done
-((ok==1))||fail "validator fleet health/quorum timeout"
+if ((ok!=1));then
+ echo HVM_R8B_VALIDATOR_FEDERATION_DIAGNOSTICS_BEGIN | tee -a "$LOG"
+ for ip in "${VALIDATORS[@]}";do
+  echo "HVM_R8B_VALIDATOR_DIAGNOSTIC host=$ip" | tee -a "$LOG"
+  remote "$ip" "echo SERVICE_ACTIVE=\$(systemctl is-active '$VSERVICE' || true); echo SERVICE_ENABLED=\$(systemctl is-enabled '$VSERVICE' || true); echo HEALTH_BEGIN; curl -sS --max-time 5 http://127.0.0.1:18019/health || true; echo; echo HEALTH_END; echo JOURNAL_BEGIN; journalctl -u '$VSERVICE' -n 80 --no-pager -o cat || true; echo JOURNAL_END" | tee -a "$LOG" || true
+ done
+ echo HVM_R8B_VALIDATOR_FEDERATION_DIAGNOSTICS_END | tee -a "$LOG"
+ fail "validator fleet health/quorum timeout"
+fi
 echo HVM_R9_VALIDATOR_FEDERATION_ACTIVE_4OF4_OK | tee -a "$LOG"
 
 remote "$OBSERVER" "systemctl enable --now '$OBS_SERVICE'"
