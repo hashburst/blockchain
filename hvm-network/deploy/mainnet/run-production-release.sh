@@ -21,6 +21,7 @@ R6=/var/lib/hashburst-actions/mainnet-evidence/founder-signed-checkpoints/run-42
 R8A_SOURCE=5a5a43c517dabe6aaec80c1df6d8ce0cadd0cf08
 R8A_RUN=42761659413
 R8A_ARTIFACT_DIGEST=2b80e4ed1b24656c9d29ebc62e7b834ee18d39c15eb4d55183793b713abc3b85
+R8A_MINER_ADDRESS=0x0957c1f8802a58cf1E0eD1E866990Ea66f16236f
 LOG="$REPO/mainnet-production-release.log"
 EVIDENCE="$REPO/mainnet-production-release.json"
 SSH=(ssh -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
@@ -138,7 +139,9 @@ for ip in "${VALIDATORS[@]}";do remote "$ip" "systemctl enable --now '$VSERVICE'
 remote 77.90.188.153 "systemctl enable --now '$APOW_SERVICE'"
 for n in $(seq 1 60);do
  ok=1
- for ip in "${VALIDATORS[@]}";do remote "$ip" "curl -fsS http://127.0.0.1:18019/health | python3 -c 'import json,sys;d=json.load(sys.stdin);assert d[\"ok\"] and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=3'" >/dev/null||ok=0;done
+ for ip in "${VALIDATORS[@]}";do
+  remote "$ip" "body=\$(curl -fsS http://127.0.0.1:18019/health 2>/dev/null || true); test -n \"\$body\"; python3 -c 'import json,sys;d=json.loads(sys.argv[1]);assert d[\"ok\"] and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=3' \"\$body\"" >/dev/null 2>&1||ok=0
+ done
  ((ok==1))&&break;sleep 2
 done
 ((ok==1))||fail "validator fleet health/quorum timeout"
@@ -246,11 +249,24 @@ echo HVM_R8B_OBSERVER_BACKED_PUBLIC_RPC_INGRESS_ACCEPTANCE_OK | tee -a "$LOG"
 
 copy "$REPO/hvm-mainnet-production-canary" 77.90.188.153 /opt/hashburst-apow-mainnet/hvm-mainnet-production-canary
 remote 77.90.188.153 "chmod 0755 /opt/hashburst-apow-mainnet/hvm-mainnet-production-canary; chown root:root /opt/hashburst-apow-mainnet/hvm-mainnet-production-canary"
-for n in $(seq 1 90);do
- bal=$(curl -fsS -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_getBalance","params":["0x0957c1f8802a58cf1E0eD1E866990Ea66f16236f","latest"]}' "$PUBLIC"|python3 -c 'import json,sys;print(int(json.load(sys.stdin)["result"],16))')
- ((bal>0))&&break;sleep 2
+miner_identity=$(remote 77.90.188.153 "set -euo pipefail; systemctl is-active --quiet '$APOW_SERVICE'; systemctl is-enabled --quiet '$APOW_SERVICE'; runuser -u hashburst-apow-miner -- /opt/hashburst-apow-mainnet/hvm-apow-miner --key-file /var/lib/hashburst-apow-mainnet/miner.key --identity-only")
+test "$miner_identity" = "APOW_MINER_ADDRESS=$R8A_MINER_ADDRESS" || fail "live APoW miner identity differs from canonical R8A identity: $miner_identity"
+echo "HVM_R8C_CANONICAL_APOW_MINER_LIVE_OK address=$R8A_MINER_ADDRESS" | tee -a "$LOG"
+bal=0
+for n in $(seq 1 360);do
+ body=$(curl -fsS --max-time 10 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_getBalance","params":["'$R8A_MINER_ADDRESS'","latest"]}' "$PUBLIC" 2>/dev/null || true)
+ if test -n "$body"; then bal=$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(int(d["result"],16))' "$body" 2>/dev/null || echo 0); fi
+ ((bal>0))&&break
+ if ((n%30==0)); then
+   remote 77.90.188.153 "echo HVM_R8C_APOW_WAIT attempt=$n; systemctl is-active '$APOW_SERVICE'; journalctl -u '$APOW_SERVICE' -n 8 --no-pager -o cat | tail -n 8" | tee -a "$LOG" || true
+ fi
+ sleep 2
 done
-((bal>0))||fail "R8A miner identity did not receive finalized APoW reward"
+if ((bal<=0)); then
+ remote 77.90.188.153 "echo HVM_R8C_APOW_FAILURE_DIAGNOSTICS_BEGIN; systemctl status '$APOW_SERVICE' --no-pager -l || true; journalctl -u '$APOW_SERVICE' -n 120 --no-pager -o cat || true; echo HVM_R8C_APOW_JOB_SNAPSHOT; curl -fsS --max-time 10 http://127.0.0.1:18019/apow || true; echo; echo HVM_R8C_APOW_HEALTH_SNAPSHOT; curl -fsS --max-time 10 http://127.0.0.1:18019/health || true; echo; echo HVM_R8C_APOW_FAILURE_DIAGNOSTICS_END" | tee -a "$LOG" || true
+ fail "canonical R8A miner did not receive a finalized APoW reward within bounded 720s acceptance window"
+fi
+echo "HVM_R8C_FINALIZED_APOW_REWARD_OBSERVED_OK address=$R8A_MINER_ADDRESS balance=$bal" | tee -a "$LOG"
 remote 77.90.188.153 "/opt/hashburst-apow-mainnet/hvm-mainnet-production-canary --key /var/lib/hashburst-apow-mainnet/miner.key --out /tmp/mainnet-r8c-r8d-canary.json"
 SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" root@77.90.188.153:/tmp/mainnet-r8c-r8d-canary.json "$REPO/mainnet-r8c-r8d-canary.json"
 echo HVM_R8C_R8D_PUBLIC_CANARY_EVIDENCE_COLLECTED_OK | tee -a "$LOG"
