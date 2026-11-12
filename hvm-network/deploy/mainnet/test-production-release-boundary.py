@@ -51,6 +51,11 @@ assert "admin_peers" in g and "-32601" in g
 assert "HVM_R8C_R8D_PUBLIC_CANARY_EVIDENCE_COLLECTED_OK" in g
 canary=(Path(__file__).resolve().parents[2]/"cmd/hvm-mainnet-production-canary/main.go").read_text()
 assert "HVM_R8D_WS_NEWHEAD_SEEN" in canary
+assert "type canonicalHead struct" in canary
+assert 'Hash common.Hash `json:"hash"`' in canary
+assert "make(chan *canonicalHead,8)" in canary
+assert "h.Hash==rc.BlockHash" in canary
+assert "h.Hash()==rc.BlockHash" not in canary
 assert "HVM_R8D_WS_LOG_SEEN" in canary
 assert "HVM_R8D_WS_PARTIAL_EVIDENCE_EXTEND" in canary
 assert "websocket evidence timeout head_ok=%t log_ok=%t heads_seen=%d logs_seen=%d extended=%t" in canary

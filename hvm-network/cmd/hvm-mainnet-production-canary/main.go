@@ -22,6 +22,10 @@ import (
 const chainID int64 = 4735489
 const contractInit = "600b600c600039600b6000f3602a60005560006000a000"
 
+type canonicalHead struct {
+  Hash common.Hash `json:"hash"`
+}
+
 func key(path string) (*ecdsa.PrivateKey,error) {
   st,e:=os.Lstat(path); if e!=nil{return nil,e}
   if !st.Mode().IsRegular() || st.Mode().Perm()&0077!=0{return nil,fmt.Errorf("private key permissions invalid")}
@@ -61,7 +65,7 @@ func main(){
   bal,e:=c.BalanceAt(ctx,from,nil);if e!=nil||bal.Sign()<=0{panic("miner key not funded by finalized APoW reward")}
 
   ws,e:=rpc.DialWebsocket(ctx,*wsURL,"https://blockchainapi.one");if e!=nil{panic(e)};defer ws.Close()
-  heads:=make(chan *types.Header,8);subH,e:=ws.EthSubscribe(ctx,heads,"newHeads");if e!=nil{panic(e)};defer subH.Unsubscribe()
+  heads:=make(chan *canonicalHead,8);subH,e:=ws.EthSubscribe(ctx,heads,"newHeads");if e!=nil{panic(e)};defer subH.Unsubscribe()
 
   r1,e:=send(ctx,c,k,&from,big.NewInt(1),nil);if e!=nil||r1.Status!=1{panic("transfer acceptance failed")}
   init, _:=hex.DecodeString(contractInit)
@@ -82,8 +86,8 @@ func main(){
     if h!=nil {
       headsSeen++
       if firstHeadAt.IsZero(){firstHeadAt=time.Now()}
-      fmt.Printf("HVM_R8D_WS_NEWHEAD_SEEN count=%d hash=%s target=%s match=%t\\n",headsSeen,h.Hash().Hex(),rc.BlockHash.Hex(),h.Hash()==rc.BlockHash)
-      if h.Hash()==rc.BlockHash{headOK=true}
+      fmt.Printf("HVM_R8D_WS_NEWHEAD_SEEN count=%d hash=%s target=%s match=%t\\n",headsSeen,h.Hash.Hex(),rc.BlockHash.Hex(),h.Hash==rc.BlockHash)
+      if h.Hash==rc.BlockHash{headOK=true}
     }
   case l:=<-logs:
     logsSeen++
