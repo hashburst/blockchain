@@ -25,6 +25,10 @@ assert "--config '$OBS_ETC/node.json' --check" in g
 assert "HVM_R8B_MAINNET_OBSERVER_EXISTING_PIN_REVALIDATED_OK" in g
 assert "HVM_R8B_MAINNET_OBSERVER_FRESH_PROVISION_OK" in g
 assert "HVM_R8B_OBSERVER_BACKED_PUBLIC_RPC_INGRESS_ACCEPTANCE_OK" in g
+assert "http://127.0.0.1:18021/rpc" in g
+assert "HVM_R8B_MAINNET_EVM_GATEWAY_LOCAL_OK" in g
+assert "--resolve blockchainapi.one:443:127.0.0.1" in g
+assert "HVM_R8B_NGINX_LOCAL_TLS_SNI_ROUTE_OK" in g
 assert "E=/etc/nginx/sites-enabled/blockchainapi.one.conf" in g
 assert 'test -L \\"\\$E\\"' in g
 assert 'readlink -f \\"\\$E\\"' in g and 'readlink -f \\"\\$V\\"' in g
