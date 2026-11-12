@@ -185,14 +185,15 @@ UNIT
 from pathlib import Path
 p=Path('/etc/nginx/sites-available/blockchainapi.one.conf')
 lines=p.read_text().splitlines()
-blocks=[]; depth=0; start=None
+blocks=[]; depth=0; start=None; server_depth=None
 for i,line in enumerate(lines):
     stripped=line.split('#',1)[0]
+    before=depth
     if start is None and stripped.strip().startswith('server') and '{' in stripped:
-        start=i
+        start=i; server_depth=before
     depth += stripped.count('{') - stripped.count('}')
-    if start is not None and depth == 0:
-        blocks.append((start,i)); start=None
+    if start is not None and depth == server_depth:
+        blocks.append((start,i)); start=None; server_depth=None
 targets=[]
 for a,b in blocks:
     block='\n'.join(lines[a:b+1])
