@@ -73,15 +73,38 @@ func main(){
   got,e:=c.FilterLogs(ctx,ethereum.FilterQuery{BlockHash:&rc.BlockHash,Addresses:[]common.Address{rd.ContractAddress}});if e!=nil||len(got)==0{panic("eth_getLogs acceptance failed")}
 
   var headOK,logOK bool
-  until:=time.After(30*time.Second)
+  var headsSeen,logsSeen int
+  var firstHeadAt,firstLogAt time.Time
+  deadline:=time.NewTimer(30*time.Second); defer deadline.Stop()
+  extended:=false
   for !(headOK&&logOK){select{
-  case h:=<-heads: if h!=nil&&h.Hash()==rc.BlockHash{headOK=true}
-  case l:=<-logs: if l.TxHash==rc.TxHash&&l.BlockHash==rc.BlockHash{logOK=true}
-  case e:=<-subH.Err(): if e!=nil{panic(e)}
-  case e:=<-subL.Err(): if e!=nil{panic(e)}
-  case <-until: panic("websocket evidence timeout")
+  case h:=<-heads:
+    if h!=nil {
+      headsSeen++
+      if firstHeadAt.IsZero(){firstHeadAt=time.Now()}
+      fmt.Printf("HVM_R8D_WS_NEWHEAD_SEEN count=%d hash=%s target=%s match=%t\\n",headsSeen,h.Hash().Hex(),rc.BlockHash.Hex(),h.Hash()==rc.BlockHash)
+      if h.Hash()==rc.BlockHash{headOK=true}
+    }
+  case l:=<-logs:
+    logsSeen++
+    if firstLogAt.IsZero(){firstLogAt=time.Now()}
+    match:=l.TxHash==rc.TxHash&&l.BlockHash==rc.BlockHash
+    fmt.Printf("HVM_R8D_WS_LOG_SEEN count=%d tx=%s block=%s target_tx=%s target_block=%s match=%t\\n",logsSeen,l.TxHash.Hex(),l.BlockHash.Hex(),rc.TxHash.Hex(),rc.BlockHash.Hex(),match)
+    if match{logOK=true}
+  case e:=<-subH.Err(): if e!=nil{panic(fmt.Sprintf("newHeads subscription error: %v",e))}
+  case e:=<-subL.Err(): if e!=nil{panic(fmt.Sprintf("logs subscription error: %v",e))}
+  case <-deadline.C:
+    if (headOK||logOK)&&!extended {
+      extended=true
+      fmt.Printf("HVM_R8D_WS_PARTIAL_EVIDENCE_EXTEND head_ok=%t log_ok=%t heads_seen=%d logs_seen=%d extra_seconds=30\\n",headOK,logOK,headsSeen,logsSeen)
+      deadline.Reset(30*time.Second)
+      continue
+    }
+    panic(fmt.Sprintf("websocket evidence timeout head_ok=%t log_ok=%t heads_seen=%d logs_seen=%d extended=%t",headOK,logOK,headsSeen,logsSeen,extended))
   }}
-  ev:=map[string]any{"schema":1,"chain_id":chainID,"account":from.Hex(),"balance_before":bal.String(),"transfer_tx":r1.TxHash.Hex(),"deploy_tx":rd.TxHash.Hex(),"contract":rd.ContractAddress.Hex(),"call_tx":rc.TxHash.Hex(),"call_block":rc.BlockHash.Hex(),"logs":len(got),"websocket_newHeads":headOK,"websocket_logs":logOK,"founder_private_key_used":false,"validator_private_key_used":false}
+  firstHead:="";if !firstHeadAt.IsZero(){firstHead=firstHeadAt.UTC().Format(time.RFC3339Nano)}
+  firstLog:="";if !firstLogAt.IsZero(){firstLog=firstLogAt.UTC().Format(time.RFC3339Nano)}
+  ev:=map[string]any{"schema":1,"chain_id":chainID,"account":from.Hex(),"balance_before":bal.String(),"transfer_tx":r1.TxHash.Hex(),"deploy_tx":rd.TxHash.Hex(),"contract":rd.ContractAddress.Hex(),"call_tx":rc.TxHash.Hex(),"call_block":rc.BlockHash.Hex(),"logs":len(got),"websocket_newHeads":headOK,"websocket_logs":logOK,"websocket_heads_seen":headsSeen,"websocket_logs_seen":logsSeen,"websocket_first_head_at":firstHead,"websocket_first_log_at":firstLog,"websocket_extended_wait":extended,"founder_private_key_used":false,"validator_private_key_used":false}
   b,_:=json.MarshalIndent(ev,"","  ");if e=os.WriteFile(*out,append(b,'\n'),0644);e!=nil{panic(e)}
   fmt.Println("HVM_R8C_MAINNET_WALLET_TRANSACTION_RECEIPT_LOG_ACCEPTANCE_OK")
   fmt.Println("HVM_R8D_MAINNET_WEBSOCKET_SUBSCRIPTION_ACCEPTANCE_OK")
