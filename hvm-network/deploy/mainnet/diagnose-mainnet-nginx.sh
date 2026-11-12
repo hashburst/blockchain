@@ -17,12 +17,12 @@ nginx -t 2>&1 || true
 echo "=== EFFECTIVE_HTTPS_VHOST ==="
 nginx -T 2>&1 | python3 -c '
 import sys
-lines=sys.stdin.read().splitlines(); blocks=[]; depth=0; start=None
+lines=sys.stdin.read().splitlines(); blocks=[]; depth=0; start=None; server_depth=None
 for i,line in enumerate(lines):
-    s=line.split("#",1)[0]
-    if start is None and s.strip().startswith("server") and "{" in s: start=i
+    s=line.split("#",1)[0]; before=depth
+    if start is None and s.strip().startswith("server") and "{" in s: start=i; server_depth=before
     depth += s.count("{")-s.count("}")
-    if start is not None and depth==0:
+    if start is not None and depth==server_depth:
         block=lines[start:i+1]
         text="\n".join(block)
         if "server_name" in text and "blockchainapi.one" in text and any("listen" in x and "443" in x and "ssl" in x for x in block):
