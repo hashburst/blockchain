@@ -28,6 +28,13 @@ assert "--config '$OBS_ETC/node.json' --check" in g
 assert "HVM_R8B_MAINNET_OBSERVER_EXISTING_PIN_REVALIDATED_OK" in g
 assert "HVM_R8B_MAINNET_OBSERVER_FRESH_PROVISION_OK" in g
 assert "HVM_R8B_OBSERVER_BACKED_PUBLIC_RPC_INGRESS_ACCEPTANCE_OK" in g
+assert "for n in $(seq 1 120);do" in g
+assert "curl -fsS --max-time 3 http://127.0.0.1:18019/health" in g
+assert "HVM_R8B_VALIDATOR_FEDERATION_WAIT" in g
+assert "HVM_R8B_VALIDATOR_FEDERATION_DIAGNOSTICS_BEGIN" in g
+assert "HVM_R8B_VALIDATOR_DIAGNOSTIC host=$ip" in g
+assert "journalctl -u '$VSERVICE' -n 80" in g
+assert "HVM_R8B_VALIDATOR_FEDERATION_DIAGNOSTICS_END" in g
 assert "http://127.0.0.1:18021/rpc" in g
 assert "HVM_R8B_MAINNET_EVM_GATEWAY_LOCAL_OK" in g
 assert "--resolve blockchainapi.one:443:127.0.0.1" in g
