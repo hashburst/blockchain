@@ -72,8 +72,13 @@ assert "h.Hash()" not in canary
 assert canary.index('EthSubscribe(ctx,logs,"logs"') < canary.index('go func(){r,e:=send(ctx,c,k,&rd.ContractAddress')
 assert canary.index('EthSubscribe(ctx,heads,"newHeads"') < canary.index('go func(){r,e:=send(ctx,c,k,&rd.ContractAddress')
 assert "R8A_MINER_ADDRESS=0x0957c1f8802a58cf1E0eD1E866990Ea66f16236f" in g
-assert "HVM_R8C_CANONICAL_APOW_MINER_LIVE_OK" in g
-assert "HVM_R8C_FINALIZED_APOW_REWARD_OBSERVED_OK" in g
+assert "HVM_R8C_APOW_WORKER_IDENTITY_AND_JOB_OK" in g
+assert "APoW worker endpoint did not expose a valid mainnet job" in g
+assert "APOW_SUBMITTED height=" in g
+assert "HVM_R8C_APOW_REWARD_DIAGNOSTIC" in g
+assert "start_height=" in g and "end_height=" in g
+assert "HVM_R8C_FINALIZED_APOW_REWARD_OK" in g
+assert "finalized APoW reward observed without local APoW submission evidence" in g
 assert "HVM_R8C_APOW_FAILURE_DIAGNOSTICS_BEGIN" in g
 assert "journalctl -u '$APOW_SERVICE' -n 120" in g
 assert "for n in $(seq 1 360);do" in g
