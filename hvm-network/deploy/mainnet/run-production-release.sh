@@ -251,22 +251,34 @@ copy "$REPO/hvm-mainnet-production-canary" 77.90.188.153 /opt/hashburst-apow-mai
 remote 77.90.188.153 "chmod 0755 /opt/hashburst-apow-mainnet/hvm-mainnet-production-canary; chown root:root /opt/hashburst-apow-mainnet/hvm-mainnet-production-canary"
 miner_identity=$(remote 77.90.188.153 "set -euo pipefail; systemctl is-active --quiet '$APOW_SERVICE'; systemctl is-enabled --quiet '$APOW_SERVICE'; runuser -u hashburst-apow-miner -- /opt/hashburst-apow-mainnet/hvm-apow-miner --key-file /var/lib/hashburst-apow-mainnet/miner.key --identity-only")
 test "$miner_identity" = "APOW_MINER_ADDRESS=$R8A_MINER_ADDRESS" || fail "live APoW miner identity differs from canonical R8A identity: $miner_identity"
-echo "HVM_R8C_CANONICAL_APOW_MINER_LIVE_OK address=$R8A_MINER_ADDRESS" | tee -a "$LOG"
+job=$(remote 77.90.188.153 "curl -fsS --max-time 5 http://127.0.0.1:18019/apow" 2>/dev/null || true)
+python3 - "$job" <<'PY' || fail "APoW worker endpoint did not expose a valid mainnet job"
+import json,sys
+d=json.loads(sys.argv[1])
+assert d["chain_id"]==4735489 and d["height"]>=9 and d["bits"]>=1
+PY
+echo "HVM_R8C_APOW_WORKER_IDENTITY_AND_JOB_OK address=$R8A_MINER_ADDRESS" | tee -a "$LOG"
 bal=0
+submitted=0
+start_height=$(curl -fsS --max-time 5 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":90,"method":"eth_blockNumber","params":[]}' "$PUBLIC" 2>/dev/null | python3 -c 'import json,sys;print(int(json.load(sys.stdin)["result"],16))' 2>/dev/null || echo 0)
 for n in $(seq 1 360);do
  body=$(curl -fsS --max-time 10 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_getBalance","params":["'$R8A_MINER_ADDRESS'","latest"]}' "$PUBLIC" 2>/dev/null || true)
  if test -n "$body"; then bal=$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(int(d["result"],16))' "$body" 2>/dev/null || echo 0); fi
+ if remote 77.90.188.153 "journalctl -u '$APOW_SERVICE' --since '-15 min' --no-pager -o cat | grep -Fq 'APOW_SUBMITTED height='" >/dev/null 2>&1; then submitted=1; fi
  ((bal>0))&&break
  if ((n%30==0)); then
    remote 77.90.188.153 "echo HVM_R8C_APOW_WAIT attempt=$n; systemctl is-active '$APOW_SERVICE'; journalctl -u '$APOW_SERVICE' -n 8 --no-pager -o cat | tail -n 8" | tee -a "$LOG" || true
  fi
  sleep 2
 done
+end_height=$(curl -fsS --max-time 5 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":91,"method":"eth_blockNumber","params":[]}' "$PUBLIC" 2>/dev/null | python3 -c 'import json,sys;print(int(json.load(sys.stdin)["result"],16))' 2>/dev/null || echo 0)
 if ((bal<=0)); then
  remote 77.90.188.153 "echo HVM_R8C_APOW_FAILURE_DIAGNOSTICS_BEGIN; systemctl status '$APOW_SERVICE' --no-pager -l || true; journalctl -u '$APOW_SERVICE' -n 120 --no-pager -o cat || true; echo HVM_R8C_APOW_JOB_SNAPSHOT; curl -fsS --max-time 10 http://127.0.0.1:18019/apow || true; echo; echo HVM_R8C_APOW_HEALTH_SNAPSHOT; curl -fsS --max-time 10 http://127.0.0.1:18019/health || true; echo; echo HVM_R8C_APOW_FAILURE_DIAGNOSTICS_END" | tee -a "$LOG" || true
+ echo "HVM_R8C_APOW_REWARD_DIAGNOSTIC address=$R8A_MINER_ADDRESS submitted=$submitted start_height=$start_height end_height=$end_height balance=$bal" | tee -a "$LOG"
  fail "canonical R8A miner did not receive a finalized APoW reward within bounded 720s acceptance window"
 fi
-echo "HVM_R8C_FINALIZED_APOW_REWARD_OBSERVED_OK address=$R8A_MINER_ADDRESS balance=$bal" | tee -a "$LOG"
+((submitted==1)) || fail "finalized APoW reward observed without local APoW submission evidence"
+echo "HVM_R8C_FINALIZED_APOW_REWARD_OK address=$R8A_MINER_ADDRESS balance=$bal start_height=$start_height end_height=$end_height" | tee -a "$LOG"
 remote 77.90.188.153 "/opt/hashburst-apow-mainnet/hvm-mainnet-production-canary --key /var/lib/hashburst-apow-mainnet/miner.key --out /tmp/mainnet-r8c-r8d-canary.json"
 SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" root@77.90.188.153:/tmp/mainnet-r8c-r8d-canary.json "$REPO/mainnet-r8c-r8d-canary.json"
 echo HVM_R8C_R8D_PUBLIC_CANARY_EVIDENCE_COLLECTED_OK | tee -a "$LOG"
