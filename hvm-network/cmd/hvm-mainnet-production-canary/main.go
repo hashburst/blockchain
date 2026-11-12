@@ -65,36 +65,67 @@ func main(){
   bal,e:=c.BalanceAt(ctx,from,nil);if e!=nil||bal.Sign()<=0{panic("miner key not funded by finalized APoW reward")}
 
   ws,e:=rpc.DialWebsocket(ctx,*wsURL,"https://blockchainapi.one");if e!=nil{panic(e)};defer ws.Close()
-  heads:=make(chan *canonicalHead,8);subH,e:=ws.EthSubscribe(ctx,heads,"newHeads");if e!=nil{panic(e)};defer subH.Unsubscribe()
-
   r1,e:=send(ctx,c,k,&from,big.NewInt(1),nil);if e!=nil||r1.Status!=1{panic("transfer acceptance failed")}
   init, _:=hex.DecodeString(contractInit)
   rd,e:=send(ctx,c,k,nil,big.NewInt(0),init);if e!=nil||rd.Status!=1||rd.ContractAddress==(common.Address{}){panic("deploy acceptance failed")}
-  logs:=make(chan types.Log,8)
+  logs:=make(chan types.Log,32)
   subL,e:=ws.EthSubscribe(ctx,logs,"logs",map[string]any{"address":rd.ContractAddress.Hex()});if e!=nil{panic(e)};defer subL.Unsubscribe()
-  rc,e:=send(ctx,c,k,&rd.ContractAddress,big.NewInt(0),nil);if e!=nil||rc.Status!=1{panic("contract call acceptance failed")}
+  heads:=make(chan *canonicalHead,32)
+  subH,e:=ws.EthSubscribe(ctx,heads,"newHeads");if e!=nil{panic(e)};defer subH.Unsubscribe()
+  type callResult struct{ r *types.Receipt; e error }
+  callDone:=make(chan callResult,1)
+  go func(){r,e:=send(ctx,c,k,&rd.ContractAddress,big.NewInt(0),nil);callDone<-callResult{r:r,e:e}}()
+
+  var rc *types.Receipt
+  var bufferedHeads []*canonicalHead
+  var bufferedLogs []types.Log
+  var firstHeadAt,firstLogAt time.Time
+  for rc==nil { select {
+  case h:=<-heads:
+    if h!=nil {
+      if firstHeadAt.IsZero(){firstHeadAt=time.Now()}
+      bufferedHeads=append(bufferedHeads,h)
+      fmt.Printf("HVM_R8D_WS_NEWHEAD_CAPTURED_PRE_RECEIPT count=%d hash=%s\\n",len(bufferedHeads),h.Hash.Hex())
+    }
+  case l:=<-logs:
+    if firstLogAt.IsZero(){firstLogAt=time.Now()}
+    bufferedLogs=append(bufferedLogs,l)
+    fmt.Printf("HVM_R8D_WS_LOG_CAPTURED_PRE_RECEIPT count=%d tx=%s block=%s\\n",len(bufferedLogs),l.TxHash.Hex(),l.BlockHash.Hex())
+  case cr:=<-callDone:
+    if cr.e!=nil||cr.r==nil||cr.r.Status!=1{panic("contract call acceptance failed")}
+    rc=cr.r
+  case e:=<-subH.Err(): if e!=nil{panic(fmt.Sprintf("newHeads subscription error: %v",e))}
+  case e:=<-subL.Err(): if e!=nil{panic(fmt.Sprintf("logs subscription error: %v",e))}
+  case <-ctx.Done(): panic("context expired while awaiting contract call")
+  }}
   if len(rc.Logs)==0{panic("receipt log missing")}
   got,e:=c.FilterLogs(ctx,ethereum.FilterQuery{BlockHash:&rc.BlockHash,Addresses:[]common.Address{rd.ContractAddress}});if e!=nil||len(got)==0{panic("eth_getLogs acceptance failed")}
 
   var headOK,logOK bool
-  var headsSeen,logsSeen int
-  var firstHeadAt,firstLogAt time.Time
+  headsSeen,logsSeen:=0,0
+  checkHead:=func(h *canonicalHead){
+    if h==nil{return};headsSeen++
+    match:=h.Hash==rc.BlockHash
+    fmt.Printf("HVM_R8D_WS_NEWHEAD_SEEN count=%d hash=%s target=%s match=%t\\n",headsSeen,h.Hash.Hex(),rc.BlockHash.Hex(),match)
+    if match{headOK=true}
+  }
+  checkLog:=func(l types.Log){
+    logsSeen++
+    match:=l.TxHash==rc.TxHash&&l.BlockHash==rc.BlockHash
+    fmt.Printf("HVM_R8D_WS_LOG_SEEN count=%d tx=%s block=%s target_tx=%s target_block=%s match=%t\\n",logsSeen,l.TxHash.Hex(),l.BlockHash.Hex(),rc.TxHash.Hex(),rc.BlockHash.Hex(),match)
+    if match{logOK=true}
+  }
+  for _,h:=range bufferedHeads{checkHead(h)}
+  for _,l:=range bufferedLogs{checkLog(l)}
   deadline:=time.NewTimer(30*time.Second); defer deadline.Stop()
   extended:=false
   for !(headOK&&logOK){select{
   case h:=<-heads:
-    if h!=nil {
-      headsSeen++
-      if firstHeadAt.IsZero(){firstHeadAt=time.Now()}
-      fmt.Printf("HVM_R8D_WS_NEWHEAD_SEEN count=%d hash=%s target=%s match=%t\\n",headsSeen,h.Hash.Hex(),rc.BlockHash.Hex(),h.Hash==rc.BlockHash)
-      if h.Hash==rc.BlockHash{headOK=true}
-    }
+    if firstHeadAt.IsZero(){firstHeadAt=time.Now()}
+    checkHead(h)
   case l:=<-logs:
-    logsSeen++
     if firstLogAt.IsZero(){firstLogAt=time.Now()}
-    match:=l.TxHash==rc.TxHash&&l.BlockHash==rc.BlockHash
-    fmt.Printf("HVM_R8D_WS_LOG_SEEN count=%d tx=%s block=%s target_tx=%s target_block=%s match=%t\\n",logsSeen,l.TxHash.Hex(),l.BlockHash.Hex(),rc.TxHash.Hex(),rc.BlockHash.Hex(),match)
-    if match{logOK=true}
+    checkLog(l)
   case e:=<-subH.Err(): if e!=nil{panic(fmt.Sprintf("newHeads subscription error: %v",e))}
   case e:=<-subL.Err(): if e!=nil{panic(fmt.Sprintf("logs subscription error: %v",e))}
   case <-deadline.C:
