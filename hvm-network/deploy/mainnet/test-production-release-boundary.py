@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from pathlib import Path
 g=Path(__file__).with_name("run-production-release.sh").read_text()
-r=Path(__file__).with_name("mainnet-evm-routes.conf").read_text()
-assert "R8A_RUN=42761659413" in g
+r=Path(__file__).with_name("mainnet-evm-routes.conf").read_text()\nm=(Path(__file__).resolve().parents[2]/"cmd/hvm-mainnet-evm-gateway/main.go").read_text()
+assert 'evmgateway.New(\"http://127.0.0.1:18019/evm\", \"ws://127.0.0.1:18019/evm/ws\"' in m\nassert \"127.0.0.1:18020\" not in m\nassert \"R8A_RUN=42761659413\" in g
 assert "R8A_ARTIFACT_DIGEST=2b80e4ed1b24656c9d29ebc62e7b834ee18d39c15eb4d55183793b713abc3b85" in g
 assert "HVM_R8B_VALIDATOR_AT_REST_AND_TESTNET_OBSERVER_PRESERVED_OK" in g
 assert "sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | cut -d ' ' -f1" in g
