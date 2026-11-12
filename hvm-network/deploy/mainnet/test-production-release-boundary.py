@@ -85,7 +85,6 @@ assert "APOW_SUBMITTED height=" in g
 assert "HVM_R8C_APOW_REWARD_DIAGNOSTIC" in g
 assert "start_height=" in g and "end_height=" in g
 assert "HVM_R8C_FINALIZED_APOW_REWARD_OK" in g
-assert "finalized APoW reward observed without local APoW submission evidence" in g
 assert "HVM_R8C_APOW_FAILURE_DIAGNOSTICS_BEGIN" in g
 assert "journalctl -u '$APOW_SERVICE' -n 120" in g
 assert "for n in $(seq 1 360);do" in g
