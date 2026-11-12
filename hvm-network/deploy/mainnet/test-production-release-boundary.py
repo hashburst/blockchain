@@ -53,7 +53,7 @@ canary=(Path(__file__).resolve().parents[2]/"cmd/hvm-mainnet-production-canary/m
 assert "HVM_R8D_WS_NEWHEAD_SEEN" in canary
 assert "type canonicalHead struct" in canary
 assert 'Hash common.Hash `json:"hash"`' in canary
-assert "make(chan *canonicalHead,8)" in canary
+assert "make(chan *canonicalHead,32)" in canary
 assert "h.Hash==rc.BlockHash" in canary
 assert "h.Hash()==rc.BlockHash" not in canary
 assert "HVM_R8D_WS_LOG_SEEN" in canary
