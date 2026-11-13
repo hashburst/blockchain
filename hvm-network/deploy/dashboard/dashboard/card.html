@@ -1,26 +1,39 @@
   <div class="view" id="view-hvm">
+    <style>
+      #view-hvm .hvm-network-switch{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 18px}
+      #view-hvm .hvm-network-switch .btn{min-width:132px;padding:10px 16px}
+      #view-hvm .hvm-network-switch .btn.active{font-weight:700}
+      #view-hvm .hvm-table-wrap{overflow-x:auto;margin:14px 0 18px}
+      #view-hvm table{width:100%;border-collapse:separate;border-spacing:0}
+      #view-hvm th,#view-hvm td{padding:11px 14px;vertical-align:top}
+      #view-hvm .section>p{margin:12px 0;line-height:1.55}
+      #view-hvm code{overflow-wrap:anywhere}
+    </style>
     <div class="section">
-      <div class="section-header"><div><div class="section-title">HVM Network</div><div class="section-sub">Live read-only mainnet observer status. Testnet remains preserved separately. Refreshes every 30 seconds while visible.</div></div>
+      <div class="section-header"><div><div class="section-title">HVM Network</div><div class="section-sub">Live read-only Testnet and Mainnet observer telemetry. Select a network below; refreshes every 30 seconds while visible.</div></div>
       <div><button class="btn" id="hvm-refresh" type="button">Refresh</button></div></div>
+      <div class="hvm-network-switch" role="group" aria-label="HVM network connection">
+        <button class="btn active" id="hvm-connect-mainnet" type="button" data-hvm-network="mainnet">Mainnet</button>
+        <button class="btn" id="hvm-connect-testnet" type="button" data-hvm-network="testnet">Testnet</button>
+      </div>
       <p id="hvm-status" role="status"></p><p id="hvm-time"></p>
-      <table><tbody>
-        <tr><th>Network</th><td>HashBurst HVM Mainnet</td></tr>
+      <div class="hvm-table-wrap"><table><tbody>
+        <tr><th>Network</th><td id="hvm-network"></td></tr>
         <tr><th>Status</th><td id="hvm-live"></td></tr>
-        <tr><th>Chain ID</th><td>4735489 (0x484201)</td></tr>
+        <tr><th>Chain ID</th><td id="hvm-chain"></td></tr>
         <tr><th>Block height</th><td id="hvm-height"></td></tr>
         <tr><th>Finalized height</th><td id="hvm-finalized"></td></tr>
         <tr><th>Progress</th><td id="hvm-progress"></td></tr>
         <tr><th>P2P peers</th><td><span id="hvm-peers"></span> <span class="section-sub">Observer connected peers</span></td></tr>
-        <tr><th>Validator federation</th><td>4 / 4 <span class="section-sub">R9 production acceptance</span></td></tr>
+        <tr><th>Validator federation</th><td id="hvm-federation"></td></tr>
         <tr><th>Consensus reactor</th><td id="hvm-reactor"></td></tr>
-        <tr><th>APoW</th><td>Active <span class="section-sub">production service; rewards require BFT finality</span></td></tr>
+        <tr><th>APoW / mining</th><td id="hvm-apow"></td></tr>
         <tr><th>EVM activation</th><td id="hvm-activation"></td></tr>
-        <tr><th>JSON-RPC</th><td><code>https://blockchainapi.one/api/hashburst/hvm/mainnet/evm</code><br><span id="hvm-rpc"></span></td></tr>
-        <tr><th>WebSocket</th><td><code>wss://blockchainapi.one/api/hashburst/hvm/mainnet/evm/ws</code></td></tr>
-        <tr><th>Testnet</th><td>4735490 (0x484202) — preserved</td></tr>
-        <tr><th>Legacy archive</th><td>1337 — preserved</td></tr>
-      </tbody></table>
-      <p>Mainnet production acceptance R9 completed on 12 November 2026. The public status endpoint exposes only the non-signing observer health view; administrative peer methods and validator keys are not exposed.</p>
-      <p class="section-sub">P2P peers is the observer's live connected-peer count and is distinct from the 4/4 validator federation acceptance. This panel sends no transactions.</p>
+        <tr><th>JSON-RPC</th><td><code id="hvm-rpc-url"></code><br><span id="hvm-rpc"></span></td></tr>
+        <tr><th>WebSocket</th><td><code id="hvm-ws-url"></code></td></tr>
+        <tr><th>Legacy archive</th><td>1337 — read-only archive</td></tr>
+      </tbody></table></div>
+      <p id="hvm-network-note"></p>
+      <p class="section-sub">P2P peers is the selected observer's live connected-peer count. Observer telemetry is read-only and exposes no validator or founder private keys. This panel sends no transactions.</p>
     </div>
   </div>
