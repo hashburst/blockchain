@@ -81,14 +81,45 @@ func Run(parent context.Context, s *State) error {
 			return
 		}
 		status, fresh := reactor.TryStatus()
+		height := s.Chain.Height()
+		finalized := s.Chain.FinalizedHeight()
+		peers := len(p.Host.Network().Peers())
+		apowEnabled := c.Protocol.APoWEnabledAt(height + 1)
+		spendingEnabled := c.Protocol.EVMEnabledAt(finalized)
+		miningActive := false
+		var lastAPoWHeight int
+		var lastAPoWAt string
+		if finalized >= 0 {
+			if block, blockErr := s.Chain.BlockAt(finalized); blockErr == nil && block != nil && block.APoW != nil {
+				lastAPoWHeight = block.Index
+				lastAPoWAt = block.Timestamp.UTC().Format(time.RFC3339)
+				window := 2 * time.Minute
+				if c.Protocol.APoW != nil && c.Protocol.APoW.TargetSeconds > 0 {
+					window = time.Duration(c.Protocol.APoW.TargetSeconds*2) * time.Second
+				}
+				miningActive = apowEnabled && time.Since(block.Timestamp) >= 0 && time.Since(block.Timestamp) <= window
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "network": c.Network, "node_id": c.NodeID, "role": c.Role, "chain_id": c.Protocol.ChainID, "config_digest": c.Pin(), "evm_activation_height": func() uint64 {
-			if c.Protocol.EVM != nil {
-				return c.Protocol.EVM.ActivationHeight
-			}
-			return 0
-		}(), "recovery": s.Chain.RecoveryStatus(), "height": s.Chain.Height(), "finalized_height": s.Chain.FinalizedHeight(), "peer_id": p.Host.ID().String(), "peer_count": len(p.Host.Network().Peers()), "reactor_running": reactor.Running(), "reactor_status_fresh": fresh, "reactor": status, "transport": network.Status()})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok": true, "network": c.Network, "node_id": c.NodeID, "role": c.Role,
+			"chain_id": c.Protocol.ChainID, "config_digest": c.Pin(),
+			"evm_activation_height": func() uint64 {
+				if c.Protocol.EVM != nil {
+					return c.Protocol.EVM.ActivationHeight
+				}
+				return 0
+			}(),
+			"recovery": s.Chain.RecoveryStatus(), "height": height, "finalized_height": finalized,
+			"peer_id": p.Host.ID().String(), "peer_count": peers,
+			"p2p_enabled": true, "connected_peers": peers,
+			"apow_enabled": apowEnabled, "mining_active": miningActive,
+			"last_apow_height": lastAPoWHeight, "last_apow_at": lastAPoWAt,
+			"spending_enabled": spendingEnabled,
+			"reactor_running": reactor.Running(), "reactor_status_fresh": fresh,
+			"reactor": status, "transport": network.Status(),
+		})
 	})
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 3 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
 	errs := make(chan error, 2)
