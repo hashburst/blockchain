@@ -12,9 +12,11 @@ def patch_ecosystem(text):
  newm="['HVM mainnet observer', '/api/hashburst/hvm/mainnet/network', d => d.ok === true && d.network === 'mainnet' && d.chain_id === 4735489 && d.role === 'observer' && Number.isSafeInteger(d.finalized_height)]"
  oldt="['HVM testnet observer', '/api/hashburst/hvm/testnet/health', d => d.chain_id === 4735490 && d.role === 'observer' && Number.isSafeInteger(d.finalized_height)]"
  newt="['HVM testnet observer', '/api/hashburst/hvm/testnet/network', d => d.ok === true && d.network === 'testnet' && d.chain_id === 4735490 && d.role === 'observer' && Number.isSafeInteger(d.finalized_height)]"
- for old,new in ((oldm,newm),(oldt,newt)):
+ probes=(('HVM mainnet observer',oldm,newm),('HVM testnet observer',oldt,newt))
+ for label,old,new in probes:
   if old in text:text=text.replace(old,new,1)
-  elif new not in text:raise RuntimeError('ecosystem HVM probe guard differs; retained')
+  elif new in text:pass
+  elif label in text:raise RuntimeError('ecosystem HVM probe guard differs; retained: '+label)
  return text
 def patch_v3(text):
  hs=text.index('<div class="view" id="view-hvm">');he=text.find('\n</main>',hs)
