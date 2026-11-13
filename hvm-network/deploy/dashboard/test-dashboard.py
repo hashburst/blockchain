@@ -12,9 +12,9 @@ class PatchTests(unittest.TestCase):
   self.assertIn('HVM_NETWORK_CARD_V5_EN',m.patch(s))
  def test_guarded_v3_upgrade(self):
   h='<div class="view" id="view-hvm">HashBurst HVM Testnet 4735490 (0x484202)<span id="hvm-peers"></span>4735489: under maintenance</div>'
-  j="// HVM_NETWORK_CARD_V3\\nfetch('/api/hashburst/hvm/testnet/network'); if (d.chain_id !== 4735490) throw Error();"
-  s='PREFIX\\n'+h+'\\n</main>\\nKEEP\\n'+j+"\\nif (location.hash && document.getElementById('nav-' + location.hash.slice(1))) KEEP();\\nSUFFIX"
-  out=m.patch(s);self.assertTrue(out.startswith('PREFIX\\n'));self.assertTrue(out.endswith('\\nSUFFIX'));self.assertIn('\\nKEEP\\n',out);self.assertIn('HVM_NETWORK_CARD_V5_EN',out);self.assertNotIn('HVM_NETWORK_CARD_V3',out)
+  j="// HVM_NETWORK_CARD_V3\nfetch('/api/hashburst/hvm/testnet/network'); if (d.chain_id !== 4735490) throw Error();"
+  s='PREFIX\n'+h+'\n</main>\nKEEP\n'+j+"\nif (location.hash && document.getElementById('nav-' + location.hash.slice(1))) KEEP();\nSUFFIX"
+  out=m.patch(s);self.assertTrue(out.startswith('PREFIX\n'));self.assertTrue(out.endswith('\nSUFFIX'));self.assertIn('\nKEEP\n',out);self.assertIn('HVM_NETWORK_CARD_V5_EN',out);self.assertNotIn('HVM_NETWORK_CARD_V3',out)
   with self.assertRaises(RuntimeError):m.patch(s.replace('4735489: under maintenance','4735489: changed'))
  def test_unknown_hvm_refused(self):
   with self.assertRaises(RuntimeError):m.patch(self.source()+'<button id="nav-hvm"></button>')
