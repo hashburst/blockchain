@@ -11,7 +11,7 @@
   function cfg(){return networks[selected]}
   function render(){
     const c=cfg();
-    el('connect-mainnet').classList.toggle('active',selected==='mainnet');el('connect-testnet').classList.toggle('active',selected==='testnet');
+    for(const n of ['mainnet','testnet']){const b=el('connect-'+n),on=selected===n;b.className='btn'+(on?' active':'');b.setAttribute('aria-pressed',on?'true':'false');}
     el('network').textContent=c.name;el('chain').textContent=c.chain+' ('+c.hex+')';el('federation').textContent=c.federation;el('apow').textContent=c.apow;
     el('rpc-url').textContent=c.rpcPublic;el('ws-url').textContent=c.ws;el('network-note').textContent=c.note;
     el('status').textContent=error?words.unavailable+': '+error:sample?(selected==='mainnet'?'Mainnet':'Testnet')+' observer responding':words.unknown;
