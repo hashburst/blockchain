@@ -6,14 +6,15 @@ root=Path(__file__).resolve().parents[2]
 artifacts=["hashburst-mainnet","hashburst-testnet","hvm-mainnet-evm-gateway"]
 sha=lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
 source=(out/"SOURCE_COMMIT").read_text().strip()
-mods=json.loads(subprocess.check_output(["go","list","-m","-json","all"],cwd=root,text=True).replace("}\n{","},\n{").join(["[","]"])) if False else None
 raw=subprocess.check_output(["go","list","-m","-json","all"],cwd=root,text=True)
 dec=json.JSONDecoder(); pos=0; components=[]
 while pos < len(raw):
     while pos<len(raw) and raw[pos].isspace(): pos+=1
     if pos>=len(raw): break
     obj,n=dec.raw_decode(raw,pos); pos=n
-    components.append({"type":"library","name":obj["Path"],"version":obj.get("Version") or obj.get("Main",{}).get("Version") or source})
+    main=obj.get("Main")
+    main_version=main.get("Version") if isinstance(main,dict) else None
+    components.append({"type":"library","name":obj["Path"],"version":obj.get("Version") or main_version or source})
 sbom={"bomFormat":"CycloneDX","specVersion":"1.5","version":1,
       "metadata":{"component":{"type":"application","name":"HashBurst-HVM-G5","version":source}},
       "components":components}
