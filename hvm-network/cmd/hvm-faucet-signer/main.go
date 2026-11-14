@@ -26,7 +26,10 @@ func main(){
 	flag.StringVar(&keyfile,"keystore","","encrypted faucet keystore")
 	flag.StringVar(&passwordfile,"password-file","","owner-only password file")
 	flag.StringVar(&address,"address","","expected faucet address")
-	flag.Uint64Var(&chain,"chain-id",0,"4735490 or 4735489")\n\tflag.Int64Var(&maxAmount,"max-amount-units",0,"maximum value signer may authorize")\n\tflag.Int64Var(&maxFee,"max-fee-units",0,"maximum fee signer may authorize")\n\tflag.Uint64Var(&computeLimit,"compute-limit",21000,"exact transfer compute limit")
+	flag.Uint64Var(&chain,"chain-id",0,"4735490 or 4735489")
+	flag.Int64Var(&maxAmount,"max-amount-units",0,"maximum value signer may authorize")
+	flag.Int64Var(&maxFee,"max-fee-units",0,"maximum fee signer may authorize")
+	flag.Uint64Var(&computeLimit,"compute-limit",21000,"exact transfer compute limit")
 	flag.Parse()
 	host,_,e:=net.SplitHostPort(listen);if e!=nil||!net.ParseIP(host).IsLoopback(){panic("signer listen must be explicit loopback")}
 	if !wallet.IsValidAddress(address)||(chain!=4735490&&chain!=4735489)||maxAmount<=0||maxFee<0||computeLimit==0{panic("explicit faucet address, chain and signing bounds required")}
