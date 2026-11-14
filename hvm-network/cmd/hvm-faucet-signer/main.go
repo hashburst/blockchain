@@ -21,15 +21,15 @@ func privateFile(path string)([]byte,error){
 	return os.ReadFile(path)
 }
 func main(){
-	var listen,keyfile,passwordfile,address string;var chain uint64
+	var listen,keyfile,passwordfile,address string;var chain,computeLimit uint64;var maxAmount,maxFee int64
 	flag.StringVar(&listen,"listen","127.0.0.1:28110","loopback signer listen address")
 	flag.StringVar(&keyfile,"keystore","","encrypted faucet keystore")
 	flag.StringVar(&passwordfile,"password-file","","owner-only password file")
 	flag.StringVar(&address,"address","","expected faucet address")
-	flag.Uint64Var(&chain,"chain-id",0,"4735490 or 4735489")
+	flag.Uint64Var(&chain,"chain-id",0,"4735490 or 4735489")\n\tflag.Int64Var(&maxAmount,"max-amount-units",0,"maximum value signer may authorize")\n\tflag.Int64Var(&maxFee,"max-fee-units",0,"maximum fee signer may authorize")\n\tflag.Uint64Var(&computeLimit,"compute-limit",21000,"exact transfer compute limit")
 	flag.Parse()
 	host,_,e:=net.SplitHostPort(listen);if e!=nil||!net.ParseIP(host).IsLoopback(){panic("signer listen must be explicit loopback")}
-	if !wallet.IsValidAddress(address)||(chain!=4735490&&chain!=4735489){panic("explicit faucet address and supported chain required")}
+	if !wallet.IsValidAddress(address)||(chain!=4735490&&chain!=4735489)||maxAmount<=0||maxFee<0||computeLimit==0{panic("explicit faucet address, chain and signing bounds required")}
 	ks,e:=privateFile(keyfile);if e!=nil{panic(e)};pw,e:=privateFile(passwordfile);if e!=nil{panic(e)}
 	w,e:=wallet.DecryptV3(ks,strings.TrimSuffix(string(pw),"\n"));if e!=nil{panic(e)}
 	if !wallet.AddressEqual(w.Address(),address){panic("keystore does not match expected faucet address")}
@@ -40,7 +40,7 @@ func main(){
 		r.Body=http.MaxBytesReader(rw,r.Body,1<<20)
 		var tx protocolv2.TransactionV2;d:=json.NewDecoder(r.Body);d.DisallowUnknownFields()
 		if e:=d.Decode(&tx);e!=nil{http.Error(rw,"invalid transaction",400);return};var extra any;if d.Decode(&extra)!=io.EOF{http.Error(rw,"trailing JSON",400);return}
-		if tx.ChainID!=chain||tx.Type!=protocolv2.TxHBTTransfer||!wallet.AddressEqual(tx.Sender,w.Address())||!wallet.IsValidAddress(tx.To)||strings.EqualFold(tx.To,"0x0000000000000000000000000000000000000000")||tx.ValueUnits<=0||tx.ComputeLimit==0||tx.MaxFeeUnits<0||len(tx.Data)!=0||tx.Signature!=""{http.Error(rw,"intent rejected",400);return}
+		if tx.ChainID!=chain||tx.Type!=protocolv2.TxHBTTransfer||!wallet.AddressEqual(tx.Sender,w.Address())||!wallet.IsValidAddress(tx.To)||strings.EqualFold(tx.To,"0x0000000000000000000000000000000000000000")||tx.ValueUnits<=0||tx.ValueUnits>maxAmount||tx.ComputeLimit!=computeLimit||tx.MaxFeeUnits<0||tx.MaxFeeUnits>maxFee||len(tx.Data)!=0||tx.Signature!=""{http.Error(rw,"intent rejected",400);return}
 		if e:=tx.Sign(w);e!=nil{http.Error(rw,"sign failed",500);return}
 		rw.Header().Set("Content-Type","application/json");json.NewEncoder(rw).Encode(&tx)
 	})
