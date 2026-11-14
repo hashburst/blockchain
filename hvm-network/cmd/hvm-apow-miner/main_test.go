@@ -29,6 +29,7 @@ func TestMinerRejectsForeignChainBeforeSubmission(t *testing.T) {
 		t.Fatalf("foreign chain signed/submitted: %v", err)
 	}
 }
+
 func TestMinerSubmitsVerifiableBeneficiary(t *testing.T) {
 	w, _ := wallet.NewWallet()
 	beneficiary, _ := wallet.NewWallet()
@@ -49,6 +50,7 @@ func TestMinerSubmitsVerifiableBeneficiary(t *testing.T) {
 			t.Error("beneficiary changed")
 		}
 		posted = true
+		json.NewEncoder(rw).Encode(map[string]bool{"accepted": true})
 	}))
 	defer s.Close()
 	if e := mineJob(context.Background(), s.URL, w, beneficiary.Address(), 4735490, time.Second); e != nil {
@@ -58,6 +60,68 @@ func TestMinerSubmitsVerifiableBeneficiary(t *testing.T) {
 		t.Fatal("missing submission")
 	}
 }
+
+func TestMinerReportsServerConfirmedStaleAsRetryable(t *testing.T) {
+	w, _ := wallet.NewWallet()
+	s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			json.NewEncoder(rw).Encode(blockchain.APoWProof{ChainID: 4735490, Height: 100, ParentHash: strings.Repeat("a", 64), Bits: 1})
+			return
+		}
+		http.Error(rw, staleAPoWReason, http.StatusConflict)
+	}))
+	defer s.Close()
+
+	err := mineJob(context.Background(), s.URL, w, w.Address(), 4735490, time.Second)
+	var rejected *submissionError
+	if err == nil || !errorsAsSubmission(err, &rejected) {
+		t.Fatalf("expected structured submission rejection, got %v", err)
+	}
+	if rejected.StatusCode != http.StatusConflict || rejected.Reason != staleAPoWReason || !rejected.Retryable {
+		t.Fatalf("unexpected stale classification: %+v", rejected)
+	}
+	if !strings.Contains(err.Error(), "HTTP_STATUS=409") || !strings.Contains(err.Error(), "RETRYABLE=true") {
+		t.Fatalf("CLI error lacks structured feedback: %v", err)
+	}
+}
+
+func TestMinerDoesNotRetryOtherConflict(t *testing.T) {
+	w, _ := wallet.NewWallet()
+	s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		if r.Method == "GET" {
+			json.NewEncoder(rw).Encode(blockchain.APoWProof{ChainID: 4735490, Height: 100, ParentHash: strings.Repeat("a", 64), Bits: 1})
+			return
+		}
+		http.Error(rw, "invalid APoW signature", http.StatusConflict)
+	}))
+	defer s.Close()
+
+	err := mineJob(context.Background(), s.URL, w, w.Address(), 4735490, time.Second)
+	var rejected *submissionError
+	if err == nil || !errorsAsSubmission(err, &rejected) {
+		t.Fatalf("expected structured submission rejection, got %v", err)
+	}
+	if rejected.Retryable {
+		t.Fatalf("non-stale conflict became retryable: %+v", rejected)
+	}
+	if rejected.Reason != "invalid APoW signature" {
+		t.Fatalf("server reason lost: %+v", rejected)
+	}
+}
+
+func TestMinerReportsJobHTTPBody(t *testing.T) {
+	w, _ := wallet.NewWallet()
+	s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		http.Error(rw, "APoW temporarily unavailable", http.StatusConflict)
+	}))
+	defer s.Close()
+
+	err := mineJob(context.Background(), s.URL, w, w.Address(), 4735490, time.Second)
+	if err == nil || !strings.Contains(err.Error(), "HTTP_STATUS=409") || !strings.Contains(err.Error(), "APoW temporarily unavailable") {
+		t.Fatalf("job rejection body not exposed: %v", err)
+	}
+}
+
 func TestMinerKeyNeverOverwrites(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "miner.key")
 	if e := generateKey(path); e != nil {
