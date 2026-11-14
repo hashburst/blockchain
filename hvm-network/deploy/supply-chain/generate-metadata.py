@@ -2,6 +2,10 @@
 import hashlib,json,os,subprocess,sys
 from pathlib import Path
 out=Path(sys.argv[1]).resolve()
+builder=os.environ.get("G5_BUILDER","").strip()
+build_process=os.environ.get("G5_BUILD_PROCESS","").strip()
+if not builder or not build_process:
+    raise SystemExit("G5_BUILDER and G5_BUILD_PROCESS are required")
 root=Path(__file__).resolve().parents[2]
 artifacts=["hashburst-mainnet","hashburst-testnet","hvm-mainnet-evm-gateway"]
 sha=lambda p: hashlib.sha256(Path(p).read_bytes()).hexdigest()
@@ -25,8 +29,8 @@ manifest={"schema":"hashburst-g5-manifest-v1","source_commit":source,"target":"l
 (out/"MANIFEST.json").write_text(json.dumps(manifest,sort_keys=True,separators=(",",":"))+"\n")
 gov=subprocess.check_output(["go","version"],text=True).strip()
 prov={"schema":"hashburst-g5-original-build-provenance-v1","original_build_provenance":True,
-      "repository":"hashburst/blockchain","source_commit":source,"builder":"github-actions",
-      "workflow":"hvm-g5-supply-chain.yml","go_version":gov,"goos":"linux","goarch":"amd64",
+      "repository":"hashburst/blockchain","source_commit":source,"builder":builder,
+      "build_process":build_process,"go_version":gov,"goos":"linux","goarch":"amd64",
       "cgo_enabled":"0","build_flags":["-buildvcs=false","-trimpath","-ldflags=-buildid="],
       "artifacts":[{"name":x,"sha256":sha(out/x)} for x in artifacts],
       "manifest_sha256":sha(out/"MANIFEST.json"),"sbom_sha256":sha(out/"SBOM.cdx.json")}
