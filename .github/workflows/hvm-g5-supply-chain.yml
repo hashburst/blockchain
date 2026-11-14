@@ -71,7 +71,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f "$RUNNER_TEMP/build-a/G5-CI-PUBLIC-KEY.pem"
           printf '%s\n' 'CI_ONLY_NO_DEPLOYMENT' > "$RUNNER_TEMP/build-a/STATUS"
           tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/hashburst-hvm-g5-ci.tar.gz" build-a
           sha256sum "$RUNNER_TEMP/hashburst-hvm-g5-ci.tar.gz"
