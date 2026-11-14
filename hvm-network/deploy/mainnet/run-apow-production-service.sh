@@ -105,7 +105,9 @@ ExecStart=$bin --endpoint $endpoint --key-file $key --chain-id $chain --loop --t
 Restart=on-failure
 RestartSec=5
 Nice=15
-CPUQuota=25%
+# E2-Q: cap the reference APoW worker at one CPU equivalent. This changes only
+# the service resource budget; APoW consensus parameters and bits remain frozen.
+CPUQuota=100%
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
