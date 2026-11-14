@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"hashburst/blockchain"
+	"hashburst/ledger"
 	"io"
 	"os"
 	"path/filepath"
@@ -25,6 +26,36 @@ const (
 
 func supportedChainID(chainID uint64) bool {
 	return chainID == mainnetChainID || chainID == testnetChainID
+}
+
+func decodeStorageRecord(raw []byte) (*blockchain.Block, error) {
+	if len(raw) < 4 {
+		return nil, fmt.Errorf("storage record too short")
+	}
+	if string(raw[:4]) == "HBX2" {
+		payload, err := ledger.FramePayload(raw)
+		if err != nil {
+			return nil, err
+		}
+		b := new(blockchain.Block)
+		if err = blockchain.DecodeLedgerBlockInto(payload, b); err != nil {
+			return nil, err
+		}
+		return b, nil
+	}
+	if binary.BigEndian.Uint32(raw[:4]) != uint32(len(raw)-4) {
+		return nil, fmt.Errorf("record size mismatch")
+	}
+	var b blockchain.Block
+	var stamp struct{ TimestampNs int64 }
+	if err := gob.NewDecoder(bytes.NewReader(raw[4:])).Decode(&b); err != nil {
+		return nil, err
+	}
+	if err := gob.NewDecoder(bytes.NewReader(raw[4:])).Decode(&stamp); err != nil {
+		return nil, err
+	}
+	b.Timestamp = time.Unix(0, stamp.TimestampNs)
+	return &b, nil
 }
 
 func readBlock(dir string, height uint64) (*blockchain.Block, error) {
@@ -57,24 +88,14 @@ func readBlock(dir string, height uint64) (*blockchain.Block, error) {
 		if _, e = dat.ReadAt(raw, int64(off)); e != nil {
 			return nil, e
 		}
-		if binary.BigEndian.Uint32(raw[:4]) != size-4 {
-			return nil, fmt.Errorf("record size mismatch")
-		}
-		// Gob matches exported field names across compatible structs; Timestamp is
-		// the sole on-disk rename and is decoded separately from TimestampNs.
-		var b blockchain.Block
-		var stamp struct{ TimestampNs int64 }
-		if e = gob.NewDecoder(bytes.NewReader(raw[4:])).Decode(&b); e != nil {
+		b, e := decodeStorageRecord(raw)
+		if e != nil {
 			return nil, e
 		}
-		if e = gob.NewDecoder(bytes.NewReader(raw[4:])).Decode(&stamp); e != nil {
-			return nil, e
-		}
-		b.Timestamp = time.Unix(0, stamp.TimestampNs)
 		if b.Index < 0 || uint64(b.Index) != height || b.GenerateHash() != b.Hash {
 			return nil, fmt.Errorf("block identity/hash mismatch")
 		}
-		return &b, nil
+		return b, nil
 	}
 }
 

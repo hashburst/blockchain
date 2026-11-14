@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"hashburst/blockchain"
 	"hashburst/consensus"
+	"hashburst/ledger"
 	"hashburst/wallet"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -75,5 +79,68 @@ func TestRejectWrongRewardAndProof(t *testing.T) {
 	b.APoW.Signature = ""
 	if _, e := audit(b, testnetChainID); e == nil {
 		t.Fatal("bad signature accepted")
+	}
+}
+
+
+func writeHBX2Fixture(t *testing.T, dir string, b *blockchain.Block) {
+	t.Helper()
+	payload, err := blockchain.EncodeLedgerBlock(nil, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame, err := ledger.AppendFrame(nil, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(dir, "blockchain.dat"), frame, 0600); err != nil {
+		t.Fatal(err)
+	}
+	var idx [20]byte
+	binary.BigEndian.PutUint64(idx[0:8], uint64(b.Index))
+	binary.BigEndian.PutUint64(idx[8:16], 0)
+	binary.BigEndian.PutUint32(idx[16:20], uint32(len(frame)))
+	if err = os.WriteFile(filepath.Join(dir, "blockchain.idx"), idx[:], 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReadHBX2StorageAndAudit(t *testing.T) {
+	b := fixture(t, mainnetChainID)
+	dir := t.TempDir()
+	writeHBX2Fixture(t, dir, b)
+
+	got, err := readBlock(dir, uint64(b.Index))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Hash != b.Hash || got.ProtocolChainID != mainnetChainID {
+		t.Fatalf("unexpected HBX2 block: %#v", got)
+	}
+	result, err := audit(got, mainnetChainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["system_reward_count"] != 1 || result["reward_units"] != int64(5000000000) {
+		t.Fatalf("unexpected audit result: %#v", result)
+	}
+}
+
+func TestRejectCorruptHBX2Frame(t *testing.T) {
+	b := fixture(t, mainnetChainID)
+	dir := t.TempDir()
+	writeHBX2Fixture(t, dir, b)
+
+	path := filepath.Join(dir, "blockchain.dat")
+	frame, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame[len(frame)-1] ^= 0xff
+	if err = os.WriteFile(path, frame, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = readBlock(dir, uint64(b.Index)); err == nil {
+		t.Fatal("corrupt HBX2 frame accepted")
 	}
 }
