@@ -18,6 +18,15 @@ import (
 	"time"
 )
 
+const (
+	mainnetChainID uint64 = 4735489
+	testnetChainID uint64 = 4735490
+)
+
+func supportedChainID(chainID uint64) bool {
+	return chainID == mainnetChainID || chainID == testnetChainID
+}
+
 func readBlock(dir string, height uint64) (*blockchain.Block, error) {
 	idx, e := os.Open(filepath.Join(dir, "blockchain.idx"))
 	if e != nil {
@@ -68,9 +77,13 @@ func readBlock(dir string, height uint64) (*blockchain.Block, error) {
 		return &b, nil
 	}
 }
-func audit(b *blockchain.Block) (map[string]any, error) {
+
+func audit(b *blockchain.Block, expectedChainID uint64) (map[string]any, error) {
+	if !supportedChainID(expectedChainID) {
+		return nil, fmt.Errorf("unsupported HashBurst chain ID %d", expectedChainID)
+	}
 	p := b.APoW
-	if b.ProtocolChainID != 4735490 || p == nil || p.ChainID != 4735490 || p.Height != uint64(b.Index) || p.ParentHash != b.PrevHash || p.PoH != b.ProofOfTime {
+	if b.ProtocolChainID != expectedChainID || p == nil || p.ChainID != expectedChainID || p.Height != uint64(b.Index) || p.ParentHash != b.PrevHash || p.PoH != b.ProofOfTime {
 		return nil, fmt.Errorf("work/block binding mismatch")
 	}
 	if e := p.Verify(); e != nil {
@@ -90,18 +103,37 @@ func audit(b *blockchain.Block) (map[string]any, error) {
 	if rewards != 1 || b.FinalityCertificate == nil {
 		return nil, fmt.Errorf("exactly one reward and finality certificate required")
 	}
-	return map[string]any{"height": b.Index, "hash": b.Hash, "parent_hash": b.PrevHash, "proof": p, "reward_hbt": 50, "reward_tx": rewardID, "certificate": b.FinalityCertificate, "signature_and_work_verified": true}, nil
+	return map[string]any{
+		"chain_id":                    expectedChainID,
+		"height":                      b.Index,
+		"hash":                        b.Hash,
+		"parent_hash":                 b.PrevHash,
+		"proof":                       p,
+		"beneficiary":                 p.Beneficiary,
+		"system_reward_count":         rewards,
+		"reward_hbt":                  50,
+		"reward_units":                int64(5000000000),
+		"reward_tx":                   rewardID,
+		"certificate":                 b.FinalityCertificate,
+		"signature_and_work_verified": true,
+	}, nil
 }
+
 func main() {
-	dir := flag.String("data-dir", "", "existing testnet data directory")
+	dir := flag.String("data-dir", "", "existing HashBurst data directory")
 	height := flag.Uint64("height", 0, "finalized height to read")
+	chainID := flag.Uint64("chain-id", 0, "expected HashBurst chain ID (4735489 mainnet or 4735490 testnet)")
 	flag.Parse()
+	if !supportedChainID(*chainID) {
+		fmt.Fprintf(os.Stderr, "unsupported HashBurst chain ID %d\n", *chainID)
+		os.Exit(1)
+	}
 	b, e := readBlock(*dir, *height)
 	if e != nil {
 		fmt.Fprintln(os.Stderr, e)
 		os.Exit(1)
 	}
-	result, e := audit(b)
+	result, e := audit(b, *chainID)
 	if e != nil {
 		fmt.Fprintln(os.Stderr, e)
 		os.Exit(1)
