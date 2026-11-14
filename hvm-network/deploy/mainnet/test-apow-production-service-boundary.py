@@ -25,7 +25,8 @@ assert gate.index(stage_marker) < gate.index(copy_line) < gate.index(candidate_h
 assert "install -d -m 0755 -o root -g root '$BASE'" in gate
 assert "install -d -m 0700 -o '$MINER_USER' -g '$MINER_USER' '$KEYDIR'" in gate
 assert "Restart=on-failure" in gate
-assert "CPUQuota=25%" in gate
+assert "CPUQuota=100%" in gate
+assert "CPUQuota=25%" not in gate
 assert "Nice=15" in gate
 assert "NoNewPrivileges=true" in gate
 assert "ProtectSystem=strict" in gate
