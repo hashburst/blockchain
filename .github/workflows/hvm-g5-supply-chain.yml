@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.7'
@@ -82,7 +83,7 @@ jobs:
           echo HASHBURST_G5_CI_ACCEPTANCE_OK
       - uses: actions/upload-artifact@v4
         with:
-          name: hashburst-hvm-g5-ci-${{ github.sha }}
+          name: hashburst-hvm-g5-ci-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/hashburst-hvm-g5-ci.tar.gz
           if-no-files-found: error
           retention-days: 30
