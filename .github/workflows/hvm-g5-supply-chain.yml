@@ -1,0 +1,87 @@
+name: HVM G5 supply-chain
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/workflows/hvm-g5-supply-chain.yml'
+      - 'hvm-network/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  g5:
+    name: reproducible-build-sbom-provenance-signature
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.7'
+          cache-dependency-path: hvm-network/go.sum
+      - name: Unit tests
+        run: go -C hvm-network test ./...
+      - name: Independent build A and B
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x hvm-network/deploy/supply-chain/*.sh
+          hvm-network/deploy/supply-chain/build-release.sh "$RUNNER_TEMP/build-a"
+          hvm-network/deploy/supply-chain/build-release.sh "$RUNNER_TEMP/build-b"
+          for f in hashburst-mainnet hashburst-testnet hvm-mainnet-evm-gateway SOURCE_COMMIT; do
+            cmp "$RUNNER_TEMP/build-a/$f" "$RUNNER_TEMP/build-b/$f"
+          done
+          echo REPRODUCIBLE_BUILD_2OF2_OK
+      - name: Generate SBOM, manifest and original build provenance
+        run: |
+          set -euo pipefail
+          python3 hvm-network/deploy/supply-chain/generate-metadata.py "$RUNNER_TEMP/build-a"
+          python3 -m json.tool "$RUNNER_TEMP/build-a/SBOM.cdx.json" >/dev/null
+          python3 -m json.tool "$RUNNER_TEMP/build-a/MANIFEST.json" >/dev/null
+          python3 -m json.tool "$RUNNER_TEMP/build-a/PROVENANCE.json" >/dev/null
+          echo G5_SBOM_PROVENANCE_OK
+      - name: Sign and verify with isolated CI Ed25519 identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl genpkey -algorithm ED25519 -out "$RUNNER_TEMP/g5-ci-private.pem"
+          openssl pkey -in "$RUNNER_TEMP/g5-ci-private.pem" -pubout -out "$RUNNER_TEMP/build-a/G5-CI-PUBLIC-KEY.pem"
+          openssl pkeyutl -sign -rawin -inkey "$RUNNER_TEMP/g5-ci-private.pem" -in "$RUNNER_TEMP/build-a/SHA256SUMS" -out "$RUNNER_TEMP/build-a/SHA256SUMS.sig"
+          hvm-network/deploy/supply-chain/verify-release.sh "$RUNNER_TEMP/build-a" "$RUNNER_TEMP/build-a/G5-CI-PUBLIC-KEY.pem"
+          rm -f "$RUNNER_TEMP/g5-ci-private.pem"
+          echo G5_CRYPTOGRAPHIC_SIGNATURE_VERIFIED_OK
+      - name: Negative tamper and unsigned tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -a "$RUNNER_TEMP/build-a" "$RUNNER_TEMP/tampered"
+          printf '\001' >> "$RUNNER_TEMP/tampered/hashburst-mainnet"
+          if hvm-network/deploy/supply-chain/verify-release.sh "$RUNNER_TEMP/tampered" "$RUNNER_TEMP/tampered/G5-CI-PUBLIC-KEY.pem"; then
+            echo 'tampered package was accepted' >&2; exit 1
+          fi
+          cp -a "$RUNNER_TEMP/build-a" "$RUNNER_TEMP/unsigned"
+          rm "$RUNNER_TEMP/unsigned/SHA256SUMS.sig"
+          if hvm-network/deploy/supply-chain/verify-release.sh "$RUNNER_TEMP/unsigned" "$RUNNER_TEMP/unsigned/G5-CI-PUBLIC-KEY.pem"; then
+            echo 'unsigned package was accepted' >&2; exit 1
+          fi
+          echo G5_NEGATIVE_TAMPER_UNSIGNED_REJECTION_OK
+      - name: Package CI evidence only
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "$RUNNER_TEMP/build-a/G5-CI-PUBLIC-KEY.pem"
+          printf '%s\n' 'CI_ONLY_NO_DEPLOYMENT' > "$RUNNER_TEMP/build-a/STATUS"
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/hashburst-hvm-g5-ci.tar.gz" build-a
+          sha256sum "$RUNNER_TEMP/hashburst-hvm-g5-ci.tar.gz"
+          echo FLEET_MUTATION=no
+          echo SERVICE_RESTART=no
+          echo DEPLOYMENT=no
+          echo HASHBURST_G5_CI_ACCEPTANCE_OK
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hashburst-hvm-g5-ci-${{ github.sha }}
+          path: ${{ runner.temp }}/hashburst-hvm-g5-ci.tar.gz
+          if-no-files-found: error
+          retention-days: 30
