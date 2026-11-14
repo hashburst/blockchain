@@ -30,10 +30,8 @@ jobs:
           SOURCE_SHA="$(git rev-parse HEAD)"
           git worktree add --detach "$RUNNER_TEMP/source-a" "$SOURCE_SHA"
           git worktree add --detach "$RUNNER_TEMP/source-b" "$SOURCE_SHA"
-          chmod +x "$RUNNER_TEMP/source-a/hvm-network/deploy/supply-chain/"*.sh
-          chmod +x "$RUNNER_TEMP/source-b/hvm-network/deploy/supply-chain/"*.sh
-          "$RUNNER_TEMP/source-a/hvm-network/deploy/supply-chain/build-release.sh" "$RUNNER_TEMP/build-a"
-          "$RUNNER_TEMP/source-b/hvm-network/deploy/supply-chain/build-release.sh" "$RUNNER_TEMP/build-b"
+          bash "$RUNNER_TEMP/source-a/hvm-network/deploy/supply-chain/build-release.sh" "$RUNNER_TEMP/build-a"
+          bash "$RUNNER_TEMP/source-b/hvm-network/deploy/supply-chain/build-release.sh" "$RUNNER_TEMP/build-b"
           for f in hashburst-mainnet hashburst-testnet hvm-mainnet-evm-gateway SOURCE_COMMIT; do
             cmp "$RUNNER_TEMP/build-a/$f" "$RUNNER_TEMP/build-b/$f"
           done
@@ -53,7 +51,7 @@ jobs:
           openssl genpkey -algorithm ED25519 -out "$RUNNER_TEMP/g5-ci-private.pem"
           openssl pkey -in "$RUNNER_TEMP/g5-ci-private.pem" -pubout -out "$RUNNER_TEMP/build-a/G5-CI-PUBLIC-KEY.pem"
           openssl pkeyutl -sign -rawin -inkey "$RUNNER_TEMP/g5-ci-private.pem" -in "$RUNNER_TEMP/build-a/SHA256SUMS" -out "$RUNNER_TEMP/build-a/SHA256SUMS.sig"
-          hvm-network/deploy/supply-chain/verify-release.sh "$RUNNER_TEMP/build-a" "$RUNNER_TEMP/build-a/G5-CI-PUBLIC-KEY.pem"
+          bash "$RUNNER_TEMP/source-a/hvm-network/deploy/supply-chain/verify-release.sh" "$RUNNER_TEMP/build-a" "$RUNNER_TEMP/build-a/G5-CI-PUBLIC-KEY.pem"
           rm -f "$RUNNER_TEMP/g5-ci-private.pem"
           echo G5_CRYPTOGRAPHIC_SIGNATURE_VERIFIED_OK
       - name: Negative tamper and unsigned tests
@@ -62,12 +60,12 @@ jobs:
           set -euo pipefail
           cp -a "$RUNNER_TEMP/build-a" "$RUNNER_TEMP/tampered"
           printf '\001' >> "$RUNNER_TEMP/tampered/hashburst-mainnet"
-          if hvm-network/deploy/supply-chain/verify-release.sh "$RUNNER_TEMP/tampered" "$RUNNER_TEMP/tampered/G5-CI-PUBLIC-KEY.pem"; then
+          if bash "$RUNNER_TEMP/source-a/hvm-network/deploy/supply-chain/verify-release.sh" "$RUNNER_TEMP/tampered" "$RUNNER_TEMP/tampered/G5-CI-PUBLIC-KEY.pem"; then
             echo 'tampered package was accepted' >&2; exit 1
           fi
           cp -a "$RUNNER_TEMP/build-a" "$RUNNER_TEMP/unsigned"
           rm "$RUNNER_TEMP/unsigned/SHA256SUMS.sig"
-          if hvm-network/deploy/supply-chain/verify-release.sh "$RUNNER_TEMP/unsigned" "$RUNNER_TEMP/unsigned/G5-CI-PUBLIC-KEY.pem"; then
+          if bash "$RUNNER_TEMP/source-a/hvm-network/deploy/supply-chain/verify-release.sh" "$RUNNER_TEMP/unsigned" "$RUNNER_TEMP/unsigned/G5-CI-PUBLIC-KEY.pem"; then
             echo 'unsigned package was accepted' >&2; exit 1
           fi
           echo G5_NEGATIVE_TAMPER_UNSIGNED_REJECTION_OK
