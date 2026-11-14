@@ -22,6 +22,14 @@ jobs:
         with:
           go-version: '1.25.7'
           cache-dependency-path: hvm-network/go.sum
+      - name: Verify production release trust anchor
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash hvm-network/deploy/supply-chain/verify-production-trust-anchor.sh
+          test ! -e hvm-network/deploy/supply-chain/trust/release-ed25519.pem
+          echo PRODUCTION_PRIVATE_KEY_PRESENT_IN_REPOSITORY=no
+          echo PRODUCTION_SIGNING_IN_CI=no
       - name: Unit tests
         run: go -C hvm-network test ./...
       - name: Independent build A and B

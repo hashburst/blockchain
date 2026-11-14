@@ -1,0 +1,19 @@
+# HashBurst production release signing identity v1
+
+PURPOSE=HASHBURST_PRODUCTION_RELEASE_SIGNING
+ALGORITHM=Ed25519
+PUBLIC_KEY_FILE=release-ed25519.pub.pem
+PUBLIC_KEY_DER_SHA256=6ab39d078a95644e8efc569c307a9c373723b871c771d9381440c79aa6b7e10d
+PRIVATE_KEY_LOCATION=/etc/hashburst-release/release-ed25519.pem
+PRIVATE_KEY_CUSTODY=Founder_Control_Runner_root_only
+PRIVATE_KEY_REPOSITORY_ALLOWED=no
+PRIVATE_KEY_ARTIFACT_ALLOWED=no
+PRIVATE_KEY_FLEET_DISTRIBUTION_ALLOWED=no
+FOUNDER_HBT_KEY_REUSED=no
+VALIDATOR_CONSENSUS_KEY_REUSED=no
+P2P_KEY_REUSED=no
+CI_EPHEMERAL_KEY_REUSED=no
+
+The public key and fingerprint in this directory are the production release trust anchor.
+The private key is intentionally absent from the repository and release artifacts.
+Production signatures are created only in the controlled signing environment.
