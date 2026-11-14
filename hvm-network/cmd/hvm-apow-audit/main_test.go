@@ -29,7 +29,7 @@ func fixture(t *testing.T, chainID uint64) *blockchain.Block {
 
 func TestReadRealStorageAndWorkBothNetworks(t *testing.T) {
 	for _, chainID := range []uint64{mainnetChainID, testnetChainID} {
-		t.Run(string(rune(chainID)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("chain-%d", chainID), func(t *testing.T) {
 			b := fixture(t, chainID)
 			dir := t.TempDir()
 			s := blockchain.NewChainStorage(dir)
