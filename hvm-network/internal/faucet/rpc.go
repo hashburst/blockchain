@@ -59,4 +59,4 @@ func (n *RPCNode) Prepare(to string,amount int64)(*protocolv2.TransactionV2,erro
 	tx.Signature="";tx.ID=""
 	return tx,nil
 }
-func (n *RPCNode) Submit(raw string)(string,error){var out string;return out,n.rpc("hb_sendRawTransactionV2",[]any{raw},&out)}
+func (n *RPCNode) Submit(raw string)(string,error){var out string;err:=n.rpc("hb_sendRawTransactionV2",[]any{raw},&out);return out,err}
