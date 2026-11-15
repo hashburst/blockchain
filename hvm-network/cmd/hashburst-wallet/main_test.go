@@ -90,3 +90,35 @@ func TestCreateEncryptedOnly(t *testing.T) {
 		t.Fatal("unexpected plaintext or extra output", e)
 	}
 }
+
+
+func TestPrepareStyleDraftWithCanonicalIDCanBeSigned(t *testing.T) {
+	w, _ := wallet.NewWallet()
+	to, _ := wallet.NewWallet()
+	tx := protocolv2.NewTransactionV2(4735490, protocolv2.TxHBTTransfer, w.Address(), to.Address(), 5000000000, 3, 21000, 121, nil)
+	if tx.ID == "" || tx.ID != tx.HashHex() {
+		t.Fatal("prepare-style draft missing canonical ID")
+	}
+	raw, _ := json.Marshal(tx)
+	unsigned, e := decodeTransfer(raw, 4735490, w.Address())
+	if e != nil {
+		t.Fatal("prepare-style canonical draft rejected:", e)
+	}
+	if e = unsigned.Sign(w); e != nil {
+		t.Fatal(e)
+	}
+	if e = unsigned.Verify(4735490); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func TestUnsignedDraftRejectsMismatchedCanonicalID(t *testing.T) {
+	w, _ := wallet.NewWallet()
+	to, _ := wallet.NewWallet()
+	tx := protocolv2.NewTransactionV2(4735490, protocolv2.TxHBTTransfer, w.Address(), to.Address(), 100, 1, 21000, 121, nil)
+	tx.ID = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+	raw, _ := json.Marshal(tx)
+	if _, e := decodeTransfer(raw, 4735490, w.Address()); e == nil {
+		t.Fatal("mismatched canonical transaction ID accepted")
+	}
+}
