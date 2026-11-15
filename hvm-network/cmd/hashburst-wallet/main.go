@@ -70,7 +70,7 @@ func decodeTransfer(raw []byte, chain uint64, address string) (*protocolv2.Trans
 	if chain != 4735490 && chain != 4735489 {
 		return nil, errors.New("unsupported chain")
 	}
-	if tx.ChainID != chain || tx.Version != 2 || tx.Type != protocolv2.TxHBTTransfer || !strings.EqualFold(tx.Sender, address) || !wallet.IsValidAddress(tx.To) || strings.EqualFold(tx.To, "0x0000000000000000000000000000000000000000") || tx.ValueUnits <= 0 || tx.MaxFeeUnits < 0 || tx.ComputeLimit == 0 || len(tx.Data) != 0 || tx.Signature != "" || tx.ID != "" {
+	if tx.ChainID != chain || tx.Version != 2 || tx.Type != protocolv2.TxHBTTransfer || !strings.EqualFold(tx.Sender, address) || !wallet.IsValidAddress(tx.To) || strings.EqualFold(tx.To, "0x0000000000000000000000000000000000000000") || tx.ValueUnits <= 0 || tx.MaxFeeUnits < 0 || tx.ComputeLimit == 0 || len(tx.Data) != 0 || tx.Signature != "" || (tx.ID != "" && !strings.EqualFold(tx.ID, tx.HashHex())) {
 		return nil, errors.New("only unsigned plain native HBT transfers for the expected account and chain are accepted")
 	}
 	return &tx, nil
