@@ -173,14 +173,20 @@ func readFrame(r io.Reader) (*syncMessage, error) {
 }
 
 type Syncer struct {
-	bc   *Blockchain
-	host host.Host
-	mp   *Mempool
-	mu   sync.Mutex
+	bc      *Blockchain
+	host    host.Host
+	mp      *Mempool
+	mu      sync.Mutex
+	routing *AdaptiveRoutingPolicy
 }
 
 func NewSyncer(bc *Blockchain, mp *Mempool, h host.Host) *Syncer {
-	sy := &Syncer{bc: bc, mp: mp, host: h}
+	sy := &Syncer{
+		bc:      bc,
+		mp:      mp,
+		host:    h,
+		routing: NewAdaptiveRoutingPolicy(),
+	}
 	h.SetStreamHandler(ProtocolID, sy.handleStream)
 	return sy
 }
@@ -307,14 +313,27 @@ func (sy *Syncer) onNewTxV2(peerID peer.ID, msg *syncMessage) error {
 	return nil
 }
 
+// nonConsensusPeers returns every connected chain-sync peer ordered by
+// local operational preference. DEGRADED peers remain available as fallback.
+//
+// This selector belongs only to /hashburst/1.0.0 traffic. Consensus
+// proposal/vote/QC delivery deliberately does not call this function.
+func (sy *Syncer) nonConsensusPeers(except peer.ID) []peer.ID {
+	peers := sy.host.Network().Peers()
+	filtered := make([]peer.ID, 0, len(peers))
+	for _, id := range peers {
+		if id != except {
+			filtered = append(filtered, id)
+		}
+	}
+	return sy.routing.Prefer(filtered)
+}
+
 func (sy *Syncer) GossipTx(tx *Transaction) { sy.gossipTxExcept(tx, "") }
 
 func (sy *Syncer) gossipTxExcept(tx *Transaction, except peer.ID) {
 	msg := &syncMessage{Type: MsgNewTx, Tx: txToWire(tx)}
-	for _, p := range sy.host.Network().Peers() {
-		if p == except {
-			continue
-		}
+	for _, p := range sy.nonConsensusPeers(except) {
 		go func(pid peer.ID) {
 			if err := sy.sendMessage(pid, msg); err != nil {
 				log.Printf("sync: gossip tx a %s fallito: %v", pid, err)
@@ -327,10 +346,7 @@ func (sy *Syncer) GossipTxV2(tx *protocolv2.TransactionV2) { sy.gossipTxV2Except
 
 func (sy *Syncer) gossipTxV2Except(tx *protocolv2.TransactionV2, except peer.ID) {
 	msg := &syncMessage{Type: MsgNewTxV2, TxV2: tx.Clone()}
-	for _, p := range sy.host.Network().Peers() {
-		if p == except {
-			continue
-		}
+	for _, p := range sy.nonConsensusPeers(except) {
 		go func(pid peer.ID) {
 			if err := sy.sendMessage(pid, msg); err != nil {
 				log.Printf("sync: gossip tx V2 a %s fallito: %v", pid, err)
@@ -341,23 +357,28 @@ func (sy *Syncer) gossipTxV2Except(tx *protocolv2.TransactionV2, except peer.ID)
 
 func (sy *Syncer) requestBlocks(peerID peer.ID, fromIndex int) error {
 	for {
+		started := time.Now()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		s, err := sy.host.NewStream(ctx, peerID, ProtocolID)
 		if err != nil {
 			cancel()
+			sy.routing.ObserveFailure(peerID)
 			return err
 		}
 		if err := writeFrame(s, &syncMessage{Type: MsgGetBlocks, FromIndex: fromIndex}); err != nil {
 			s.Close()
 			cancel()
+			sy.routing.ObserveFailure(peerID)
 			return err
 		}
 		resp, err := readFrame(bufio.NewReader(s))
 		s.Close()
 		cancel()
 		if err != nil {
+			sy.routing.ObserveFailure(peerID)
 			return err
 		}
+		sy.routing.ObserveSuccess(peerID, time.Since(started))
 		if resp.Type != MsgBlocks || len(resp.Blocks) == 0 {
 			return nil
 		}
@@ -386,14 +407,24 @@ func (sy *Syncer) requestBlocks(peerID peer.ID, fromIndex int) error {
 }
 
 func (sy *Syncer) sendMessage(peerID peer.ID, msg *syncMessage) error {
+	started := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
 	s, err := sy.host.NewStream(ctx, peerID, ProtocolID)
 	if err != nil {
+		sy.routing.ObserveFailure(peerID)
 		return err
 	}
 	defer s.Close()
-	return writeFrame(s, msg)
+
+	if err := writeFrame(s, msg); err != nil {
+		sy.routing.ObserveFailure(peerID)
+		return err
+	}
+
+	sy.routing.ObserveSuccess(peerID, time.Since(started))
+	return nil
 }
 
 func (sy *Syncer) Hello(peerID peer.ID) error {
@@ -411,7 +442,7 @@ func (sy *Syncer) Hello(peerID peer.ID) error {
 }
 
 func (sy *Syncer) HelloAll() {
-	peers := sy.host.Network().Peers()
+	peers := sy.nonConsensusPeers("")
 	for _, p := range peers {
 		go func(pid peer.ID) {
 			if err := sy.Hello(pid); err != nil {
@@ -455,9 +486,7 @@ func (sy *Syncer) onEthereum(from peer.ID, raw []byte) error {
 func (sy *Syncer) GossipEthereum(raw []byte) { sy.gossipEthereumExcept(raw, "") }
 func (sy *Syncer) gossipEthereumExcept(raw []byte, except peer.ID) {
 	msg := &syncMessage{Type: MsgEthereum, EthereumRaw: append([]byte(nil), raw...)}
-	for _, p := range sy.host.Network().Peers() {
-		if p != except {
-			go func(id peer.ID) { _ = sy.sendMessage(id, msg) }(p)
-		}
+	for _, p := range sy.nonConsensusPeers(except) {
+		go func(id peer.ID) { _ = sy.sendMessage(id, msg) }(p)
 	}
 }
