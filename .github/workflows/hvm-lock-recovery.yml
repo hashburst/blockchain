@@ -25,7 +25,7 @@ jobs:
         working-directory: hvm-network
         run: |
           cp blockchain/consensus_reactor.go "$RUNNER_TEMP/patched-reactor.go"
-          git show cf443b69e01afff4eedf7172749bda256a2d5e16:hvm-network/blockchain/consensus_reactor.go > blockchain/consensus_reactor.go
+          git show 63d3b73c95336cbb9bb721c3ed1f74eb1b9d7e9b:hvm-network/blockchain/consensus_reactor.go > blockchain/consensus_reactor.go
           if go test ./blockchain -run '^TestLockConflictBufferedProposalTimeoutPreservesLock$' -count=1 > "$RUNNER_TEMP/before.log" 2>&1; then
             cat "$RUNNER_TEMP/before.log"
             exit 1
