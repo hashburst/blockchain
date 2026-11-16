@@ -272,6 +272,94 @@ func (r *Registry) ApplyDoubleVoteEvidence(ev DoubleVoteEvidence, evidenceHeight
 	return v, slash, nil
 }
 
+func (r *Registry) applySuspend(id string) (Validator, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	key := strings.ToLower(canonicalHex(id))
+	v, ok := r.validators[key]
+	if !ok {
+		return Validator{}, fmt.Errorf("validator not found")
+	}
+
+	switch v.Status {
+	case ValidatorActive, ValidatorPending, ValidatorJailed:
+	default:
+		return Validator{}, fmt.Errorf("validator status %s cannot be suspended", v.Status)
+	}
+
+	v.Status = ValidatorSuspended
+	v.JailedUntilHeight = 0
+	r.validators[key] = v
+	return v, nil
+}
+
+func (r *Registry) applyRevoke(id string) (Validator, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	key := strings.ToLower(canonicalHex(id))
+	v, ok := r.validators[key]
+	if !ok {
+		return Validator{}, fmt.Errorf("validator not found")
+	}
+
+	switch v.Status {
+	case ValidatorExited, ValidatorRevoked:
+		return Validator{}, fmt.Errorf("validator status %s cannot be revoked", v.Status)
+	}
+
+	v.Status = ValidatorRevoked
+	v.JailedUntilHeight = 0
+	v.UnbondingEndHeight = 0
+	r.validators[key] = v
+	return v, nil
+}
+
+func (r *Registry) applyConsensusKeyRotation(id, consensusPubKey string) (Validator, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	key := strings.ToLower(canonicalHex(id))
+	v, ok := r.validators[key]
+	if !ok {
+		return Validator{}, fmt.Errorf("validator not found")
+	}
+	if v.Status == ValidatorExited || v.Status == ValidatorRevoked {
+		return Validator{}, fmt.Errorf("validator status %s cannot rotate consensus key", v.Status)
+	}
+
+	canonicalPub, consensusAddr, err := wallet.CanonicalPublicKeyHex(consensusPubKey)
+	if err != nil {
+		return Validator{}, fmt.Errorf("consensus public key: %w", err)
+	}
+	if wallet.AddressEqual(consensusAddr, v.RewardAddress) {
+		return Validator{}, fmt.Errorf("validator consensus key must be separate from reward wallet")
+	}
+	if wallet.AddressEqual(consensusAddr, v.OperatorAddress) {
+		return Validator{}, fmt.Errorf("validator consensus key must be separate from operator/node wallet")
+	}
+
+	for existingID, existing := range r.validators {
+		if existingID == key || existing.Status == ValidatorExited {
+			continue
+		}
+		if strings.EqualFold(existing.ConsensusPubKey, canonicalPub) {
+			return Validator{}, fmt.Errorf("consensus key already registered")
+		}
+	}
+
+	if strings.EqualFold(v.ConsensusPubKey, canonicalPub) {
+		return Validator{}, fmt.Errorf("new consensus key equals current consensus key")
+	}
+
+	// Validator identity and escrow remain stable across key rotation.
+	v.ConsensusPubKey = canonicalPub
+	v.ConsensusAddress = consensusAddr
+	r.validators[key] = v
+	return v, nil
+}
+
 func (r *Registry) Root() string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -387,13 +475,19 @@ func (r *Registry) ApplyBFTDoubleSignEvidence(ev BFTDoubleSignEvidence, evidence
 // RestoreCheckpoint restores a locally authenticated projection and checks its commitment.
 // This is not a network validator-set import mechanism.
 func RestoreCheckpoint(cfg Config, values []Validator, root string) (*Registry, error) {
- if err := cfg.Validate(); err != nil { return nil, err }
- r := NewRegistry(cfg)
- for _, v := range values {
-  key := strings.ToLower(v.ID)
-  if _, exists := r.validators[key]; exists { return nil, fmt.Errorf("duplicate checkpoint validator") }
-  r.validators[key] = v
- }
- if r.Root() != root { return nil, fmt.Errorf("checkpoint validator root mismatch") }
- return r, nil
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	r := NewRegistry(cfg)
+	for _, v := range values {
+		key := strings.ToLower(v.ID)
+		if _, exists := r.validators[key]; exists {
+			return nil, fmt.Errorf("duplicate checkpoint validator")
+		}
+		r.validators[key] = v
+	}
+	if r.Root() != root {
+		return nil, fmt.Errorf("checkpoint validator root mismatch")
+	}
+	return r, nil
 }

@@ -19,6 +19,8 @@ const (
 	ValidatorPending   ValidatorStatus = "PENDING"
 	ValidatorActive    ValidatorStatus = "ACTIVE"
 	ValidatorJailed    ValidatorStatus = "JAILED"
+	ValidatorSuspended ValidatorStatus = "SUSPENDED"
+	ValidatorRevoked   ValidatorStatus = "REVOKED"
 	ValidatorUnbonding ValidatorStatus = "UNBONDING"
 	ValidatorExited    ValidatorStatus = "EXITED"
 )
