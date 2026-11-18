@@ -1,0 +1,11 @@
+{
+  "chain_id": 4735489,
+  "config_digest": "86a9c1e1ed65c2e3afcaf469a3155fad94add9e88a2b90e5bc80e0c2e33b3fb3",
+  "pre_upgrade_federation_health": "4/4",
+  "pre_upgrade_runtime_sha256": "cf111db0d141e76787b76cc319f97fa6a4608de2868d4ba0d94381ba853fb2b8",
+  "schema": "hashburst-mainnet-public-baseline-v1",
+  "target_g5_signed_runtime_sha256": "960bd5490c9ae0388be012e4f806c2c90a6b39efe730a78336ffab01ba829dd0",
+  "testnet_preservation_chain_id": 4735490,
+  "upgrade_executed": false,
+  "validator_count": 4
+}

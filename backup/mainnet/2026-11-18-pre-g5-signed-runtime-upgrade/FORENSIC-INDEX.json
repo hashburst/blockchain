@@ -1,0 +1,40 @@
+{
+  "central_private_forensic_index_sha256": "0845c119bc902558523497e852b3e0eab3f5b9f631bf33cba0715fec4aa528d2",
+  "central_private_sha256sums_sha256": "8a83e03c0abe3188fc8b1c83fe2230ceb67555e381dca2dc4bbe0785e7a42ef3",
+  "chain_id": 4735489,
+  "config_digest": "86a9c1e1ed65c2e3afcaf469a3155fad94add9e88a2b90e5bc80e0c2e33b3fb3",
+  "federation_recovered_4of4": true,
+  "pre_upgrade_runtime_sha256": "cf111db0d141e76787b76cc319f97fa6a4608de2868d4ba0d94381ba853fb2b8",
+  "private_rollback_material_committed_to_git": false,
+  "private_rollback_material_stored_on_control_runner": true,
+  "sanitized_for_public_repository": true,
+  "schema": "hashburst-mainnet-sanitized-forensic-index-v1",
+  "snapshot": "2026-11-18-pre-g5-signed-runtime-upgrade",
+  "snapshot_method": "quiescent-rolling-1-of-4",
+  "source_master_commit": "018468c3a77f264889d2aaef51b0e7cc4eeb8dd7",
+  "source_master_tree": "4e01c033f814de660526449474250a5da3578fd3",
+  "target_g5_signed_runtime_sha256": "960bd5490c9ae0388be012e4f806c2c90a6b39efe730a78336ffab01ba829dd0",
+  "validator_count": 4,
+  "validators": [
+    {
+      "rollback_bundle_bytes": 80814080,
+      "rollback_bundle_sha256": "920a38f2298aac487e192f6077c490724d6bfd85d6a6cc267f92753653a36470",
+      "validator": "validator-01"
+    },
+    {
+      "rollback_bundle_bytes": 68608000,
+      "rollback_bundle_sha256": "d954c0c294a6403b2528a22ad550365203b21380d21655237444b1a7eeb677e5",
+      "validator": "validator-02"
+    },
+    {
+      "rollback_bundle_bytes": 81111040,
+      "rollback_bundle_sha256": "2e24b2fb190597bce2714bb6af08a6da8b1743e1ad0fcc15b091c594f34cf78f",
+      "validator": "validator-03"
+    },
+    {
+      "rollback_bundle_bytes": 81100800,
+      "rollback_bundle_sha256": "3d9818ef168484f10bade18d061c39c47c5ad2f4238ab4a240fd1ccb721cba0f",
+      "validator": "validator-04"
+    }
+  ]
+}
