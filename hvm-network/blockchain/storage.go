@@ -55,6 +55,7 @@ type blockOnDisk struct {
 	ReceiptsRoot            string
 	ValidatorSetRoot        string
 	ValidatorStateRoot      string
+	MembershipStateRoot     string
 	AuthorValidatorID       string
 	ProposerID              string
 	ConsensusRound          uint64
@@ -441,7 +442,7 @@ func blockToOnDisk(b *Block) blockOnDisk {
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: b.PrevHash, Hash: b.Hash, ProofOfWork: b.ProofOfWork, ProofOfTime: b.ProofOfTime,
 		HBTStateRoot: b.HBTStateRoot, HVMStateRoot: b.HVMStateRoot, ReceiptsRoot: b.ReceiptsRoot,
-		ValidatorSetRoot: b.ValidatorSetRoot, ValidatorStateRoot: b.ValidatorStateRoot, AuthorValidatorID: b.AuthorValidatorID,
+		ValidatorSetRoot: b.ValidatorSetRoot, ValidatorStateRoot: b.ValidatorStateRoot, MembershipStateRoot: b.MembershipStateRoot, AuthorValidatorID: b.AuthorValidatorID,
 		ProposerID: b.ProposerID, ConsensusRound: b.ConsensusRound, ValidRound: b.ValidRound, ValidPrevoteCertificate: clonePrevoteQC(b.ValidPrevoteCertificate), FinalityCertificate: cloneQC(b.FinalityCertificate),
 	}
 }
@@ -470,7 +471,7 @@ func blockFromOnDisk(bod *blockOnDisk) *Block {
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: bod.PrevHash, Hash: bod.Hash, ProofOfWork: bod.ProofOfWork, ProofOfTime: bod.ProofOfTime,
 		HBTStateRoot: bod.HBTStateRoot, HVMStateRoot: bod.HVMStateRoot, ReceiptsRoot: bod.ReceiptsRoot,
-		ValidatorSetRoot: bod.ValidatorSetRoot, ValidatorStateRoot: bod.ValidatorStateRoot, AuthorValidatorID: bod.AuthorValidatorID,
+		ValidatorSetRoot: bod.ValidatorSetRoot, ValidatorStateRoot: bod.ValidatorStateRoot, MembershipStateRoot: bod.MembershipStateRoot, AuthorValidatorID: bod.AuthorValidatorID,
 		ProposerID: bod.ProposerID, ConsensusRound: bod.ConsensusRound, ValidRound: bod.ValidRound, ValidPrevoteCertificate: clonePrevoteQC(bod.ValidPrevoteCertificate), FinalityCertificate: cloneQC(bod.FinalityCertificate),
 	}
 }

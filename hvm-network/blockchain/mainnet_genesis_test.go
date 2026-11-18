@@ -109,7 +109,7 @@ func TestMainnetImportCheckpointAndFallback(t *testing.T) {
 	}
 	finalizeEVMFixture(t, s)
 	height := n.Height()
-	if e := n.saveRecoveryCheckpoint(height, n.state, n.hvmEngine, n.validators, n.receipts); e != nil {
+	if e := n.saveRecoveryCheckpoint(height, n.state, n.hvmEngine, n.validators, n.membership, n.receipts); e != nil {
 		t.Fatal(e)
 	}
 	for i := 0; i < 257; i++ {

@@ -33,6 +33,7 @@ type Block struct {
 	ReceiptsRoot            string
 	ValidatorSetRoot        string
 	ValidatorStateRoot      string
+	MembershipStateRoot     string
 	AuthorValidatorID       string // BFT content author; APoW beneficiary is separately committed
 	ProposerID              string // current BFT round proposer; consensus metadata, not block hash
 	ConsensusRound          uint64
@@ -157,6 +158,7 @@ func (b *Block) generateV2Hash() string {
 	c.putString(b.ReceiptsRoot)
 	c.putString(b.ValidatorSetRoot)
 	c.putString(b.ValidatorStateRoot)
+	c.putString(b.MembershipStateRoot)
 	c.putString(b.AuthorValidatorID)
 	if b.EffectiveVersion() >= BlockVersionEVM {
 		c.putString("HASHBURST_EVM_CANCUN_V1")

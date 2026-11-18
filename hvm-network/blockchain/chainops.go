@@ -56,11 +56,11 @@ func (bc *Blockchain) TryExtendOrAdopt(incoming []*Block) (applied bool, err err
 	if err := validateFullChainWithConfig(candidate, bc.v2Config, bc.MiningReward); err != nil {
 		return false, fmt.Errorf("ramo piu' lungo ma invalido: %w", err)
 	}
-	newState, newHVM, newValidators, newReceipts, history, err := bc.computeProjections(candidate)
+	newState, newHVM, newValidators, newMembership, newReceipts, history, err := bc.computeProjections(candidate)
 	if err != nil {
 		return false, fmt.Errorf("ramo con proiezioni invalide: %w", err)
 	}
-	if err := bc.replaceLocked(candidate, newState, newHVM, newValidators, newReceipts); err != nil {
+	if err := bc.replaceLocked(candidate, newState, newHVM, newValidators, newMembership, newReceipts); err != nil {
 		return false, err
 	}
 	bc.evmReadHistory = history
@@ -138,7 +138,7 @@ func (bc *Blockchain) buildCandidateChain(incoming []*Block) ([]*Block, error) {
 	return candidate, nil
 }
 
-func (bc *Blockchain) replaceLocked(chain []*Block, newState *State, newHVM *hvm.Engine, newValidators *consensus.Registry, newReceipts map[string]hvm.Receipt) error {
+func (bc *Blockchain) replaceLocked(chain []*Block, newState *State, newHVM *hvm.Engine, newValidators *consensus.Registry, newMembership *consensus.MembershipState, newReceipts map[string]hvm.Receipt) error {
 	if err := bc.storage.Rewrite(chain); err != nil {
 		return fmt.Errorf("riscrittura storage: %w", err)
 	}
@@ -146,6 +146,7 @@ func (bc *Blockchain) replaceLocked(chain []*Block, newState *State, newHVM *hvm
 	bc.state = newState
 	bc.hvmEngine = newHVM
 	bc.validators = newValidators
+	bc.membership = newMembership
 	bc.receipts = newReceipts
 	return nil
 }

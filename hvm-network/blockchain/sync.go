@@ -68,6 +68,7 @@ type blockWire struct {
 	ReceiptsRoot            string                        `json:"receipts_root,omitempty"`
 	ValidatorSetRoot        string                        `json:"validator_set_root,omitempty"`
 	ValidatorStateRoot      string                        `json:"validator_state_root,omitempty"`
+	MembershipStateRoot     string                        `json:"membership_state_root,omitempty"`
 	AuthorValidatorID       string                        `json:"author_validator_id,omitempty"`
 	ProposerID              string                        `json:"proposer_id,omitempty"`
 	ConsensusRound          uint64                        `json:"consensus_round,omitempty"`
@@ -110,7 +111,7 @@ func blockToWire(b *Block) *blockWire {
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: b.PrevHash, Hash: b.Hash, ProofOfWork: b.ProofOfWork, ProofOfTime: b.ProofOfTime,
 		HBTStateRoot: b.HBTStateRoot, HVMStateRoot: b.HVMStateRoot, ReceiptsRoot: b.ReceiptsRoot,
-		ValidatorSetRoot: b.ValidatorSetRoot, ValidatorStateRoot: b.ValidatorStateRoot, AuthorValidatorID: b.AuthorValidatorID,
+		ValidatorSetRoot: b.ValidatorSetRoot, ValidatorStateRoot: b.ValidatorStateRoot, MembershipStateRoot: b.MembershipStateRoot, AuthorValidatorID: b.AuthorValidatorID,
 		ProposerID: b.ProposerID, ConsensusRound: b.ConsensusRound, ValidRound: b.ValidRound, ValidPrevoteCertificate: clonePrevoteQC(b.ValidPrevoteCertificate), FinalityCertificate: cloneQC(b.FinalityCertificate),
 	}
 }
@@ -130,7 +131,7 @@ func (bw *blockWire) toBlock() *Block {
 		Transactions: txs, TransactionsV2: txsV2,
 		PrevHash: bw.PrevHash, Hash: bw.Hash, ProofOfWork: bw.ProofOfWork, ProofOfTime: bw.ProofOfTime,
 		HBTStateRoot: bw.HBTStateRoot, HVMStateRoot: bw.HVMStateRoot, ReceiptsRoot: bw.ReceiptsRoot,
-		ValidatorSetRoot: bw.ValidatorSetRoot, ValidatorStateRoot: bw.ValidatorStateRoot, AuthorValidatorID: bw.AuthorValidatorID,
+		ValidatorSetRoot: bw.ValidatorSetRoot, ValidatorStateRoot: bw.ValidatorStateRoot, MembershipStateRoot: bw.MembershipStateRoot, AuthorValidatorID: bw.AuthorValidatorID,
 		ProposerID: bw.ProposerID, ConsensusRound: bw.ConsensusRound, ValidRound: bw.ValidRound, ValidPrevoteCertificate: clonePrevoteQC(bw.ValidPrevoteCertificate), FinalityCertificate: cloneQC(bw.FinalityCertificate),
 	}
 }

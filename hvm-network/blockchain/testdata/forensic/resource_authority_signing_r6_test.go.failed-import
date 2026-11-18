@@ -1,0 +1,102 @@
+package blockchain
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/hashburst/hvm-network/consensus"
+)
+
+func TestR6DegradedValidatorRetainsConsensusSigningAuthority(t *testing.T) {
+	s := setupPhase3DChains(t)
+
+	const height uint64 = 7
+	const round uint64 = 0
+
+	bc := s.nodes[0]
+	setBefore := bc.CurrentValidatorSet(height)
+	if len(setBefore.Validators) == 0 {
+		t.Fatal("fixture has no active validators")
+	}
+
+	degraded := setBefore.Validators[0]
+
+	fixture, ok := s.byID[strings.ToLower(degraded.ID)]
+	if !ok {
+		t.Fatalf("validator fixture %s missing", degraded.ID)
+	}
+
+	targetPeer := degraded.PeerID
+	if strings.TrimSpace(targetPeer) == "" {
+		t.Fatalf("validator %s has empty peer id", degraded.ID)
+	}
+
+	// Operational degradation is routing/telemetry state only. It MUST NOT
+	// mutate consensus membership, voting power, quorum or signing authority.
+	router := NewAdaptivePeerRouter()
+	router.Observe(targetPeer, PeerObservation{
+		LatencyMillis: 6000,
+		ErrorRate:     1.0,
+		QueueDepth:    1000000,
+	})
+
+	state, ok := router.State(targetPeer)
+	if !ok {
+		t.Fatalf("missing operational state for peer %s", targetPeer)
+	}
+	if state != PeerDegraded {
+		t.Fatalf("peer state=%v want=%v", state, PeerDegraded)
+	}
+
+	setAfter := bc.CurrentValidatorSet(height)
+
+	if !strings.EqualFold(setBefore.Root(), setAfter.Root()) {
+		t.Fatalf("validator set root changed after operational degradation: before=%s after=%s",
+			setBefore.Root(), setAfter.Root())
+	}
+
+	active, _, ok := setAfter.Find(degraded.ID)
+	if !ok {
+		t.Fatalf("degraded validator %s disappeared from active consensus set", degraded.ID)
+	}
+
+	if active.Power != degraded.Power {
+		t.Fatalf("degraded validator voting power changed: before=%d after=%d",
+			degraded.Power, active.Power)
+	}
+
+	blockHash := strings.Repeat("ab", 32)
+
+	prevote, err := bc.SignConsensusPrevote(
+		height,
+		round,
+		blockHash,
+		setAfter.Root(),
+		degraded.ID,
+		fixture.consensus,
+	)
+	if err != nil {
+		t.Fatalf("degraded active validator failed to sign prevote: %v", err)
+	}
+
+	if err := consensus.VerifyPrevote(prevote, active); err != nil {
+		t.Fatalf("degraded active validator prevote failed consensus verification: %v", err)
+	}
+
+	if !strings.EqualFold(prevote.ValidatorID, degraded.ID) {
+		t.Fatalf("signed prevote validator mismatch: got=%s want=%s",
+			prevote.ValidatorID, degraded.ID)
+	}
+
+	if !strings.EqualFold(prevote.ValidatorSetRoot, setAfter.Root()) {
+		t.Fatalf("signed prevote validator-set root mismatch: got=%s want=%s",
+			prevote.ValidatorSetRoot, setAfter.Root())
+	}
+
+	t.Log("RESOURCE_MUTATION_APPLIED=PASS")
+	t.Log("DEGRADED_VALIDATOR_ACTIVE=PASS")
+	t.Log("DEGRADED_VALIDATOR_POWER_UNCHANGED=PASS")
+	t.Log("DEGRADED_VALIDATOR_PREVOTE_SIGNED=PASS")
+	t.Log("DEGRADED_VALIDATOR_PREVOTE_VERIFIED=PASS")
+	t.Log("DEGRADED_VALIDATOR_SIGNING_AUTHORITY=PASS")
+}

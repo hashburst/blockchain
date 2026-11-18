@@ -14,6 +14,7 @@ type blockExecutionV2 struct {
 	state        *State
 	hvm          *hvm.Engine
 	validators   *consensus.Registry
+	membership   *consensus.MembershipState
 	validatorSet consensus.ValidatorSet
 	receipts     []hvm.Receipt
 }
@@ -28,19 +29,24 @@ type validatorIDPayload struct {
 }
 
 const (
-	computeValidatorRegister = uint64(80_000)
-	computeValidatorUnbond   = uint64(25_000)
-	computeValidatorWithdraw = uint64(35_000)
-	computeValidatorEvidence = uint64(120_000)
+	computeValidatorRegister   = uint64(80_000)
+	computeValidatorUnbond     = uint64(25_000)
+	computeValidatorWithdraw   = uint64(35_000)
+	computeValidatorEvidence   = uint64(120_000)
+	computeValidatorMembership = uint64(90_000)
 )
 
-func (bc *Blockchain) executeBlockV2(baseState *State, baseHVM *hvm.Engine, baseValidators *consensus.Registry, confirmedNodes map[string]ConfirmedNodeIdentity, b *Block, ancestors []*Block) (*blockExecutionV2, error) {
-	if baseState == nil || baseHVM == nil || baseValidators == nil {
+func (bc *Blockchain) executeBlockV2(baseState *State, baseHVM *hvm.Engine, baseValidators *consensus.Registry, baseMembership *consensus.MembershipState, confirmedNodes map[string]ConfirmedNodeIdentity, b *Block, ancestors []*Block) (*blockExecutionV2, error) {
+	if baseState == nil || baseHVM == nil || baseValidators == nil || baseMembership == nil {
 		return nil, fmt.Errorf("missing execution projection")
 	}
 	stateShadow := baseState.Clone()
 	hvmShadow := baseHVM.Clone()
 	validatorShadow := baseValidators.Clone()
+	membershipShadow, err := consensus.RestoreMembershipState(baseMembership.Snapshot())
+	if err != nil {
+		return nil, fmt.Errorf("membership projection: %w", err)
+	}
 	validatorShadow.AdvanceHeight(uint64(b.Index))
 	preSet := validatorShadow.ActiveSet(uint64(b.Index))
 
@@ -188,6 +194,56 @@ func (bc *Blockchain) executeBlockV2(baseState *State, baseHVM *hvm.Engine, base
 			receipt.ReturnData = mustConsensusJSON(map[string]interface{}{"validator": v, "withdrawn_units": amount})
 			receipt.Events = []hvm.Event{{Name: "ValidatorWithdrawn", Topics: []string{v.ID}, Data: receipt.ReturnData}}
 
+		case protocolv2.TxValidatorMembership:
+			fee, err := bc.v2Config.FeePolicy.ComputeFee(computeValidatorMembership)
+			if err != nil {
+				return nil, err
+			}
+			receipt = hvm.Receipt{
+				TxID:        tx.HashHex(),
+				ComputeUsed: computeValidatorMembership,
+				FeeUnits:    fee,
+			}
+
+			var cert consensus.MembershipCertificate
+			if err := json.Unmarshal(tx.Data, &cert); err != nil {
+				receipt.RevertReason = "invalid validator membership payload"
+				break
+			}
+			if cert.Proposal.ChainID != bc.v2Config.ChainID ||
+				cert.Proposal.ChainID != tx.ChainID {
+				receipt.RevertReason = "membership chain_id mismatch"
+				break
+			}
+
+			candidateRegistry := validatorShadow.Clone()
+			candidateMembership, err := consensus.RestoreMembershipState(
+				membershipShadow.Snapshot(),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("membership candidate state: %w", err)
+			}
+
+			updated, err := candidateMembership.Apply(
+				candidateRegistry,
+				preSet,
+				cert,
+			)
+			if err != nil {
+				receipt.RevertReason = err.Error()
+				break
+			}
+
+			validatorShadow = candidateRegistry
+			membershipShadow = candidateMembership
+			receipt.Success = true
+			receipt.ReturnData = mustConsensusJSON(updated)
+			receipt.Events = []hvm.Event{{
+				Name:   "ValidatorMembershipChanged",
+				Topics: []string{updated.ID, cert.Proposal.Action},
+				Data:   receipt.ReturnData,
+			}}
+
 		case protocolv2.TxValidatorEvidence:
 			fee, err := bc.v2Config.FeePolicy.ComputeFee(computeValidatorEvidence)
 			if err != nil {
@@ -250,7 +306,7 @@ func (bc *Blockchain) executeBlockV2(baseState *State, baseHVM *hvm.Engine, base
 	if err := bc.executeEthereum(baseState, stateShadow, b, ancestors); err != nil {
 		return nil, err
 	}
-	return &blockExecutionV2{state: stateShadow, hvm: hvmShadow, validators: validatorShadow, validatorSet: preSet, receipts: receipts}, nil
+	return &blockExecutionV2{state: stateShadow, hvm: hvmShadow, validators: validatorShadow, membership: membershipShadow, validatorSet: preSet, receipts: receipts}, nil
 }
 
 func mustConsensusJSON(v interface{}) []byte {
@@ -289,6 +345,8 @@ func (bc *Blockchain) validateV2Transaction(tx *protocolv2.TransactionV2) error 
 		maxRequired, err = bc.v2Config.FeePolicy.ComputeFee(computeValidatorWithdraw)
 	case protocolv2.TxValidatorEvidence:
 		maxRequired, err = bc.v2Config.FeePolicy.ComputeFee(computeValidatorEvidence)
+	case protocolv2.TxValidatorMembership:
+		maxRequired, err = bc.v2Config.FeePolicy.ComputeFee(computeValidatorMembership)
 	}
 	if err != nil {
 		return err
@@ -307,7 +365,8 @@ func isProtocolV2ExecutableTxType(t protocolv2.TxType) bool {
 		protocolv2.TxValidatorRegister,
 		protocolv2.TxValidatorUnbond,
 		protocolv2.TxValidatorWithdraw,
-		protocolv2.TxValidatorEvidence:
+		protocolv2.TxValidatorEvidence,
+		protocolv2.TxValidatorMembership:
 		return true
 	default:
 		return false
@@ -329,6 +388,7 @@ func (bc *Blockchain) prepareV2Commitments(b *Block) (*blockExecutionV2, error) 
 	b.ReceiptsRoot = hvm.ReceiptsRoot(result.receipts)
 	b.ValidatorSetRoot = result.validatorSet.Root()
 	b.ValidatorStateRoot = result.validators.Root()
+	b.MembershipStateRoot = result.membership.Root()
 	return result, nil
 }
 
@@ -354,6 +414,9 @@ func (bc *Blockchain) validateV2Commitments(b *Block) (*blockExecutionV2, error)
 	}
 	if got := result.validators.Root(); !strings.EqualFold(got, b.ValidatorStateRoot) {
 		return nil, fmt.Errorf("validator state root mismatch: got %s want %s", got, b.ValidatorStateRoot)
+	}
+	if got := result.membership.Root(); !strings.EqualFold(got, b.MembershipStateRoot) {
+		return nil, fmt.Errorf("membership state root mismatch: got %s want %s", got, b.MembershipStateRoot)
 	}
 	return result, nil
 }
