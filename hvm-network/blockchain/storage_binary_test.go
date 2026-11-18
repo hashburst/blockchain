@@ -38,7 +38,7 @@ func TestBinaryStorageConvertedRuntimeReplay(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	restored, err := OpenExistingBlockchain(target, n.v2Config, testHistoryBlock(t,n,0).Hash, 6, testHistoryBlock(t,n,6).Hash)
+	restored, err := OpenExistingBlockchain(target, n.v2Config, testHistoryBlock(t, n, 0).Hash, 6, testHistoryBlock(t, n, 6).Hash)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestRuntimeAsyncCheckpointFrozenAndDrained(t *testing.T) {
 		t.Fatal(err)
 	}
 	height := n.Height()
-	if err := n.saveRecoveryCheckpoint(height, n.state, n.hvmEngine, n.validators, n.receipts); err != nil {
+	if err := n.saveRecoveryCheckpoint(height, n.state, n.hvmEngine, n.validators, n.membership, n.receipts); err != nil {
 		t.Fatal(err)
 	}
 	path := n.checkpointPath((height / checkpointInterval) % 2)
@@ -118,7 +118,7 @@ func TestRuntimeAsyncCheckpointFrozenAndDrained(t *testing.T) {
 		t.Fatal(err)
 	}
 	n.checkpointAsync = true
-	if err = n.saveRecoveryCheckpoint(height, n.state, n.hvmEngine, n.validators, n.receipts); err != nil {
+	if err = n.saveRecoveryCheckpoint(height, n.state, n.hvmEngine, n.validators, n.membership, n.receipts); err != nil {
 		t.Fatal(err)
 	}
 	n.checkpointAsync = false

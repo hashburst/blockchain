@@ -2,6 +2,7 @@ package consensus
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"sort"
@@ -365,4 +366,22 @@ func (s *MembershipState) Apply(
 	s.consumed[strings.ToLower(h)] = struct{}{}
 
 	return updated, nil
+}
+
+// Root returns the deterministic cryptographic commitment of the membership
+// state. Its consensus encoding is frozen by the R6 byte-vector tests.
+func (s *MembershipState) Root() string {
+	snapshot := s.Snapshot()
+
+	var b bytes.Buffer
+	putString(&b, "HASHBURST_VALIDATOR_MEMBERSHIP_STATE_V1")
+	putUint64(&b, snapshot.Version)
+	putUint64(&b, uint64(len(snapshot.Consumed)))
+
+	for _, h := range snapshot.Consumed {
+		putString(&b, h)
+	}
+
+	sum := sha256.Sum256(b.Bytes())
+	return "0x" + hex.EncodeToString(sum[:])
 }

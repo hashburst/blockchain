@@ -38,7 +38,7 @@ import (
 
 const checkpointInterval = 1024
 const checkpointMaxBytes = 64 << 20
-const checkpointFormat = 2 // Increment on projection/execution semantics changes.
+const checkpointFormat = 3 // v3 persists validator membership version/replay-consumption state.
 
 type recoverySeed struct {
 	nodes      map[string]ConfirmedNodeIdentity
@@ -46,6 +46,7 @@ type recoverySeed struct {
 	state      *State
 	engine     *hvm.Engine
 	validators *consensus.Registry
+	membership *consensus.MembershipState
 	receipts   map[string]hvm.Receipt
 }
 type checkpointKV struct{ Key, Value []byte }
@@ -71,6 +72,7 @@ type recoveryCheckpoint struct {
 	ConsumedImports                       map[string]string
 	HVM                                   map[string][]byte
 	Validators                            []consensus.Validator
+	Membership                            consensus.MembershipStateSnapshot
 	Receipts                              map[string]hvm.Receipt
 	EVM                                   *checkpointEVM
 }
@@ -366,7 +368,7 @@ func restoreCheckpointEVM(in *checkpointEVM) (*evmProjection, error) {
 	return p, nil
 }
 
-func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.Engine, validators *consensus.Registry, receipts map[string]hvm.Receipt, nodeSnapshot ...map[string]ConfirmedNodeIdentity) error {
+func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.Engine, validators *consensus.Registry, membership *consensus.MembershipState, receipts map[string]hvm.Receipt, nodeSnapshot ...map[string]ConfirmedNodeIdentity) error {
 	if bc.storage == nil || !bc.storage.durable || height < 1 || !bc.v2Config.ConsensusEnabledAt(height) {
 		return nil
 	}
@@ -405,7 +407,10 @@ func (bc *Blockchain) saveRecoveryCheckpoint(height int, st *State, engine *hvm.
 			applyNodeRegistrations(nodes, item, bc.v2Config.ChainID)
 		}
 	}
-	cp := recoveryCheckpoint{Nodes: nodes, Version: checkpointFormat, Height: height, Hash: b.Hash, Config: bc.recoveryConfigHash(), PrefixBytes: n, PrefixHash: digest, NodeBinding: binding, Balances: st.balances, Sequences: st.sequences, ConsumedImports: st.consumedImports, HVM: engine.State().CheckpointValues(), Validators: validators.Snapshot(), Receipts: receipts, EVM: evm}
+	if membership == nil {
+		return fmt.Errorf("checkpoint requires membership projection")
+	}
+	cp := recoveryCheckpoint{Nodes: nodes, Version: checkpointFormat, Height: height, Hash: b.Hash, Config: bc.recoveryConfigHash(), PrefixBytes: n, PrefixHash: digest, NodeBinding: binding, Balances: st.balances, Sequences: st.sequences, ConsumedImports: st.consumedImports, HVM: engine.State().CheckpointValues(), Validators: validators.Snapshot(), Membership: membership.Snapshot(), Receipts: receipts, EVM: evm}
 	// Freeze all maps/projections into owned bytes while the caller holds the chain
 	// lock (or is in single-threaded startup). Only compression and publication run
 	// off-thread. Snapshot construction still has a measurable CPU/copy cost.
@@ -533,7 +538,7 @@ func (bc *Blockchain) maybeSaveRecoveryCheckpoint() {
 	if height%checkpointInterval != 0 || height <= bc.checkpointHeight {
 		return
 	}
-	if err := bc.saveRecoveryCheckpoint(height, bc.state, bc.hvmEngine, bc.validators, bc.receipts); err != nil {
+	if err := bc.saveRecoveryCheckpoint(height, bc.state, bc.hvmEngine, bc.validators, bc.membership, bc.receipts); err != nil {
 		log.Printf("HVM_CHECKPOINT_WRITE_SKIPPED reason=%v", err)
 	}
 }
@@ -641,7 +646,11 @@ func (bc *Blockchain) loadRecoveryCheckpoint() (*recoverySeed, error) {
 	if err = checkEVMCommitments(b, st); err != nil {
 		return nil, err
 	}
-	return &recoverySeed{nodes: cloneNodeIdentityMap(best.Nodes), height: best.Height, state: st, engine: hvm.NewEngine(hs, bc.v2Config.FeePolicy), validators: validators, receipts: best.Receipts}, nil
+	membership, err := consensus.RestoreMembershipState(best.Membership)
+	if err != nil {
+		return nil, fmt.Errorf("checkpoint membership state: %w", err)
+	}
+	return &recoverySeed{nodes: cloneNodeIdentityMap(best.Nodes), height: best.Height, state: st, engine: hvm.NewEngine(hs, bc.v2Config.FeePolicy), validators: validators, membership: membership, receipts: best.Receipts}, nil
 }
 
 // RecoveryStatus reports startup work without exposing paths or cache secrets.

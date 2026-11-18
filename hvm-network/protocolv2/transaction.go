@@ -30,6 +30,7 @@ const (
 	TxValidatorUnbond
 	TxValidatorWithdraw
 	TxValidatorEvidence
+	TxValidatorMembership
 )
 
 func (t TxType) String() string {
@@ -58,13 +59,15 @@ func (t TxType) String() string {
 		return "VALIDATOR_WITHDRAW"
 	case TxValidatorEvidence:
 		return "VALIDATOR_EVIDENCE"
+	case TxValidatorMembership:
+		return "VALIDATOR_MEMBERSHIP"
 	default:
 		return fmt.Sprintf("UNKNOWN_%d", uint16(t))
 	}
 }
 
 func (t TxType) IsKnown() bool {
-	return t >= TxHBTTransfer && t <= TxValidatorEvidence
+	return t >= TxHBTTransfer && t <= TxValidatorMembership
 }
 
 // TransactionV2 is the forward-compatible transaction envelope for HashBurst
@@ -209,7 +212,7 @@ func (t *TransactionV2) Verify(expectedChainID uint64) error {
 		if t.ValueUnits <= 0 {
 			return fmt.Errorf("validator registration requires bond value")
 		}
-	case TxValidatorUnbond, TxValidatorWithdraw, TxValidatorEvidence:
+	case TxValidatorUnbond, TxValidatorWithdraw, TxValidatorEvidence, TxValidatorMembership:
 		if t.To != "" {
 			return fmt.Errorf("validator protocol transaction destination must be empty")
 		}

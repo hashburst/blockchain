@@ -45,6 +45,7 @@ type Blockchain struct {
 	state            *State
 	hvmEngine        *hvm.Engine
 	validators       *consensus.Registry
+	membership       *consensus.MembershipState
 	voteJournal      *consensus.VoteJournal // legacy Phase 3C guard; Phase 3D uses bftJournal
 	voteJournalErr   error
 	bftJournal       *consensus.BFTSignJournal
@@ -82,6 +83,7 @@ func NewBlockchainWithDirAndV2Config(dir string, cfg ProtocolV2Config) *Blockcha
 		state:          initialProtocolState(cfg),
 		hvmEngine:      hvm.NewEngine(nil, cfg.FeePolicy),
 		validators:     consensus.NewRegistry(cfg.Validator),
+		membership:     consensus.NewMembershipState(0),
 		voteJournal:    voteJournal,
 		voteJournalErr: voteJournalErr,
 		bftJournal:     bftJournal,
@@ -326,6 +328,7 @@ func (bc *Blockchain) commitV2Execution(ex *blockExecutionV2) {
 	bc.rememberEVMStateLocked()
 	bc.hvmEngine.ReplaceStateWith(ex.hvm)
 	bc.validators.ReplaceWith(ex.validators)
+	bc.membership = ex.membership
 	bc.publishEthereumFinalizedLocked()
 	for _, r := range ex.receipts {
 		bc.receipts[strings.ToLower(strings.TrimPrefix(r.TxID, "0x"))] = r
@@ -543,7 +546,7 @@ func (bc *Blockchain) rebuildProjections(blocks []*Block) error {
 	if bc.history != nil {
 		count, get = bc.blockCountLocked(), bc.blockAtLocked
 	}
-	st, engine, validators, receipts, history, err := bc.computeProjectionsFrom(count, get)
+	st, engine, validators, membership, receipts, history, err := bc.computeProjectionsFrom(count, get)
 	if err != nil {
 		return err
 	}
@@ -551,6 +554,7 @@ func (bc *Blockchain) rebuildProjections(blocks []*Block) error {
 	bc.evmReadHistory = history
 	bc.hvmEngine = engine
 	bc.validators = validators
+	bc.membership = membership
 	bc.receipts = receipts
 	return nil
 }

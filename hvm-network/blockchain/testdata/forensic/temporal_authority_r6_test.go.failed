@@ -1,0 +1,263 @@
+package blockchain
+
+import (
+	"strings"
+	"testing"
+
+	"hashburst/consensus"
+	"hashburst/protocolv2"
+)
+
+func TestR6TemporalAuthorityMembershipTransition(t *testing.T) {
+	f := newR6CanonicalMembershipFixture(t)
+
+	if len(f.vals) != 4 {
+		t.Fatalf("fixture validators=%d want=4", len(f.vals))
+	}
+
+	/*
+		Block N is height 10.
+
+		The membership transaction suspends validator #4. The critical
+		temporal property is that authority for N was frozen before the
+		transaction executes, while the resulting registry/membership
+		state becomes the authority source for N+1.
+	*/
+	const blockN uint64 = 10
+	const blockN1 uint64 = 11
+
+	target := f.vals[3].validator
+
+	preSet := f.validators.ActiveSet(blockN)
+	if len(preSet.Validators) != 4 {
+		t.Fatalf("block-N preSet validators=%d want=4", len(preSet.Validators))
+	}
+	if preSet.TotalPower() != 4 {
+		t.Fatalf("block-N preSet power=%d want=4", preSet.TotalPower())
+	}
+	if _, _, ok := preSet.Find(target.ID); !ok {
+		t.Fatal("target validator missing from block-N PRE authority")
+	}
+	if got := consensus.QuorumThreshold(preSet.TotalPower()); got != 3 {
+		t.Fatalf("block-N quorum=%d want=3", got)
+	}
+
+	t.Logf(
+		"R3F5B_N_PRE_AUTHORITY_OK height=%d validators=%d power=%d quorum=%d target=%s",
+		blockN,
+		len(preSet.Validators),
+		preSet.TotalPower(),
+		consensus.QuorumThreshold(preSet.TotalPower()),
+		target.ID,
+	)
+
+	proposal := consensus.MembershipProposal{
+		PreviousVersion: f.membership.Version(),
+		Version:         f.membership.Version() + 1,
+		Action:          consensus.MembershipActionSuspend,
+		ValidatorID:     target.ID,
+	}
+
+	cert := signR6MembershipCertificate(
+		t,
+		f.cfg.ChainID,
+		proposal,
+		f.vals[:3],
+	)
+
+	payload, err := consensus.EncodeMembershipCertificate(cert)
+	if err != nil {
+		t.Fatalf("encode membership certificate: %v", err)
+	}
+
+	sender := f.vals[0].operator
+	beforeSequence := f.state.Sequence(sender.Address())
+
+	tx := protocolv2.NewTransactionV2(
+		f.cfg.ChainID,
+		sender.Address(),
+		"",
+		beforeSequence,
+		0,
+		0,
+		protocolv2.TxValidatorMembership,
+		payload,
+	)
+
+	if err := tx.Sign(sender); err != nil {
+		t.Fatalf("sign membership transaction: %v", err)
+	}
+
+	b := newR6MembershipExecutionBlock(
+		t,
+		f,
+		int(blockN),
+		[]*protocolv2.TransactionV2{tx},
+	)
+
+	result, err := f.bc.executeBlockV2(
+		b,
+		f.state,
+		f.hvm,
+		f.validators,
+		f.membership,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("execute block N membership transition: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("nil block-N execution result")
+	}
+
+	/*
+		The authority embedded in execution result must still be PRE(N).
+		The membership transaction must not retroactively rewrite the
+		validator set authorising block N.
+	*/
+	if len(result.validatorSet.Validators) != 4 {
+		t.Fatalf(
+			"block-N execution authority validators=%d want=4",
+			len(result.validatorSet.Validators),
+		)
+	}
+	if result.validatorSet.TotalPower() != 4 {
+		t.Fatalf(
+			"block-N execution authority power=%d want=4",
+			result.validatorSet.TotalPower(),
+		)
+	}
+	if !strings.EqualFold(result.validatorSet.Root(), preSet.Root()) {
+		t.Fatalf(
+			"block-N validator set root changed retroactively: got=%s want=%s",
+			result.validatorSet.Root(),
+			preSet.Root(),
+		)
+	}
+	if _, _, ok := result.validatorSet.Find(target.ID); !ok {
+		t.Fatal("suspended validator disappeared retroactively from block-N authority")
+	}
+
+	t.Logf(
+		"R3F5B_N_PRE_SET_FROZEN_OK root=%s target=%s",
+		result.validatorSet.Root(),
+		target.ID,
+	)
+
+	/*
+		The transaction must have changed POST membership and registry
+		state even though PRE authority remains frozen.
+	*/
+	if result.membership.Version() != proposal.Version {
+		t.Fatalf(
+			"post membership version=%d want=%d",
+			result.membership.Version(),
+			proposal.Version,
+		)
+	}
+
+	proposalHash, err := consensus.MembershipProposalHash(proposal)
+	if err != nil {
+		t.Fatalf("membership proposal hash: %v", err)
+	}
+
+	if !result.membership.Consumed(proposalHash) {
+		t.Fatalf("membership proposal %s not recorded as consumed", proposalHash)
+	}
+
+	postValidator, ok := result.validators.Get(target.ID)
+	if !ok {
+		t.Fatalf("target validator %s absent from POST registry", target.ID)
+	}
+	if postValidator.Status != consensus.ValidatorSuspended {
+		t.Fatalf(
+			"target POST status=%s want=%s",
+			postValidator.Status,
+			consensus.ValidatorSuspended,
+		)
+	}
+
+	if got := result.state.Sequence(sender.Address()); got != beforeSequence+1 {
+		t.Fatalf(
+			"membership tx sequence=%d want=%d",
+			got,
+			beforeSequence+1,
+		)
+	}
+
+	t.Logf(
+		"R3F5B_N_POST_MEMBERSHIP_OK version=%d proposal=%s target_status=%s",
+		result.membership.Version(),
+		proposalHash,
+		postValidator.Status,
+	)
+
+	/*
+		N+1 authority is derived from the registry produced by N.
+	*/
+	nextSet := result.validators.ActiveSet(blockN1)
+
+	if len(nextSet.Validators) != 3 {
+		t.Fatalf(
+			"block-N+1 active validators=%d want=3",
+			len(nextSet.Validators),
+		)
+	}
+	if nextSet.TotalPower() != 3 {
+		t.Fatalf(
+			"block-N+1 power=%d want=3",
+			nextSet.TotalPower(),
+		)
+	}
+	if _, _, ok := nextSet.Find(target.ID); ok {
+		t.Fatal("suspended validator remained eligible in block-N+1 authority")
+	}
+	if got := consensus.QuorumThreshold(nextSet.TotalPower()); got != 3 {
+		t.Fatalf(
+			"block-N+1 quorum=%d want=3",
+			got,
+		)
+	}
+	if strings.EqualFold(nextSet.Root(), preSet.Root()) {
+		t.Fatalf(
+			"block-N+1 authority root unchanged after suspension: %s",
+			nextSet.Root(),
+		)
+	}
+
+	t.Logf(
+		"R3F5B_N_PLUS_1_AUTHORITY_OK height=%d validators=%d power=%d quorum=%d root=%s",
+		blockN1,
+		len(nextSet.Validators),
+		nextSet.TotalPower(),
+		consensus.QuorumThreshold(nextSet.TotalPower()),
+		nextSet.Root(),
+	)
+
+	/*
+		Freeze the exact commitments that a produced block N carries.
+	*/
+	b.ValidatorSetRoot = result.validatorSet.Root()
+	b.ValidatorStateRoot = result.validators.Root()
+	b.MembershipStateRoot = result.membership.Root()
+
+	if !strings.EqualFold(b.ValidatorSetRoot, preSet.Root()) {
+		t.Fatal("block-N ValidatorSetRoot is not PRE authority")
+	}
+	if !strings.EqualFold(b.ValidatorStateRoot, result.validators.Root()) {
+		t.Fatal("block-N ValidatorStateRoot is not POST registry")
+	}
+	if !strings.EqualFold(b.MembershipStateRoot, result.membership.Root()) {
+		t.Fatal("block-N MembershipStateRoot is not POST membership")
+	}
+
+	t.Logf(
+		"R3F5B_COMMITMENT_BOUNDARY_OK validator_set_pre=%s validator_state_post=%s membership_state_post=%s",
+		b.ValidatorSetRoot,
+		b.ValidatorStateRoot,
+		b.MembershipStateRoot,
+	)
+
+	t.Log("HB_R6_1D_3D_R3F_5B_TEMPORAL_AUTHORITY_E2E_OK")
+}

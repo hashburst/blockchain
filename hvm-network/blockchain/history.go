@@ -138,7 +138,7 @@ func (bc *Blockchain) executeCurrentBlock(b *Block) (*blockExecutionV2, error) {
 	if e != nil {
 		return nil, e
 	}
-	return bc.executeBlockV2(bc.state, bc.hvmEngine, bc.validators, nodes, b, ancestors)
+	return bc.executeBlockV2(bc.state, bc.hvmEngine, bc.validators, bc.membership, nodes, b, ancestors)
 }
 
 // BlockAt returns an owned block and propagates storage/decode failures.
