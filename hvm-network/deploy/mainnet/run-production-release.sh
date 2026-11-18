@@ -1,320 +1,773 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPO="$(cd "$ROOT/.." && pwd)"
 DEPLOY="$ROOT/deploy/mainnet"
+SUPPLY="$ROOT/deploy/supply-chain"
+
 KNOWN=/etc/hashburst-control/fleet_known_hosts
 SOCK=/run/hashburst-control/ssh-agent.sock
-VALIDATORS=(77.90.188.153 77.90.188.154 77.90.188.155 77.90.188.157)
-OBSERVER=64.31.4.9
+
+VALIDATORS=(
+    77.90.188.153
+    77.90.188.154
+    77.90.188.155
+    77.90.188.157
+)
+
 VSERVICE=hashburst-hvm-mainnet.service
-APOW_SERVICE=hashburst-apow-mainnet.service
-OBS_SERVICE=hashburst-hvm-mainnet-ingress.service
-GW_SERVICE=hashburst-hvm-mainnet-evm-gateway.service
-OBS_USER=hashburst-hvm-mainnet-ingress
-OBS_ETC=/etc/hashburst-hvm-mainnet-ingress
-OBS_STATE=/var/lib/hashburst-hvm-mainnet-ingress
-OBS_OPT=/opt/hashburst-hvm-mainnet-ingress
-GW_OPT=/opt/hashburst-hvm-mainnet-evm-gateway
-R6=/var/lib/hashburst-actions/mainnet-evidence/founder-signed-checkpoints/run-42514933956
-R8A_SOURCE=5a5a43c517dabe6aaec80c1df6d8ce0cadd0cf08
-R8A_RUN=42761659413
-R8A_ARTIFACT_DIGEST=2b80e4ed1b24656c9d29ebc62e7b834ee18d39c15eb4d55183793b713abc3b85
-R8A_MINER_ADDRESS=0x0957c1f8802a58cf1E0eD1E866990Ea66f16236f
-LOG="$REPO/mainnet-production-release.log"
-EVIDENCE="$REPO/mainnet-production-release.json"
-SSH=(ssh -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
-SCP=(scp -q -o UserKnownHostsFile="$KNOWN" -o StrictHostKeyChecking=yes -o BatchMode=yes)
-remote(){ local ip=$1;shift;SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" "root@$ip" "$@"; }
-copy(){ local src=$1 ip=$2 dst=$3;SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" "$src" "root@$ip:$dst"; }
-fail(){ echo "HVM_PRODUCTION_RELEASE_FAIL: $*" | tee -a "$LOG" >&2;exit 1; }
 
-test "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" = 77.90.188.180
-test -S "$SOCK" && test -r "$KNOWN"
-python3 "$DEPLOY/check-freeze.py" | tee "$REPO/mainnet-production-freeze.log"
-git merge-base --is-ancestor "$R8A_SOURCE" "$GITHUB_SHA" || fail "R8A source is not an ancestor"
-test -f "$R6/CHECKPOINT.json" && test -f "$R6/ledger/blockchain.dat" && test -f "$R6/ledger/blockchain.idx"
-echo "HVM_R8A_CANONICAL_ACCEPTANCE_BOUND run=$R8A_RUN artifact_digest=$R8A_ARTIFACT_DIGEST" | tee -a "$LOG"
+CHAIN_ID=4735489
+TESTNET_CHAIN_ID=4735490
 
-for ip in "${VALIDATORS[@]}";do
- remote "$ip" "set -euo pipefail; test \"\$(systemctl is-active '$VSERVICE' || true)\" != active; test \"\$(systemctl is-enabled '$VSERVICE' || true)\" != enabled; test -f /var/lib/hashburst-hvm-mainnet/runtime.pin"
-done
-remote "$OBSERVER" "set -euo pipefail; systemctl is-active --quiet hashburst-hvm-testnet-ingress.service; test -f /etc/hashburst-hvm-testnet-ingress/node.json"
-echo HVM_R8B_VALIDATOR_AT_REST_AND_TESTNET_OBSERVER_PRESERVED_OK | tee -a "$LOG"
+EXPECTED_CONFIG_DIGEST=86a9c1e1ed65c2e3afcaf469a3155fad94add9e88a2b90e5bc80e0c2e33b3fb3
 
-cd "$ROOT"
-test "$(go env GOVERSION)" = go1.25.7
-go test ./internal/evmgateway ./blockchain ./cmd/hvm-observer-identity -count=1
-go build -trimpath -o "$REPO/hvm-mainnet-observer-identity" ./cmd/hvm-observer-identity
-go build -trimpath -o "$REPO/hvm-mainnet-evm-gateway" ./cmd/hvm-mainnet-evm-gateway
-go build -trimpath -o "$REPO/hvm-mainnet-production-canary" ./cmd/hvm-mainnet-production-canary
-chmod 0755 "$REPO"/hvm-mainnet-{observer-identity,evm-gateway,production-canary}
+EXPECTED_ARTIFACT_SOURCE_COMMIT=018468c3a77f264889d2aaef51b0e7cc4eeb8dd7
 
-TMP=$(mktemp -d)
-SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" root@77.90.188.153:/opt/hashburst-hvm-mainnet/hashburst-mainnet "$TMP/hashburst-mainnet"
-SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" root@77.90.188.153:/etc/hashburst-hvm-mainnet/node.json "$TMP/validator.json"
-RUNTIME_SHA=$(sha256sum "$TMP/hashburst-mainnet"|awk '{print $1}')
-for ip in "${VALIDATORS[@]}";do remote "$ip" "test \"\$(sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | cut -d ' ' -f1)\" = '$RUNTIME_SHA'";done
-echo "HVM_R8B_ACCEPTED_RUNTIME_4OF4_OK sha256=$RUNTIME_SHA" | tee -a "$LOG"
+EXPECTED_PRODUCTION_SIGNATURE_SHA256=4d78071e395b1ef83a369ed18f4c8662ea53f5f46c147a89d6cf42658f411031
 
-rollback=1
-cleanup(){
- rc=$?;trap - EXIT INT TERM
- if ((rollback==1 && rc!=0));then
-  for ip in "${VALIDATORS[@]}";do remote "$ip" "systemctl disable --now '$VSERVICE' >/dev/null 2>&1 || true" || true;done
-  remote 77.90.188.153 "systemctl disable --now '$APOW_SERVICE' >/dev/null 2>&1 || true" || true
-  remote "$OBSERVER" "systemctl disable --now '$GW_SERVICE' '$OBS_SERVICE' >/dev/null 2>&1 || true; if test -f /root/.hvm-mainnet-vhost.pre-r9;then cp -f /root/.hvm-mainnet-vhost.pre-r9 /etc/nginx/sites-available/blockchainapi.one.conf;rm -f /etc/nginx/snippets/hvm-mainnet-evm.conf;nginx -t >/dev/null&&systemctl reload nginx||true;fi" || true
-  echo "HVM_R9_FAIL_CLOSED_PRODUCTION_SERVICES_STOPPED rc=$rc" | tee -a "$LOG"
- fi
- rm -rf "$TMP"
- exit "$rc"
+PACKAGE="${HASHBURST_PRODUCTION_PACKAGE:-/var/lib/hashburst-actions/g5-master-acceptance/master-${EXPECTED_ARTIFACT_SOURCE_COMMIT}/production-signed-release}"
+
+ROLLBACK_ROOT="${HASHBURST_ROLLBACK_ROOT:-/var/lib/hashburst-actions/mainnet-evidence/rollback/2026-11-18-pre-g5-signed-runtime-upgrade}"
+ROLLBACK_INDEX="$ROLLBACK_ROOT/FORENSIC-INDEX.json"
+EXPECTED_OLD_RUNTIME=cf111db0d141e76787b76cc319f97fa6a4608de2868d4ba0d94381ba853fb2b8
+
+TRUST_VERIFY="$SUPPLY/verify-production-trust-anchor.sh"
+RELEASE_VERIFY="$SUPPLY/verify-release.sh"
+TRUST_PUB="$SUPPLY/trust/release-ed25519.pub.pem"
+
+LOG="${HASHBURST_RELEASE_LOG:-$REPO/mainnet-production-release.log}"
+
+SSH=(
+    ssh
+    -o UserKnownHostsFile="$KNOWN"
+    -o StrictHostKeyChecking=yes
+    -o BatchMode=yes
+)
+
+SCP=(
+    scp
+    -q
+    -o UserKnownHostsFile="$KNOWN"
+    -o StrictHostKeyChecking=yes
+    -o BatchMode=yes
+)
+
+remote() {
+    local ip="$1"
+    shift
+
+    SSH_AUTH_SOCK="$SOCK" \
+        "${SSH[@]}" "root@$ip" "$@"
 }
-trap cleanup EXIT INT TERM
-echo HVM_R8B_ROLLBACK_ARMED_BEFORE_OBSERVER_MUTATION_OK | tee -a "$LOG"
 
-remote "$OBSERVER" "set -euo pipefail
- getent passwd '$OBS_USER' >/dev/null || useradd --system --user-group --no-create-home --shell /usr/sbin/nologin '$OBS_USER'
- install -d -m 0700 -o '$OBS_USER' -g '$OBS_USER' '$OBS_ETC' '$OBS_STATE'
- install -d -m 0755 -o root -g root '$OBS_OPT' '$GW_OPT'"
-copy "$REPO/hvm-mainnet-observer-identity" "$OBSERVER" "$OBS_OPT/observer-identity"
-remote "$OBSERVER" "chown root:root '$OBS_OPT/observer-identity';chmod 0755 '$OBS_OPT/observer-identity'; '$OBS_OPT/observer-identity' --key '$OBS_ETC/p2p.key'; chown '$OBS_USER:$OBS_USER' '$OBS_ETC/p2p.key';chmod 0600 '$OBS_ETC/p2p.key'" > "$TMP/peer"
-PEER=$(tail -n1 "$TMP/peer")
-python3 - "$TMP/validator.json" "$TMP/observer.json" "$PEER" <<'PY'
+copy() {
+    local src="$1"
+    local ip="$2"
+    local dst="$3"
+
+    SSH_AUTH_SOCK="$SOCK" \
+        "${SCP[@]}" "$src" "root@$ip:$dst"
+}
+
+log() {
+    printf '%s\n' "$*" | tee -a "$LOG"
+}
+
+fail() {
+    log "HVM_PRODUCTION_RELEASE_FAIL: $*"
+    exit 1
+}
+
+health_json() {
+    local ip="$1"
+
+    remote "$ip" \
+        "curl -fsS --max-time 5 http://127.0.0.1:18019/health"
+}
+
+validate_health() {
+    local expected_role="$1"
+    local minimum_peers="$2"
+
+    python3 -c '
+import json
+import sys
+
+role = sys.argv[1]
+minimum_peers = int(sys.argv[2])
+
+d = json.load(sys.stdin)
+
+assert d["ok"] is True
+assert d["network"] == "mainnet"
+assert d["chain_id"] == 4735489
+assert d["config_digest"] == "'"$EXPECTED_CONFIG_DIGEST"'"
+assert d["role"] == role
+
+assert isinstance(d["height"], int)
+assert isinstance(d["finalized_height"], int)
+assert d["height"] >= d["finalized_height"]
+
+assert isinstance(d["peer_count"], int)
+assert d["peer_count"] >= minimum_peers
+
+assert d["reactor_running"] is True
+assert d["reactor_status_fresh"] is True
+
+r = d["reactor"]
+
+assert isinstance(r, dict)
+assert r["running"] is True
+assert isinstance(r["height"], int)
+assert r["local_validator_id"]
+'
+}
+
+validator_health() {
+    local ip="$1"
+    local minimum_peers="${2:-0}"
+
+    health_json "$ip" |
+        validate_health validator "$minimum_peers"
+}
+
+finalized_height() {
+    local ip="$1"
+
+    health_json "$ip" |
+        python3 -c '
 import json,sys
-c=json.load(open(sys.argv[1]))
-assert c["network"]=="mainnet" and c["protocol"]["chain_id"]==4735489
-c.update(node_id="hvm-mainnet-observer-01",role="observer",peer_id=sys.argv[3],validator_id="",consensus_key_file="",data_dir="/var/lib/hashburst-hvm-mainnet-ingress",p2p_key_file="/etc/hashburst-hvm-mainnet-ingress/p2p.key",rpc_listen="127.0.0.1:18019",p2p_listen_ip="64.31.4.9",p2p_port=31317)
-json.dump(c,open(sys.argv[2],"w"),indent=2);open(sys.argv[2],"a").write("\n")
-PY
-copy "$TMP/hashburst-mainnet" "$OBSERVER" "$OBS_OPT/hashburst-mainnet"
-copy "$TMP/observer.json" "$OBSERVER" "$OBS_ETC/node.json"
-tar -C "$R6/ledger" -cf - blockchain.dat blockchain.idx | SSH_AUTH_SOCK="$SOCK" "${SSH[@]}" root@"$OBSERVER" "tar -C '$OBS_STATE' -xf -"
-remote "$OBSERVER" "set -euo pipefail
- chown root:root '$OBS_OPT/hashburst-mainnet' '$OBS_ETC/node.json';chmod 0755 '$OBS_OPT/hashburst-mainnet';chmod 0644 '$OBS_ETC/node.json'
- chown -R '$OBS_USER:$OBS_USER' '$OBS_STATE' '$OBS_ETC/p2p.key'
- if test -e '$OBS_STATE/runtime.pin'; then
-   test -f '$OBS_STATE/runtime.pin'
-   test ! -L '$OBS_STATE/runtime.pin'
-   runuser -u '$OBS_USER' -- '$OBS_OPT/hashburst-mainnet' --config '$OBS_ETC/node.json' --check
-   echo HVM_R8B_MAINNET_OBSERVER_EXISTING_PIN_REVALIDATED_OK
- else
-   runuser -u '$OBS_USER' -- '$OBS_OPT/hashburst-mainnet' --config '$OBS_ETC/node.json' --provision
-   echo HVM_R8B_MAINNET_OBSERVER_FRESH_PROVISION_OK
- fi
- cat > /etc/systemd/system/$OBS_SERVICE <<'UNIT'
-[Unit]
-Description=HashBurst HVM mainnet non-signing observer
-After=network-online.target
-Wants=network-online.target
-[Service]
-Type=simple
-User=hashburst-hvm-mainnet-ingress
-Group=hashburst-hvm-mainnet-ingress
-ExecStart=/opt/hashburst-hvm-mainnet-ingress/hashburst-mainnet --config /etc/hashburst-hvm-mainnet-ingress/node.json
-Restart=on-failure
-RestartSec=5
-UMask=0077
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectControlGroups=true
-RestrictSUIDSGID=true
-LockPersonality=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
-ReadWritePaths=/var/lib/hashburst-hvm-mainnet-ingress
-[Install]
-WantedBy=multi-user.target
-UNIT
- systemctl daemon-reload
- test \"\$(systemctl is-active '$OBS_SERVICE' || true)\" != active
- test \"\$(systemctl is-enabled '$OBS_SERVICE' || true)\" != enabled
- systemctl is-active --quiet hashburst-hvm-testnet-ingress.service"
-echo "HVM_R8B_MAINNET_OBSERVER_STAGED_UNSIGNED_OK peer_id=$PEER" | tee -a "$LOG"
+d=json.load(sys.stdin)
+assert d["ok"] is True
+print(d["finalized_height"])
+'
+}
 
-for ip in "${VALIDATORS[@]}";do remote "$ip" "systemctl enable --now '$VSERVICE'";done
-remote 77.90.188.153 "systemctl enable --now '$APOW_SERVICE'"
-for n in $(seq 1 120);do
- ok=1
- for ip in "${VALIDATORS[@]}";do
-  remote "$ip" "body=\$(curl -fsS --max-time 3 http://127.0.0.1:18019/health 2>/dev/null || true); test -n \"\$body\"; python3 -c 'import json,sys;d=json.loads(sys.argv[1]);assert d[\"ok\"] and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=3' \"\$body\"" >/dev/null 2>&1||ok=0
- done
- ((ok==1))&&break
- if ((n%15==0));then echo "HVM_R8B_VALIDATOR_FEDERATION_WAIT attempt=$n" | tee -a "$LOG";fi
- sleep 2
-done
-if ((ok!=1));then
- echo HVM_R8B_VALIDATOR_FEDERATION_DIAGNOSTICS_BEGIN | tee -a "$LOG"
- for ip in "${VALIDATORS[@]}";do
-  echo "HVM_R8B_VALIDATOR_DIAGNOSTIC host=$ip" | tee -a "$LOG"
-  remote "$ip" "echo SERVICE_ACTIVE=\$(systemctl is-active '$VSERVICE' || true); echo SERVICE_ENABLED=\$(systemctl is-enabled '$VSERVICE' || true); echo HEALTH_BEGIN; curl -sS --max-time 5 http://127.0.0.1:18019/health || true; echo; echo HEALTH_END; echo JOURNAL_BEGIN; journalctl -u '$VSERVICE' -n 80 --no-pager -o cat || true; echo JOURNAL_END" | tee -a "$LOG" || true
- done
- echo HVM_R8B_VALIDATOR_FEDERATION_DIAGNOSTICS_END | tee -a "$LOG"
- fail "validator fleet health/quorum timeout"
-fi
-echo HVM_R9_VALIDATOR_FEDERATION_ACTIVE_4OF4_OK | tee -a "$LOG"
+verify_testnet_sentinel() {
+    local body
 
-remote "$OBSERVER" "systemctl enable --now '$OBS_SERVICE'"
-for n in $(seq 1 90);do
- if remote "$OBSERVER" "curl -fsS http://127.0.0.1:18019/health | python3 -c 'import json,sys;d=json.load(sys.stdin);assert d[\"ok\"] and d[\"role\"]==\"observer\" and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=1'" >/dev/null 2>&1;then break;fi
- sleep 2
-done
-remote "$OBSERVER" "curl -fsS http://127.0.0.1:18019/health | python3 -c 'import json,sys;d=json.load(sys.stdin);assert d[\"ok\"] and d[\"role\"]==\"observer\" and d[\"chain_id\"]==4735489 and d[\"peer_count\"]>=1'"
-echo HVM_R8B_OBSERVER_BACKED_RPC_RUNTIME_OK | tee -a "$LOG"
+    body="$(
+        remote 77.90.188.155 \
+            "systemctl is-active --quiet hashburst-hvm-testnet.service;
+             systemctl is-enabled --quiet hashburst-hvm-testnet.service;
+             curl -fsS --max-time 5 http://127.0.0.1:18009/health"
+    )"
 
-copy "$REPO/hvm-mainnet-evm-gateway" "$OBSERVER" "$GW_OPT/hvm-mainnet-evm-gateway"
-copy "$DEPLOY/mainnet-evm-routes.conf" "$OBSERVER" /etc/nginx/snippets/hvm-mainnet-evm.conf
-copy "$DEPLOY/diagnose-mainnet-nginx.sh" "$OBSERVER" /root/hashburst-hvm-mainnet-nginx-diagnostics.sh
-remote "$OBSERVER" "set -euo pipefail
- chown root:root '$GW_OPT/hvm-mainnet-evm-gateway' /etc/nginx/snippets/hvm-mainnet-evm.conf;chmod 0755 '$GW_OPT/hvm-mainnet-evm-gateway';chmod 0644 /etc/nginx/snippets/hvm-mainnet-evm.conf;chmod 0700 /root/hashburst-hvm-mainnet-nginx-diagnostics.sh
- cat > /etc/systemd/system/$GW_SERVICE <<'UNIT'
-[Unit]
-Description=HashBurst HVM mainnet public EVM gateway
-After=network-online.target hashburst-hvm-mainnet-ingress.service
-Requires=hashburst-hvm-mainnet-ingress.service
-[Service]
-DynamicUser=yes
-ExecStart=/opt/hashburst-hvm-mainnet-evm-gateway/hvm-mainnet-evm-gateway
-Restart=on-failure
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-MemoryMax=256M
-TasksMax=64
-[Install]
-WantedBy=multi-user.target
-UNIT
- V=/etc/nginx/sites-available/blockchainapi.one.conf
- E=/etc/nginx/sites-enabled/blockchainapi.one.conf
- test -f \"\$V\";test -L \"\$E\"
- test \"\$(readlink -f \"\$E\")\" = \"\$(readlink -f \"\$V\")\"
- cp -f \"\$V\" /root/.hvm-mainnet-vhost.pre-r9
- python3 - <<'PY'
-from pathlib import Path
-p=Path('/etc/nginx/sites-available/blockchainapi.one.conf')
-lines=p.read_text().splitlines()
-blocks=[]; depth=0; start=None; server_depth=None
-for i,line in enumerate(lines):
-    stripped=line.split('#',1)[0]
-    before=depth
-    if start is None and stripped.strip().startswith('server') and '{' in stripped:
-        start=i; server_depth=before
-    depth += stripped.count('{') - stripped.count('}')
-    if start is not None and depth == server_depth:
-        blocks.append((start,i)); start=None; server_depth=None
-targets=[]
-for a,b in blocks:
-    block='\n'.join(lines[a:b+1])
-    if 'server_name' in block and 'blockchainapi.one' in block and any('listen' in x and '443' in x and 'ssl' in x for x in lines[a:b+1]):
-        targets.append((a,b))
-assert len(targets)==1, f'expected one blockchainapi.one HTTPS server, found {len(targets)}'
-a,b=targets[0]
-anchor='    include /etc/nginx/snippets/hvm-testnet-routes.conf;'
-mainnet='    include /etc/nginx/snippets/hvm-mainnet-evm.conf;'
-inside=lines[a:b+1]
-if mainnet in lines:
-    assert lines.count(mainnet)==1 and mainnet in inside, 'mainnet include exists outside canonical HTTPS server'
-else:
-    assert inside.count(anchor)==1, 'testnet route anchor missing or ambiguous in HTTPS server'
-    pos=a+inside.index(anchor)+1
-    lines.insert(pos,mainnet)
-    p.write_text('\n'.join(lines)+'\n')
-PY
- systemctl daemon-reload;systemctl enable --now '$GW_SERVICE'
- for n in \$(seq 1 30); do
-   out=\$(curl -fsS --max-time 5 -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}' http://127.0.0.1:18021/rpc 2>/dev/null || true)
-   echo "\$out" | grep -q '"0x484201"' && break
-   sleep 1
- done
- echo "\$out" | grep -q '"0x484201"'
- echo HVM_R8B_MAINNET_EVM_GATEWAY_LOCAL_OK
- nginx -t;systemctl reload nginx
- nginx -T 2>&1 | grep -Fq 'include /etc/nginx/snippets/hvm-mainnet-evm.conf;'
- local_tls=
- for n in \$(seq 1 15); do
-   local_tls=\$(curl -sS --max-time 15 --resolve blockchainapi.one:443:127.0.0.1 -H 'Content-Type: application/json' --data '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"eth_chainId\",\"params\":[]}' https://blockchainapi.one/api/hashburst/hvm/mainnet/evm 2>/dev/null || true)
-   echo "\$local_tls" | grep -q '"0x484201"' && break
-   sleep 1
- done
- if ! echo "\$local_tls" | grep -q '"0x484201"'; then
-   /root/hashburst-hvm-mainnet-nginx-diagnostics.sh || true
-   exit 22
- fi
- echo HVM_R8B_NGINX_LOCAL_TLS_SNI_ROUTE_OK
- systemctl is-active --quiet hashburst-hvm-testnet-ingress.service"
-PUBLIC=https://blockchainapi.one/api/hashburst/hvm/mainnet/evm
-for n in $(seq 1 30);do
- out=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' "$PUBLIC" 2>/dev/null||true)
- grep -q '"0x484201"' <<<"$out"&&break;sleep 2
-done
-grep -q '"0x484201"' <<<"$out" || fail "public mainnet RPC unavailable"
-blocked=$(curl -fsS --max-time 15 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":2,"method":"admin_peers","params":[]}' "$PUBLIC")
-grep -q -- '-32601' <<<"$blocked" || fail "administrative RPC not blocked"
-echo HVM_R8B_OBSERVER_BACKED_PUBLIC_RPC_INGRESS_ACCEPTANCE_OK | tee -a "$LOG"
-
-copy "$REPO/hvm-mainnet-production-canary" 77.90.188.153 /opt/hashburst-apow-mainnet/hvm-mainnet-production-canary
-remote 77.90.188.153 "chmod 0755 /opt/hashburst-apow-mainnet/hvm-mainnet-production-canary; chown root:root /opt/hashburst-apow-mainnet/hvm-mainnet-production-canary"
-miner_identity=$(remote 77.90.188.153 "set -euo pipefail; systemctl is-active --quiet '$APOW_SERVICE'; systemctl is-enabled --quiet '$APOW_SERVICE'; runuser -u hashburst-apow-miner -- /opt/hashburst-apow-mainnet/hvm-apow-miner --key-file /var/lib/hashburst-apow-mainnet/miner.key --identity-only")
-test "$miner_identity" = "APOW_MINER_ADDRESS=$R8A_MINER_ADDRESS" || fail "live APoW miner identity differs from canonical R8A identity: $miner_identity"
-job=$(remote 77.90.188.153 "curl -fsS --max-time 5 http://127.0.0.1:18019/apow" 2>/dev/null || true)
-python3 - "$job" <<'PY' || fail "APoW worker endpoint did not expose a valid mainnet job"
+    printf '%s\n' "$body" |
+        tail -n 1 |
+        python3 -c '
 import json,sys
-d=json.loads(sys.argv[1])
-assert d["chain_id"]==4735489 and d["height"]>=9 and d["bits"]>=1
-PY
-echo "HVM_R8C_APOW_WORKER_IDENTITY_AND_JOB_OK address=$R8A_MINER_ADDRESS" | tee -a "$LOG"
-baseline_body=$(curl -fsS --max-time 10 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":89,"method":"eth_getBalance","params":["'$R8A_MINER_ADDRESS'","latest"]}' "$PUBLIC" 2>/dev/null || true)
-baseline_bal=$(python3 -c 'import json,sys;d=json.loads(sys.argv[1]);print(int(d["result"],16))' "$baseline_body" 2>/dev/null || echo -1)
-((baseline_bal>=0)) || fail "unable to establish canonical R8A miner baseline balance"
-journal_cursor=$(remote 77.90.188.153 "journalctl -u '$APOW_SERVICE' -n 0 --show-cursor --no-pager | sed -n 's/^-- cursor: //p' | tail -n1")
-test -n "$journal_cursor" || fail "unable to capture APoW journal cursor"
-echo "HVM_R8C_APOW_BASELINE_CAPTURED address=$R8A_MINER_ADDRESS balance=$baseline_bal" | tee -a "$LOG"
-bal=$baseline_bal
-submitted=0
-start_height=$(curl -fsS --max-time 5 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":90,"method":"eth_blockNumber","params":[]}' "$PUBLIC" 2>/dev/null | python3 -c 'import json,sys;print(int(json.load(sys.stdin)["result"],16))' 2>/dev/null || echo 0)
-for n in $(seq 1 360);do
- if remote 77.90.188.153 "journalctl -u '$APOW_SERVICE' --after-cursor '$journal_cursor' --no-pager -o cat | grep -Fq 'APOW_SUBMITTED height='" >/dev/null 2>&1; then submitted=1; fi
- body=$(curl -fsS --max-time 10 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"eth_getBalance","params":["'$R8A_MINER_ADDRESS'","latest"]}' "$PUBLIC" 2>/dev/null || true)
- if test -n "$body"; then bal=$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(int(d["result"],16))' "$body" 2>/dev/null || echo "$baseline_bal"); fi
- ((submitted==1 && bal>baseline_bal))&&break
- if ((n%30==0)); then
-   remote 77.90.188.153 "echo HVM_R8C_APOW_WAIT attempt=$n; systemctl is-active '$APOW_SERVICE'; journalctl -u '$APOW_SERVICE' -n 8 --no-pager -o cat | tail -n 8" | tee -a "$LOG" || true
- fi
- sleep 2
+d=json.load(sys.stdin)
+
+assert d["ok"] is True
+assert d["network"] == "testnet"
+assert d["chain_id"] == 4735490
+assert d["role"] == "validator"
+assert d["reactor_running"] is True
+assert d["reactor_status_fresh"] is True
+'
+
+    log "HVM_R8U_TESTNET_PRESERVATION_OK"
+}
+
+verify_four_of_four() {
+    local ip
+
+    for ip in "${VALIDATORS[@]}"; do
+        remote "$ip" \
+            "systemctl is-active --quiet '$VSERVICE';
+             systemctl is-enabled --quiet '$VSERVICE'"
+
+        validator_health "$ip" 0
+    done
+
+    log "HVM_R8U_FEDERATION_RESTORED_4OF4_OK"
+}
+
+verify_survivor_finality() {
+    local target="$1"
+    local -a survivors=()
+    local ip
+    local before after
+    local attempt
+    local advanced=0
+
+    for ip in "${VALIDATORS[@]}"; do
+        if [[ "$ip" != "$target" ]]; then
+            survivors+=("$ip")
+        fi
+    done
+
+    test "${#survivors[@]}" -eq 3
+
+    #
+    # All three surviving validators must remain valid members
+    # of the same mainnet/config and have a live/fresh reactor.
+    #
+    for ip in "${survivors[@]}"; do
+        remote "$ip" \
+            "systemctl is-active --quiet '$VSERVICE';
+             systemctl is-enabled --quiet '$VSERVICE'"
+
+        validator_health "$ip" 0
+    done
+
+    before="$(finalized_height "${survivors[0]}")"
+
+    #
+    # Do not infer quorum merely from process count. Require the
+    # surviving 3/4 federation to actually advance finality.
+    #
+    for attempt in $(seq 1 30); do
+        sleep 2
+
+        for ip in "${survivors[@]}"; do
+            validator_health "$ip" 0
+        done
+
+        after="$(finalized_height "${survivors[0]}")"
+
+        if (( after > before )); then
+            advanced=1
+            break
+        fi
+    done
+
+    (( advanced == 1 )) ||
+        fail "surviving 3-of-4 federation did not advance finality with target=$target"
+
+    log "HVM_R8U_MIXED_FLEET_QUORUM_OK target=$target before=$before after=$after"
+}
+
+wait_target_rejoin() {
+    local target="$1"
+    local expected_runtime="$2"
+    local attempt
+    local installed_runtime
+
+    for attempt in $(seq 1 120); do
+        installed_runtime="$(
+            remote "$target" \
+                "sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | awk '{print \$1}'" \
+                2>/dev/null || true
+        )"
+
+        if test "$installed_runtime" = "$expected_runtime" \
+            && validator_health "$target" 0 >/dev/null 2>&1
+        then
+            log "HVM_R8U_TARGET_RESTORED_OK target=$target attempt=$attempt runtime_sha256=$installed_runtime"
+            return 0
+        fi
+
+        sleep 2
+    done
+
+    return 1
+}
+
+validator_id() {
+    case "$1" in
+        77.90.188.153) printf '%s\n' validator-01 ;;
+        77.90.188.154) printf '%s\n' validator-02 ;;
+        77.90.188.155) printf '%s\n' validator-03 ;;
+        77.90.188.157) printf '%s\n' validator-04 ;;
+        *)
+            echo "UNKNOWN_VALIDATOR_IP=$1" >&2
+            return 1
+            ;;
+    esac
+}
+
+find_rollback_bundle() {
+    local host="$1"
+    local id
+    local bundle
+
+    id="$(validator_id "$host")"
+    bundle="$ROLLBACK_ROOT/$id/rollback-bundle.tar"
+
+    test -f "$bundle" || {
+        echo "ROLLBACK_BUNDLE_MISSING host=$host path=$bundle" >&2
+        return 1
+    }
+
+    printf '%s\n' "$bundle"
+}
+
+preflight_all_rollback_bundles() {
+    local id
+    local host
+    local bundle
+    local expected_bundle_sha
+    local actual_bundle_sha
+    local verified
+    local tmp
+    local prefix
+    local runtime
+    local runtime_sha
+
+    test -r "$ROLLBACK_INDEX" || {
+        echo "ROLLBACK_INDEX_NOT_READABLE=$ROLLBACK_INDEX" >&2
+        return 1
+    }
+
+    for host in "${VALIDATORS[@]}"; do
+        id="$(validator_id "$host")"
+        bundle="$ROLLBACK_ROOT/$id/rollback-bundle.tar"
+
+        test -r "$bundle" || {
+            echo "ROLLBACK_BUNDLE_NOT_READABLE=$bundle" >&2
+            return 1
+        }
+
+        readarray -t metadata < <(
+            python3 - "$ROLLBACK_INDEX" "$id" "$host" <<'PYINDEX'
+import json
+import sys
+
+index_path, validator_id, host = sys.argv[1:]
+
+with open(index_path, "r", encoding="utf-8") as f:
+    d = json.load(f)
+
+matches = [
+    v for v in d["validators"]
+    if v.get("validator") == validator_id
+    and v.get("ip") == host
+]
+
+if len(matches) != 1:
+    raise SystemExit(1)
+
+v = matches[0]
+
+print(v["rollback_bundle_sha256"])
+print(
+    "true"
+    if v.get("central_copy_verified") is True
+    else "false"
+)
+PYINDEX
+        )
+
+        test "${#metadata[@]}" -eq 2 || return 1
+
+        expected_bundle_sha="${metadata[0]}"
+        verified="${metadata[1]}"
+
+        test "$verified" = true || {
+            echo "ROLLBACK_CENTRAL_COPY_NOT_VERIFIED=$id" >&2
+            return 1
+        }
+
+        actual_bundle_sha="$(
+            sha256sum "$bundle" |
+                awk '{print $1}'
+        )"
+
+        test "$actual_bundle_sha" = "$expected_bundle_sha" || {
+            echo "ROLLBACK_BUNDLE_SHA_MISMATCH=$id" >&2
+            return 1
+        }
+
+        #
+        # Fail closed on unsafe archive member names before extraction.
+        #
+        python3 - "$bundle" <<'PYTAR'
+import sys
+import tarfile
+from pathlib import PurePosixPath
+
+bundle = sys.argv[1]
+
+with tarfile.open(bundle, "r:*") as tf:
+    members = tf.getmembers()
+
+if not members:
+    raise SystemExit(1)
+
+for m in members:
+    p = PurePosixPath(m.name)
+
+    if p.is_absolute() or ".." in p.parts:
+        raise SystemExit(1)
+
+    if m.issym() or m.islnk():
+        raise SystemExit(1)
+PYTAR
+
+        #
+        # Explicit tar inventory is part of the fail-closed preflight.
+        #
+        tar -tf "$bundle" >/dev/null
+
+        tmp="$(mktemp -d)"
+        chmod 0700 "$tmp"
+
+        if ! tar -xf "$bundle" -C "$tmp"; then
+            rm -rf -- "$tmp"
+            return 1
+        fi
+
+        mapfile -t prefixes < <(
+            find "$tmp" \
+                -mindepth 1 \
+                -maxdepth 1 \
+                -type d \
+                -printf '%f\n'
+        )
+
+        if test "${#prefixes[@]}" -ne 1; then
+            rm -rf -- "$tmp"
+            echo "ROLLBACK_ARCHIVE_PREFIX_INVALID=$id" >&2
+            return 1
+        fi
+
+        prefix="${prefixes[0]}"
+
+        test -s "$tmp/$prefix/SHA256SUMS" || {
+            rm -rf -- "$tmp"
+            echo "ROLLBACK_INTERNAL_SUMS_MISSING=$id" >&2
+            return 1
+        }
+
+        if ! (
+            cd "$tmp/$prefix"
+            sha256sum -c SHA256SUMS >/dev/null
+        ); then
+            rm -rf -- "$tmp"
+            echo "ROLLBACK_INTERNAL_SUMS_FAILED=$id" >&2
+            return 1
+        fi
+
+        runtime="$tmp/$prefix/runtime/hashburst-mainnet"
+
+        test -s "$runtime" || {
+            rm -rf -- "$tmp"
+            echo "ROLLBACK_RUNTIME_MISSING=$id" >&2
+            return 1
+        }
+
+        runtime_sha="$(
+            sha256sum "$runtime" |
+                awk '{print $1}'
+        )"
+
+        test "$runtime_sha" = "$EXPECTED_OLD_RUNTIME" || {
+            rm -rf -- "$tmp"
+            echo "ROLLBACK_RUNTIME_SHA_MISMATCH=$id" >&2
+            return 1
+        }
+
+        rm -rf -- "$tmp"
+
+        log "HVM_R8U_ROLLBACK_PREFLIGHT_OK validator=$id host=$host bundle_sha256=$actual_bundle_sha runtime_sha256=$runtime_sha"
+    done
+
+    log "HVM_R8U_ROLLBACK_PREFLIGHT_4OF4_OK"
+}
+
+rollback_target() {
+    local host="$1"
+    local bundle="$2"
+    local id
+    local expected_bundle_sha
+    local actual_bundle_sha
+    local tmp
+    local prefix
+    local runtime
+    local runtime_sha
+    local remote_tmp
+
+    id="$(validator_id "$host")"
+
+    expected_bundle_sha="$(
+        python3 - "$ROLLBACK_INDEX" "$id" "$host" <<'PYROLLBACKINDEX'
+import json
+import sys
+
+index_path, validator_id, host = sys.argv[1:]
+
+with open(index_path, "r", encoding="utf-8") as f:
+    d = json.load(f)
+
+matches = [
+    v for v in d["validators"]
+    if v["validator"] == validator_id and v["ip"] == host
+]
+
+assert len(matches) == 1
+assert matches[0]["central_copy_verified"] is True
+
+print(matches[0]["rollback_bundle_sha256"])
+PYROLLBACKINDEX
+    )"
+
+    actual_bundle_sha="$(sha256sum "$bundle" | awk '{print $1}')"
+
+    test "$actual_bundle_sha" = "$expected_bundle_sha" || {
+        echo "ROLLBACK_BUNDLE_SHA_MISMATCH host=$host" >&2
+        return 1
+    }
+
+    tmp="$(mktemp -d)"
+
+    if ! tar -xf "$bundle" -C "$tmp"; then
+        rm -rf "$tmp"
+        return 1
+    fi
+
+    mapfile -t prefixes < <(
+        find "$tmp" \
+            -mindepth 1 \
+            -maxdepth 1 \
+            -type d \
+            -printf '%f\n'
+    )
+
+    test "${#prefixes[@]}" -eq 1 || {
+        rm -rf "$tmp"
+        echo "ROLLBACK_ARCHIVE_PREFIX_INVALID host=$host" >&2
+        return 1
+    }
+
+    prefix="${prefixes[0]}"
+    runtime="$tmp/$prefix/runtime/hashburst-mainnet"
+
+    test -f "$runtime" || {
+        rm -rf "$tmp"
+        echo "ROLLBACK_RUNTIME_MISSING host=$host" >&2
+        return 1
+    }
+
+    runtime_sha="$(sha256sum "$runtime" | awk '{print $1}')"
+
+    test "$runtime_sha" = "$EXPECTED_OLD_RUNTIME" || {
+        rm -rf "$tmp"
+        echo "ROLLBACK_RUNTIME_SHA_MISMATCH host=$host" >&2
+        return 1
+    }
+
+    remote_tmp="/opt/hashburst-hvm-mainnet/.hashburst-mainnet.rollback.$$"
+
+    echo "HVM_R8U_VALIDATOR_ROLLBACK host=$host"
+
+    copy "$runtime" "$host:$remote_tmp"
+
+    remote "$host" "
+        set -euo pipefail
+
+        test \"\$(sha256sum '$remote_tmp' | awk '{print \$1}')\" = \
+            '$EXPECTED_OLD_RUNTIME'
+
+        install -o root -g root -m 0755 \
+            '$remote_tmp' \
+            /opt/hashburst-hvm-mainnet/hashburst-mainnet.rollback
+
+        rm -f '$remote_tmp'
+
+        mv -f \
+            /opt/hashburst-hvm-mainnet/hashburst-mainnet.rollback \
+            /opt/hashburst-hvm-mainnet/hashburst-mainnet
+
+        systemctl start '$VSERVICE'
+
+        test \"\$(systemctl is-active '$VSERVICE')\" = active
+    "
+
+    rm -rf "$tmp"
+
+    wait_target_rejoin "$host" "$EXPECTED_OLD_RUNTIME"
+
+    echo "HVM_R8U_TARGET_RESTORED_OK host=$host"
+}
+
+upgrade_validator() {
+    local target="$1"
+    local rollback_bundle="$2"
+
+    log "HVM_R8U_ROLLING_VALIDATOR_UPGRADE target=$target"
+
+    test -s "$rollback_bundle" ||
+        fail "sealed rollback image missing for $target"
+
+    #
+    # Baseline must be healthy before removing one validator.
+    #
+    verify_four_of_four
+    verify_testnet_sentinel
+
+    #
+    # Stage signed runtime before stopping the target.
+    #
+    copy "$SIGNED_RUNTIME" "$target" /root/hashburst-mainnet.r8u.new
+
+    remote "$target" \
+        "set -euo pipefail;
+         test \"\$(sha256sum /root/hashburst-mainnet.r8u.new | awk '{print \$1}')\" = '$SIGNED_RUNTIME_SHA';
+         chmod 0700 /root/hashburst-mainnet.r8u.new"
+
+    #
+    # Remove exactly one validator.
+    #
+    remote "$target" "systemctl stop '$VSERVICE'"
+
+    #
+    # Prove the remaining 3/4 federation is still finalizing before
+    # replacing the target runtime.
+    #
+    verify_survivor_finality "$target"
+
+    if ! remote "$target" \
+        "set -euo pipefail;
+         install -o root -g root -m 0755 \
+             /root/hashburst-mainnet.r8u.new \
+             /opt/hashburst-hvm-mainnet/hashburst-mainnet;
+         rm -f /root/hashburst-mainnet.r8u.new;
+         test \"\$(sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | awk '{print \$1}')\" = '$SIGNED_RUNTIME_SHA';
+         systemctl start '$VSERVICE'"; then
+
+        rollback_target "$target" "$rollback_bundle"
+    fi
+
+    if ! wait_target_rejoin "$target" "$SIGNED_RUNTIME_SHA"; then
+        rollback_target "$target" "$rollback_bundle"
+    fi
+
+    remote "$target" \
+        "test \"\$(sha256sum /opt/hashburst-hvm-mainnet/hashburst-mainnet | awk '{print \$1}')\" = '$SIGNED_RUNTIME_SHA'"
+
+    verify_four_of_four
+    verify_testnet_sentinel
+
+    log "HVM_R8U_SIGNED_RUNTIME_BOUND target=$target sha256=$SIGNED_RUNTIME_SHA"
+}
+
+echo "============================================================"
+echo "=== HASHBURST R8U SIGNED ROLLING PRODUCTION RELEASE ==="
+date -u '+UTC=%Y-%m-%dT%H:%M:%SZ'
+hostname
+echo "============================================================"
+
+#
+# Local execution boundary.
+#
+test "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" = 77.90.188.180
+test -S "$SOCK"
+test -r "$KNOWN"
+
+test -d "$PACKAGE"
+test -d "$ROLLBACK_ROOT"
+
+#
+# G5 trust and package verification MUST happen before the first
+# fleet mutation.
+#
+bash "$TRUST_VERIFY"
+
+bash "$RELEASE_VERIFY" \
+    "$PACKAGE" \
+    "$TRUST_PUB"
+
+ARTIFACT_SOURCE_COMMIT="$(
+    tr -d '\r\n' < "$PACKAGE/SOURCE_COMMIT"
+)"
+
+test "$ARTIFACT_SOURCE_COMMIT" = "$EXPECTED_ARTIFACT_SOURCE_COMMIT"
+
+PRODUCTION_SIGNATURE_SHA256="$(
+    sha256sum "$PACKAGE/SHA256SUMS.sig" |
+    awk '{print $1}'
+)"
+
+test "$PRODUCTION_SIGNATURE_SHA256" = \
+    "$EXPECTED_PRODUCTION_SIGNATURE_SHA256"
+
+SIGNED_RUNTIME_SHA="$(
+    awk '$2=="hashburst-mainnet"{print $1}' \
+        "$PACKAGE/SHA256SUMS"
+)"
+
+SIGNED_GATEWAY_SHA="$(
+    awk '$2=="hvm-mainnet-evm-gateway"{print $1}' \
+        "$PACKAGE/SHA256SUMS"
+)"
+
+test -n "$SIGNED_RUNTIME_SHA"
+test -n "$SIGNED_GATEWAY_SHA"
+
+SIGNED_RUNTIME="$PACKAGE/hashburst-mainnet"
+SIGNED_GATEWAY="$PACKAGE/hvm-mainnet-evm-gateway"
+
+test "$(
+    sha256sum "$SIGNED_RUNTIME" |
+    awk '{print $1}'
+)" = "$SIGNED_RUNTIME_SHA"
+
+test "$(
+    sha256sum "$SIGNED_GATEWAY" |
+    awk '{print $1}'
+)" = "$SIGNED_GATEWAY_SHA"
+
+ORCHESTRATOR_COMMIT="$(
+    git -C "$REPO" rev-parse HEAD
+)"
+
+log "ARTIFACT_SOURCE_COMMIT=$ARTIFACT_SOURCE_COMMIT"
+log "ORCHESTRATOR_COMMIT=$ORCHESTRATOR_COMMIT"
+log "PRODUCTION_SIGNATURE_SHA256=$PRODUCTION_SIGNATURE_SHA256"
+
+log "HVM_R8U_SIGNED_RUNTIME_BOUND sha256=$SIGNED_RUNTIME_SHA"
+log "HVM_R8U_SIGNED_GATEWAY_BOUND sha256=$SIGNED_GATEWAY_SHA"
+
+#
+# No founder or validator signing key is read or exported by this
+# rolling runtime upgrade.
+#
+log "FOUNDER_PRIVATE_KEY_NOT_USED"
+log "VALIDATOR_PRIVATE_KEYS_NOT_EXPORTED"
+
+#
+# Initial federation and testnet preservation gate.
+#
+verify_four_of_four
+verify_testnet_sentinel
+
+#
+# Upgrade exactly one validator at a time.
+#
+preflight_all_rollback_bundles
+log "HVM_R8U_ROLLBACK_PREFLIGHT_GATE_PASSED"
+
+for target in "${VALIDATORS[@]}"; do
+
+    bundle="$(find_rollback_bundle "$target")"
+
+    test -n "$bundle" ||
+        fail "cannot bind rollback image for $target"
+
+    upgrade_validator "$target" "$bundle"
 done
-end_height=$(curl -fsS --max-time 5 -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","id":91,"method":"eth_blockNumber","params":[]}' "$PUBLIC" 2>/dev/null | python3 -c 'import json,sys;print(int(json.load(sys.stdin)["result"],16))' 2>/dev/null || echo 0)
-if ((submitted!=1 || bal<=baseline_bal)); then
- remote 77.90.188.153 "echo HVM_R8C_APOW_FAILURE_DIAGNOSTICS_BEGIN; systemctl status '$APOW_SERVICE' --no-pager -l || true; journalctl -u '$APOW_SERVICE' -n 120 --no-pager -o cat || true; echo HVM_R8C_APOW_JOB_SNAPSHOT; curl -fsS --max-time 10 http://127.0.0.1:18019/apow || true; echo; echo HVM_R8C_APOW_HEALTH_SNAPSHOT; curl -fsS --max-time 10 http://127.0.0.1:18019/health || true; echo; echo HVM_R8C_APOW_FAILURE_DIAGNOSTICS_END" | tee -a "$LOG" || true
- echo "HVM_R8C_APOW_REWARD_DIAGNOSTIC address=$R8A_MINER_ADDRESS submitted=$submitted start_height=$start_height end_height=$end_height baseline_balance=$baseline_bal balance=$bal" | tee -a "$LOG"
- fail "canonical R8A miner did not receive a newly finalized APoW reward after a current-run local submission within bounded 720s acceptance window"
-fi
-echo "HVM_R8C_FINALIZED_APOW_REWARD_OK address=$R8A_MINER_ADDRESS baseline_balance=$baseline_bal balance=$bal start_height=$start_height end_height=$end_height" | tee -a "$LOG"
-remote 77.90.188.153 "/opt/hashburst-apow-mainnet/hvm-mainnet-production-canary --key /var/lib/hashburst-apow-mainnet/miner.key --out /tmp/mainnet-r8c-r8d-canary.json"
-SSH_AUTH_SOCK="$SOCK" "${SCP[@]}" root@77.90.188.153:/tmp/mainnet-r8c-r8d-canary.json "$REPO/mainnet-r8c-r8d-canary.json"
-echo HVM_R8C_R8D_PUBLIC_CANARY_EVIDENCE_COLLECTED_OK | tee -a "$LOG"
 
-python3 - "$EVIDENCE" "$GITHUB_SHA" "$RUNTIME_SHA" "$PEER" "$R8A_RUN" "$R8A_ARTIFACT_DIGEST" "$REPO/mainnet-r8c-r8d-canary.json" <<'PY'
-import hashlib,json,sys,time
-out,source,runtime,peer,r8run,r8digest,canary=sys.argv[1:]
-c=json.load(open(canary))
-e={"schema":1,"source_commit":source,"chain_id":4735489,"runtime_sha256":runtime,"observer_peer_id":peer,"r8a_run_id":int(r8run),"r8a_artifact_digest":"sha256:"+r8digest,"canary":c,"gates":{"r8b_observer_rpc":True,"r8c_wallet_receipt_logs":True,"r8d_websocket":True,"r8e_manifest":True,"r9_activation":True},"founder_private_key_used":False,"validator_private_key_used_for_canary":False,"created_unix":int(time.time())}
-raw=json.dumps(e,sort_keys=True,indent=2).encode()+b"\n";open(out,"wb").write(raw);print("manifest_sha256="+hashlib.sha256(raw).hexdigest())
-PY
-MANIFEST_SHA=$(sha256sum "$EVIDENCE"|awk '{print $1}')
-echo "HVM_R8E_CANONICAL_PRODUCTION_RELEASE_MANIFEST_OK sha256=$MANIFEST_SHA" | tee -a "$LOG"
+#
+# Final validator acceptance.
+#
+verify_four_of_four
+verify_testnet_sentinel
 
-for ip in "${VALIDATORS[@]}";do remote "$ip" "systemctl is-active --quiet '$VSERVICE';systemctl is-enabled --quiet '$VSERVICE'";done
-remote 77.90.188.153 "systemctl is-active --quiet '$APOW_SERVICE';systemctl is-enabled --quiet '$APOW_SERVICE'"
-remote "$OBSERVER" "systemctl is-active --quiet '$OBS_SERVICE';systemctl is-enabled --quiet '$OBS_SERVICE';systemctl is-active --quiet '$GW_SERVICE';systemctl is-enabled --quiet '$GW_SERVICE';systemctl is-active --quiet hashburst-hvm-testnet-ingress.service"
-rollback=0
-trap - EXIT INT TERM
-rm -rf "$TMP"
-echo HVM_R9_FINAL_PRODUCTION_ACTIVATION_DEPLOY_ACCEPTANCE_OK | tee -a "$LOG"
-echo MAINNET_CHAIN_ID_4735489_ACTIVE | tee -a "$LOG"
-echo FOUNDER_PRIVATE_KEY_NOT_USED | tee -a "$LOG"
-echo VALIDATOR_PRIVATE_KEYS_NOT_EXPORTED | tee -a "$LOG"
+log "HVM_R8U_SIGNED_RUNTIME_4OF4_OK sha256=$SIGNED_RUNTIME_SHA"
+
+#
+# Deliberate stop boundary.
+#
+# Observer/gateway/APoW/R9 are patched and accepted in the next gate.
+# Do not silently execute legacy bootstrap logic.
+#
+log "HVM_R8U_VALIDATOR_ROLLING_PHASE_COMPLETE"
+
+echo "============================================================"
+echo "HVM_R8U_VALIDATOR_ROLLING_ORCHESTRATOR_READY"
+echo "============================================================"
