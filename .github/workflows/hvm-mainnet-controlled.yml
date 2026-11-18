@@ -6,7 +6,7 @@ on:
         description: Authorized phase
         required: true
         type: choice
-        options: [preflight, benchmark, diagnostics, consensus-diagnostics, evidence-recovery, identities, checkpoint, founder-checkpoint, runtime-acceptance, runtime-provision, activation-readiness, apow-production-service, production-release, deploy, acceptance]
+        options: [preflight, benchmark, diagnostics, consensus-diagnostics, evidence-recovery, production-release-boundary, identities, checkpoint, founder-checkpoint, runtime-acceptance, runtime-provision, activation-readiness, apow-production-service, production-release, deploy, acceptance]
 permissions:
   contents: read
 concurrency:
@@ -67,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$AUTHORIZED_PHASE" in
-            preflight|benchmark|diagnostics|consensus-diagnostics|evidence-recovery|identities|checkpoint|founder-checkpoint|runtime-acceptance|runtime-provision|activation-readiness|apow-production-service|production-release|deploy|acceptance) ;;
+            preflight|benchmark|diagnostics|consensus-diagnostics|evidence-recovery|production-release-boundary|identities|checkpoint|founder-checkpoint|runtime-acceptance|runtime-provision|activation-readiness|apow-production-service|production-release|deploy|acceptance) ;;
             *) echo "Invalid or missing authorized phase: $AUTHORIZED_PHASE" >&2; exit 64 ;;
           esac
           echo "HVM_AUTHORIZED_PHASE=$AUTHORIZED_PHASE"
@@ -105,6 +105,54 @@ jobs:
           set -euo pipefail
           bash -n hvm-network/deploy/mainnet/consensus-diagnostics.sh
           bash hvm-network/deploy/mainnet/consensus-diagnostics.sh
+
+      - name: Read-only production release execution boundary
+        if: github.event.inputs.phase == 'production-release-boundary'
+        shell: bash
+        env:
+          EXPECTED_GITHUB_SHA: 7593f4372a4a66249cce3fced032153ef59a4b93
+          PACKAGE: /var/lib/hashburst-actions/g5-master-acceptance/master-018468c3a77f264889d2aaef51b0e7cc4eeb8dd7/production-signed-release
+          ROLLBACK_ROOT: /var/lib/hashburst-actions/mainnet-evidence/rollback/2026-11-18-pre-g5-signed-runtime-upgrade
+          SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
+          EXPECTED_AGENT_FP: SHA256:yvsyCOCv11WL/oeoxb6uo+Bb/yV46ouxhshw8ohqS1Y
+        run: |
+          set -euo pipefail
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "CHECKOUT_HEAD=$(git rev-parse HEAD)"
+          echo "RUNNER_UID=$(id -u)"
+          echo "RUNNER_GID=$(id -g)"
+          echo "RUNNER_USER=$(id -un)"
+          test "$GITHUB_SHA" = "$EXPECTED_GITHUB_SHA"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_GITHUB_SHA"
+          test "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" = "77.90.188.180"
+
+          ROOT_PREFIX=()
+          if [ "$(id -u)" -ne 0 ]; then
+            sudo -n true
+            ROOT_PREFIX=(sudo -n)
+          fi
+
+          "${ROOT_PREFIX[@]}" test -d "$PACKAGE"
+          "${ROOT_PREFIX[@]}" test -r "$PACKAGE/SHA256SUMS"
+          "${ROOT_PREFIX[@]}" test -r "$PACKAGE/SHA256SUMS.sig"
+          "${ROOT_PREFIX[@]}" test -d "$ROLLBACK_ROOT"
+          "${ROOT_PREFIX[@]}" test -r "$ROLLBACK_ROOT/FORENSIC-INDEX.json"
+          "${ROOT_PREFIX[@]}" test -r "$ROLLBACK_ROOT/SHA256SUMS"
+
+          test -S "$SSH_AUTH_SOCK"
+          AGENT_LIST="$(ssh-add -l)"
+          printf '%s\n' "$AGENT_LIST"
+          test "$(printf '%s\n' "$AGENT_LIST" | grep -c '^')" -eq 1
+          grep -Fq "$EXPECTED_AGENT_FP" <<<"$AGENT_LIST"
+
+          echo "HB_R8U_2A_R3B8_GITHUB_SHA_OK"
+          echo "HB_R8U_2A_R3B8_RUNNER_180_OK"
+          echo "HB_R8U_2A_R3B8_PRIVILEGE_BOUNDARY_OK"
+          echo "HB_R8U_2A_R3B8_PACKAGE_ROOT_ACCESS_OK"
+          echo "HB_R8U_2A_R3B8_ROLLBACK_ROOT_ACCESS_OK"
+          echo "HB_R8U_2A_R3B8_SSH_AGENT_LOCAL_OK"
+          echo "HB_R8U_2A_R3B8_NO_FLEET_MUTATION_OK"
+          echo "HB_R8U_2A_R3B8_EXECUTION_BOUNDARY_OK"
 
       - name: Recover exact legacy freeze evidence
         if: github.event.inputs.phase == 'evidence-recovery'
