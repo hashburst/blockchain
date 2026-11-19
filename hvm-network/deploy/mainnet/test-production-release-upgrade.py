@@ -388,3 +388,37 @@ assert '*[!0-9a-f]*)' in g, (
 
 print("HB_R8U_2A_R3B4FR4_TRUSTED_PROVENANCE_REGRESSION_OK")
 
+
+#
+# R8U-2A-R3B-4F-R5:
+# validate_health() consumes sys.argv[1] and sys.argv[2].
+# expected_role and minimum_peers must therefore be supplied explicitly
+# after the python3 -c program.
+#
+validate_start = g.index("validate_health() {")
+validate_end = g.index(
+    "\n}\n\nvalidator_health()",
+    validate_start,
+)
+validate = g[validate_start:validate_end]
+
+assert 'local expected_role="$1"' in validate
+assert 'local minimum_peers="$2"' in validate
+
+assert "role = sys.argv[1]" in validate
+assert "minimum_peers = int(sys.argv[2])" in validate
+
+argv_contract = chr(39) + ' "$expected_role" "$minimum_peers"'
+
+assert argv_contract in validate, (
+    "validate_health Python argv contract broken: "
+    "expected_role and minimum_peers are not passed to python3 -c"
+)
+
+assert validate.count(argv_contract) == 1, (
+    "validate_health Python argv contract must occur exactly once"
+)
+
+print(
+    "HB_R8U_2A_R3B4FR5_VALIDATE_HEALTH_ARGV_REGRESSION_OK"
+)
