@@ -110,7 +110,7 @@ jobs:
         if: github.event.inputs.phase == 'production-release-boundary'
         shell: bash
         env:
-          EXPECTED_GITHUB_SHA: 7593f4372a4a66249cce3fced032153ef59a4b93
+          EXPECTED_GITHUB_SHA: e6d8990e2dbc278e643cf30b9d596d682cdc3eee
           PACKAGE: /var/lib/hashburst-actions/g5-master-acceptance/master-018468c3a77f264889d2aaef51b0e7cc4eeb8dd7/production-signed-release
           ROLLBACK_ROOT: /var/lib/hashburst-actions/mainnet-evidence/rollback/2026-11-18-pre-g5-signed-runtime-upgrade
           SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
