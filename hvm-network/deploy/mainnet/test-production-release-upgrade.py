@@ -369,3 +369,22 @@ assert preflight_call < rolling_call, (
 )
 
 print("HB_R8U_2A_R3B4FR3_GLOBAL_ROLLBACK_PREFLIGHT_REGRESSION_OK")
+
+# Trusted production execution is a root-owned exported tree without .git.
+# Provenance must therefore be supplied explicitly by the privileged
+# execution capability rather than inferred from repository metadata.
+assert 'ORCHESTRATOR_COMMIT="${HASHBURST_ORCHESTRATOR_COMMIT:-}"' in g, (
+    "orchestrator provenance is not bound to privileged explicit input"
+)
+assert 'git -C "$REPO" rev-parse HEAD' not in g, (
+    "trusted production execution still depends on .git metadata"
+)
+assert 'test "${#ORCHESTRATOR_COMMIT}" -eq 40' in g, (
+    "orchestrator commit provenance is not length validated"
+)
+assert '*[!0-9a-f]*)' in g, (
+    "orchestrator commit provenance is not lowercase-hex validated"
+)
+
+print("HB_R8U_2A_R3B4FR4_TRUSTED_PROVENANCE_REGRESSION_OK")
+
