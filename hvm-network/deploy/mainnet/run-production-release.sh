@@ -123,7 +123,7 @@ assert isinstance(r, dict)
 assert r["running"] is True
 assert isinstance(r["height"], int)
 assert r["local_validator_id"]
-'
+' "$expected_role" "$minimum_peers"
 }
 
 validator_health() {
