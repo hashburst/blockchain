@@ -55,7 +55,7 @@ jobs:
           python3 hvm-network/deploy/mainnet/test-apow-production-service-boundary.py
           bash -n hvm-network/deploy/mainnet/run-production-release.sh
           echo "HVM_R8B_R9_PRODUCTION_RELEASE_BASH_SYNTAX_OK"
-          python3 hvm-network/deploy/mainnet/test-production-release-boundary.py
+          python3 hvm-network/deploy/mainnet/test-production-release-upgrade.py
       - name: Enforce coordinator identity
         shell: bash
         run: |
