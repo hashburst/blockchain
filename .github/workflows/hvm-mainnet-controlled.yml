@@ -17,11 +17,20 @@ jobs:
     runs-on: [self-hosted, linux, x64, hashburst-control, founder-180]
     environment: hvm-mainnet-production
     timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: controlled-checkout
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
           fetch-depth: 0
+          path: controlled-checkout
+      - name: Enter isolated controlled checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "HB_CONTROLLED_CHECKOUT_ISOLATED_OK"
       - name: Verify checkpoint gate executable
         shell: bash
         run: |
