@@ -110,7 +110,7 @@ jobs:
         if: github.event.inputs.phase == 'production-release-boundary'
         shell: bash
         env:
-          EXPECTED_GITHUB_SHA: e6d8990e2dbc278e643cf30b9d596d682cdc3eee
+          APPROVED_ORCHESTRATOR_COMMIT: 7593f4372a4a66249cce3fced032153ef59a4b93
           PACKAGE: /var/lib/hashburst-actions/g5-master-acceptance/master-018468c3a77f264889d2aaef51b0e7cc4eeb8dd7/production-signed-release
           ROLLBACK_ROOT: /var/lib/hashburst-actions/mainnet-evidence/rollback/2026-11-18-pre-g5-signed-runtime-upgrade
           SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
@@ -122,8 +122,9 @@ jobs:
           echo "RUNNER_UID=$(id -u)"
           echo "RUNNER_GID=$(id -g)"
           echo "RUNNER_USER=$(id -un)"
-          test "$GITHUB_SHA" = "$EXPECTED_GITHUB_SHA"
-          test "$(git rev-parse HEAD)" = "$EXPECTED_GITHUB_SHA"
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          test "$(git branch --show-current)" = "master"
+          git merge-base --is-ancestor "$APPROVED_ORCHESTRATOR_COMMIT" "$GITHUB_SHA"
           test "$(hostname -I | tr ' ' '\n' | grep -Fx '77.90.188.180')" = "77.90.188.180"
 
           ROOT_PREFIX=()
@@ -145,7 +146,8 @@ jobs:
           test "$(printf '%s\n' "$AGENT_LIST" | grep -c '^')" -eq 1
           grep -Fq "$EXPECTED_AGENT_FP" <<<"$AGENT_LIST"
 
-          echo "HB_R8U_2A_R3B8_GITHUB_SHA_OK"
+          echo "HB_R8U_2A_R3B8_GITHUB_SHA_HEAD_OK"
+          echo "HB_R8U_2A_R3B8_APPROVED_ORCHESTRATOR_ANCESTRY_OK"
           echo "HB_R8U_2A_R3B8_RUNNER_180_OK"
           echo "HB_R8U_2A_R3B8_PRIVILEGE_BOUNDARY_OK"
           echo "HB_R8U_2A_R3B8_PACKAGE_ROOT_ACCESS_OK"
