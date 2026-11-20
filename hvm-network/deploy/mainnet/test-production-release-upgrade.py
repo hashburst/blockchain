@@ -422,3 +422,82 @@ assert validate.count(argv_contract) == 1, (
 print(
     "HB_R8U_2A_R3B4FR5_VALIDATE_HEALTH_ARGV_REGRESSION_OK"
 )
+
+#
+# R8U-R7B / survivor-finality failure recovery contract.
+#
+# Once the target validator has been stopped, failure of the surviving
+# 3-of-4 finality proof is a post-mutation failure. It MUST therefore
+# restore the stopped target from its sealed rollback bundle before
+# terminating the production release.
+#
+# This regression intentionally fails on the pre-remediation source.
+#
+forward_start = g.index("upgrade_validator() {")
+forward_end = g.index("\n}\n", forward_start) + 2
+forward = g[forward_start:forward_end]
+
+stop_call = 'remote "$target" "systemctl stop \'$VSERVICE\'"'
+
+survivor_guard = '''if ! verify_survivor_finality "$target"; then
+        rollback_target "$target" "$rollback_bundle"
+        fail "surviving federation verification failed; target restored: $target"
+    fi'''
+
+signed_install = '''install -o root -g root -m 0755 \\
+             /root/hashburst-mainnet.r8u.new \\
+             /opt/hashburst-hvm-mainnet/hashburst-mainnet'''
+
+assert stop_call in forward, (
+    "rolling upgrade no longer exposes the expected single-target stop"
+)
+
+assert survivor_guard in forward, (
+    "survivor-finality failure after target stop is not rollback protected"
+)
+
+stop_pos = forward.index(stop_call)
+guard_pos = forward.index(survivor_guard)
+rollback_pos = forward.index(
+    'rollback_target "$target" "$rollback_bundle"',
+    guard_pos,
+)
+fail_pos = forward.index(
+    'fail "surviving federation verification failed; '
+    'target restored: $target"',
+    guard_pos,
+)
+install_pos = forward.index(signed_install)
+
+assert stop_pos < guard_pos, (
+    "survivor-finality guard must execute after target stop"
+)
+
+assert guard_pos < rollback_pos < fail_pos, (
+    "survivor-finality failure must rollback before fail-closed exit"
+)
+
+assert fail_pos < install_pos, (
+    "survivor-finality failure path must precede signed runtime install"
+)
+
+guard_end = forward.index("\n    fi", guard_pos) + len("\n    fi")
+guard_block = forward[guard_pos:guard_end]
+
+assert guard_block.count(
+    'rollback_target "$target" "$rollback_bundle"'
+) == 1, (
+    "survivor-finality failure path must restore target exactly once"
+)
+
+assert "SIGNED_RUNTIME_SHA" not in guard_block, (
+    "survivor-finality failure path must not bind/install signed runtime"
+)
+
+assert "/root/hashburst-mainnet.r8u.new" not in guard_block, (
+    "survivor-finality failure path must not perform forward installation"
+)
+
+print(
+    "HB_R8U_R7B_SURVIVOR_FINALITY_ROLLBACK_REGRESSION_OK"
+)
