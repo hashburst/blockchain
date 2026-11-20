@@ -619,7 +619,10 @@ upgrade_validator() {
     # Prove the remaining 3/4 federation is still finalizing before
     # replacing the target runtime.
     #
-    verify_survivor_finality "$target"
+    if ! verify_survivor_finality "$target"; then
+        rollback_target "$target" "$rollback_bundle"
+        fail "surviving federation verification failed; target restored: $target"
+    fi
 
     if ! remote "$target" \
         "set -euo pipefail;
