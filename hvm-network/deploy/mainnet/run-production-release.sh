@@ -146,6 +146,41 @@ print(d["finalized_height"])
 '
 }
 
+consensus_state() {
+    local ip="$1"
+
+    health_json "$ip" |
+        python3 -c '
+import json
+import sys
+
+d = json.load(sys.stdin)
+
+assert d["ok"] is True
+assert d["network"] == "mainnet"
+assert d["chain_id"] == 4735489
+assert d["config_digest"] == "'"$EXPECTED_CONFIG_DIGEST"'"
+assert d["reactor_running"] is True
+assert d["reactor_status_fresh"] is True
+
+r = d["reactor"]
+
+assert isinstance(r, dict)
+assert r["running"] is True
+assert isinstance(d["finalized_height"], int)
+assert isinstance(r["height"], int)
+assert isinstance(r["round"], int)
+assert r["round"] >= 0
+assert r["local_validator_id"]
+
+print(
+    str(d["finalized_height"]) + " " +
+    str(r["height"]) + " " +
+    str(r["round"])
+)
+'
+}
+
 verify_testnet_sentinel() {
     local body
 
@@ -190,10 +225,21 @@ verify_four_of_four() {
 verify_survivor_finality() {
     local target="$1"
     local -a survivors=()
+    local -a initial_heights=()
+    local -a initial_rounds=()
+    local -a current_heights=()
+    local -a current_rounds=()
     local ip
-    local before after
+    local state
+    local finalized
+    local reactor_height
+    local reactor_round
+    local before
+    local after
     local attempt
+    local index
     local advanced=0
+    local reactor_advanced=0
 
     for ip in "${VALIDATORS[@]}"; do
         if [[ "$ip" != "$target" ]]; then
@@ -204,8 +250,8 @@ verify_survivor_finality() {
     test "${#survivors[@]}" -eq 3
 
     #
-    # All three surviving validators must remain valid members
-    # of the same mainnet/config and have a live/fresh reactor.
+    # All three surviving validators must remain active members of the
+    # expected mainnet/config with live and fresh consensus reactors.
     #
     for ip in "${survivors[@]}"; do
         remote "$ip" \
@@ -215,29 +261,98 @@ verify_survivor_finality() {
         validator_health "$ip" 0
     done
 
-    before="$(finalized_height "${survivors[0]}")"
+    #
+    # Capture an initial consensus state from all three survivors.
+    # The deployment availability gate distinguishes block-production
+    # progress from consensus/pacemaker progress: APoW may legitimately
+    # leave finalized_height unchanged while the reactor remains live.
+    #
+    for index in "${!survivors[@]}"; do
+        state="$(consensus_state "${survivors[$index]}")"
+        read -r finalized reactor_height reactor_round <<<"$state"
 
-    #
-    # Do not infer quorum merely from process count. Require the
-    # surviving 3/4 federation to actually advance finality.
-    #
+        if (( index == 0 )); then
+            before="$finalized"
+        else
+            test "$finalized" = "$before" || return 1
+        fi
+
+        initial_heights+=("$reactor_height")
+        initial_rounds+=("$reactor_round")
+    done
+
+    test "${initial_heights[0]}" = "${initial_heights[1]}" || return 1
+    test "${initial_heights[0]}" = "${initial_heights[2]}" || return 1
+
+    after="$before"
+
     for attempt in $(seq 1 30); do
         sleep 2
 
-        for ip in "${survivors[@]}"; do
+        current_heights=()
+        current_rounds=()
+        reactor_advanced=1
+
+        for index in "${!survivors[@]}"; do
+            ip="${survivors[$index]}"
+
             validator_health "$ip" 0
+
+            state="$(consensus_state "$ip")"
+            read -r finalized reactor_height reactor_round <<<"$state"
+
+            current_heights+=("$reactor_height")
+            current_rounds+=("$reactor_round")
+
+            if (( index == 0 )); then
+                after="$finalized"
+            else
+                test "$finalized" = "$after" || return 1
+            fi
         done
 
-        after="$(finalized_height "${survivors[0]}")"
-
+        #
+        # A newly finalized block is the strongest liveness proof.
+        #
         if (( after > before )); then
             advanced=1
             break
         fi
+
+        #
+        # Otherwise require coherent pacemaker progress from all three
+        # survivors. They must remain on the same consensus height.
+        #
+        if test "${current_heights[0]}" = "${current_heights[1]}" \
+            && test "${current_heights[0]}" = "${current_heights[2]}"
+        then
+            for index in "${!survivors[@]}"; do
+                if (( current_heights[index] > initial_heights[index] )); then
+                    continue
+                fi
+
+                if (( current_heights[index] == initial_heights[index] )) \
+                    && (( current_rounds[index] > initial_rounds[index] ))
+                then
+                    continue
+                fi
+
+                reactor_advanced=0
+                break
+            done
+
+            if (( reactor_advanced == 1 )); then
+                advanced=1
+                log "HVM_R8U_SURVIVOR_REACTOR_LIVENESS_OK target=$target consensus_height=${current_heights[0]} rounds=${current_rounds[*]}"
+                break
+            fi
+        fi
     done
 
-    (( advanced == 1 )) ||
-        fail "surviving 3-of-4 federation did not advance finality with target=$target"
+    if (( advanced != 1 )); then
+        log "HVM_R8U_SURVIVOR_LIVENESS_NOT_PROVEN target=$target before=$before after=$after"
+        return 1
+    fi
 
     log "HVM_R8U_MIXED_FLEET_QUORUM_OK target=$target before=$before after=$after"
 }

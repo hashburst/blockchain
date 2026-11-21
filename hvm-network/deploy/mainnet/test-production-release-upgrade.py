@@ -501,3 +501,168 @@ assert "/root/hashburst-mainnet.r8u.new" not in guard_block, (
 print(
     "HB_R8U_R7B_SURVIVOR_FINALITY_ROLLBACK_REGRESSION_OK"
 )
+
+
+# R8U-R8E / APoW-aware survivor liveness contract.
+#
+# Production incident evidence:
+# - four-validator federation already had finalized height 2430 before rolling;
+# - after one target was stopped, the three survivors remained on the same
+#   chain/config/consensus height and advanced consensus rounds;
+# - production consensus may legitimately be unable to build a proposal while
+#   APoW work is unavailable.
+#
+# Therefore the deployment availability gate must not define survivor
+# availability solely as finalized_height advancing.
+#
+# This is a deployment-layer regression contract. It must not weaken quorum,
+# alter proposer selection, bypass APoW, or modify consensus code.
+
+r8e_source = g
+
+r8e_verify_start = r8e_source.find("verify_survivor_finality()")
+assert r8e_verify_start >= 0, "survivor verification function missing"
+
+r8e_verify_end = r8e_source.find("\n}", r8e_verify_start)
+assert r8e_verify_end > r8e_verify_start, (
+    "survivor verification function boundary missing"
+)
+
+r8e_verify = r8e_source[r8e_verify_start:r8e_verify_end + 2]
+
+# RED contract 1:
+# finalized_height advancement cannot remain the sole success criterion.
+assert (
+    "reactor" in r8e_verify
+    and "round" in r8e_verify
+), (
+    "survivor gate is finality-only and does not verify reactor/round liveness"
+)
+
+# RED contract 2:
+# survivor verification must establish expected chain/config through
+# the health/consensus helpers it actually invokes. Do not require
+# duplicated literal validation inside verify_survivor_finality().
+assert (
+    "validator_health" in r8e_verify
+    and "consensus_state" in r8e_verify
+    and 'd["chain_id"] == 4735489' in r8e_source
+    and 'd["config_digest"]' in r8e_source
+), (
+    "survivor gate does not bind liveness to expected chain/config"
+)
+
+# RED contract 3:
+# the gate must observe consensus progress independently of block production.
+assert "consensus_state" in r8e_verify, (
+    "survivor gate has no consensus-liveness observation"
+)
+
+assert "reactor_advanced" in r8e_verify, (
+    "survivor gate does not prove reactor progress"
+)
+
+assert "current_rounds" in r8e_verify, (
+    "survivor gate does not observe consensus round progression"
+)
+
+assert (
+    "after > before" in r8e_verify
+    and "reactor_advanced == 1" in r8e_verify
+), (
+    "survivor gate does not accept finality-or-reactor liveness"
+)
+
+# Preserve the R7B fail-closed rollback ordering.
+r8e_stop = r8e_source.find('remote "$target" "systemctl stop')
+assert r8e_stop >= 0, "target stop site missing"
+
+r8e_install = r8e_source.find(
+    'install -m 0755 "$SIGNED_RUNTIME"',
+    r8e_stop,
+)
+
+r8e_rollback = r8e_source.find(
+    'rollback_target "$target" "$rollback_bundle"',
+    r8e_stop,
+)
+
+assert r8e_rollback > r8e_stop, (
+    "survivor failure is not rollback protected"
+)
+
+if r8e_install >= 0:
+    assert r8e_rollback < r8e_install, (
+        "rollback protection occurs after forward runtime installation"
+    )
+
+# Rollback success must remain operationally verified.
+r8e_rb_start = r8e_source.find("rollback_target()")
+assert r8e_rb_start >= 0, "rollback_target function missing"
+
+r8e_rb_end = r8e_source.find("\n}", r8e_rb_start)
+assert r8e_rb_end > r8e_rb_start, "rollback_target boundary missing"
+
+r8e_rb = r8e_source[r8e_rb_start:r8e_rb_end + 2]
+
+assert "systemctl start" in r8e_rb, (
+    "rollback does not restart restored validator"
+)
+
+assert (
+    "wait_target_rejoin" in r8e_rb
+    or "validate_health" in r8e_rb
+), (
+    "rollback does not verify operational restoration"
+)
+
+print("HB_R8U_R8E_APOW_AWARE_SURVIVOR_LIVENESS_REGRESSION_OK")
+
+
+# R8U-R8E-F2 / rollback reachability contract.
+#
+# A survivor verification function used as:
+#
+#     if ! verify_survivor_*; then
+#         rollback_target ...
+#     fi
+#
+# MUST report verification failure with a non-zero return.
+# It MUST NOT terminate the orchestrator itself via fail()/exit,
+# otherwise rollback_target is unreachable after target mutation.
+
+r8e_f2_source = g
+
+r8e_f2_verify_start = r8e_f2_source.find("verify_survivor_finality()")
+assert r8e_f2_verify_start >= 0, (
+    "survivor verification function missing"
+)
+
+r8e_f2_verify_end = r8e_f2_source.find(
+    "\n}",
+    r8e_f2_verify_start,
+)
+assert r8e_f2_verify_end > r8e_f2_verify_start, (
+    "survivor verification function boundary missing"
+)
+
+r8e_f2_verify = r8e_f2_source[
+    r8e_f2_verify_start:r8e_f2_verify_end + 2
+]
+
+assert (
+    'fail "surviving 3-of-4 federation did not advance finality' not in
+    r8e_f2_verify
+), (
+    "survivor predicate terminates orchestrator before rollback is reachable"
+)
+
+assert (
+    "return 1" in r8e_f2_verify
+), (
+    "survivor predicate does not return failure to rollback caller"
+)
+
+print(
+    "HB_R8U_R8E_F2_ROLLBACK_REACHABILITY_REGRESSION_OK"
+)
