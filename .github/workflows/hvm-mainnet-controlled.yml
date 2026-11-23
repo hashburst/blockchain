@@ -120,7 +120,7 @@ jobs:
         shell: bash
         env:
           APPROVED_ORCHESTRATOR_COMMIT: 7593f4372a4a66249cce3fced032153ef59a4b93
-          PACKAGE: /var/lib/hashburst-actions/g5-master-acceptance/master-018468c3a77f264889d2aaef51b0e7cc4eeb8dd7/production-signed-release
+          PACKAGE: /var/lib/hashburst-actions/g5-master-acceptance/master-83cc7bc43325aaeebf24e11c58ecd80c336dd8a6/production-signed-release
           ROLLBACK_ROOT: /var/lib/hashburst-actions/mainnet-evidence/rollback/2026-11-18-pre-g5-signed-runtime-upgrade
           SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
           EXPECTED_AGENT_FP: SHA256:yvsyCOCv11WL/oeoxb6uo+Bb/yV46ouxhshw8ohqS1Y
