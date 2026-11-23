@@ -670,7 +670,7 @@ PYROLLBACKINDEX
 
     echo "HVM_R8U_VALIDATOR_ROLLBACK host=$host"
 
-    copy "$runtime" "$host:$remote_tmp"
+    copy "$runtime" "$host" "$remote_tmp"
 
     remote "$host" "
         set -euo pipefail
