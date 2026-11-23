@@ -4,14 +4,14 @@ import json,subprocess,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 NODES=[('77.90.188.153','validator'),('77.90.188.154','validator'),('77.90.188.155','validator'),('77.90.188.157','validator'),('64.31.4.9','observer')]
-SSH_KEY='/etc/hashburst-control/fleet_ed25519'
+SSH_AUTH_SOCK='/run/hashburst-control/ssh-agent.sock'
 KNOWN_HOSTS='/etc/hashburst-control/fleet_known_hosts'
 def main():
  out=Path(tempfile.mkdtemp(prefix='hvm-mainnet-preflight-'))
  rows=[]
  for ip,role in NODES:
-  cmd=['ssh','-T','-i',SSH_KEY,'-o','UserKnownHostsFile='+KNOWN_HOSTS,'-o','IdentitiesOnly=yes','-o','ControlMaster=no','-o','ControlPath=none','-o','ControlPersist=no','-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=10','root@'+ip,'python3 - '+ip+' '+role]
-  p=subprocess.run(cmd,input=(ROOT/'preflight-node.py').read_text(),text=True,capture_output=True,timeout=30)
+  cmd=['ssh','-T','-o','UserKnownHostsFile='+KNOWN_HOSTS,'-o','ControlMaster=no','-o','ControlPath=none','-o','ControlPersist=no','-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=10','root@'+ip,'python3 - '+ip+' '+role]
+  p=subprocess.run(cmd,input=(ROOT/'preflight-node.py').read_text(),text=True,capture_output=True,timeout=30,env={**__import__('os').environ,'SSH_AUTH_SOCK':SSH_AUTH_SOCK})
   try:
    r=json.loads(p.stdout)
    if p.returncode != 0:
