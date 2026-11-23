@@ -14,11 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26.0'
           cache-dependency-path: hvm-network/go.sum
@@ -92,7 +92,7 @@ jobs:
           echo SERVICE_RESTART=no
           echo DEPLOYMENT=no
           echo HASHBURST_G5_CI_ACCEPTANCE_OK
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: hashburst-hvm-g5-ci-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/hashburst-hvm-g5-ci.tar.gz
