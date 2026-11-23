@@ -260,7 +260,7 @@ rb_start = g.index("rollback_target()")
 rb_end = g.index("upgrade_validator()", rb_start)
 rb = g[rb_start:rb_end]
 
-assert 'copy "$runtime" "$host:$remote_tmp"' in rb, (
+assert 'copy "$runtime" "$host" "$remote_tmp"' in rb, (
     "rollback does not use canonical copy() transport helper"
 )
 

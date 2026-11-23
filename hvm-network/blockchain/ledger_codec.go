@@ -195,16 +195,24 @@ func EncodeLedgerBlock(dst []byte, b *Block) ([]byte, error) {
 	if e.err != nil {
 		return nil, e.err
 	}
+	// R8D4: current records use a distinct discriminator. Historical HBB2
+	// remains readable, but new current-schema records MUST be HBB3 so that
+	// a truncated current record cannot be reinterpreted as valid legacy HBB2.
+	if len(e.b) < 4 {
+		return nil, errLedgerEncoding
+	}
+	copy(e.b[:4], "HBB3")
 	return e.b, nil
 }
 
 // DecodeLedgerBlockInto owns all decoded strings/slices; no mmap references escape.
-func DecodeLedgerBlockInto(data []byte, out *Block) error {
+func decodeLedgerBlockCurrentInto(data []byte, out *Block) error {
 	if out == nil {
 		return errLedgerEncoding
 	}
 	*out = Block{}
-	if len(data) > ledgerRecordLimit || len(data) < 4 || string(data[:4]) != "HBB2" {
+	if len(data) > ledgerRecordLimit || len(data) < 4 ||
+		(string(data[:4]) != "HBB2" && string(data[:4]) != "HBB3") {
 		return errLedgerEncoding
 	}
 	d := ledgerDecoder{b: data[4:], remaining: 64 << 20}
@@ -216,6 +224,46 @@ func DecodeLedgerBlockInto(data []byte, out *Block) error {
 		*out = Block{}
 	}
 	return d.err
+}
+
+func DecodeLedgerBlockInto(data []byte, out *Block) error {
+	if out == nil {
+		return errLedgerEncoding
+	}
+
+	var current Block
+	if err := decodeLedgerBlockCurrentInto(data, &current); err == nil {
+		*out = current
+		return nil
+	}
+
+	// HBB3 is exclusively the current schema. A malformed or truncated HBB3
+	// record MUST fail closed and MUST NOT enter the historical HBB2 fallback.
+	if len(data) >= 4 && string(data[:4]) == "HBB3" {
+		return errLedgerEncoding
+	}
+
+	var legacy Block
+	if err := decodeLedgerBlockLegacyInto(data, &legacy); err != nil {
+		return errLedgerEncoding
+	}
+
+	// Legacy compatibility is accepted only when the historical schema
+	// reproduces the complete input record byte-for-byte. This prevents
+	// partial, trailing or structurally ambiguous records from being
+	// silently accepted by the fallback.
+	reencoded, err := encodeLedgerBlockLegacy(nil, &legacy)
+	if err != nil || len(reencoded) != len(data) {
+		return errLedgerEncoding
+	}
+	for i := range data {
+		if reencoded[i] != data[i] {
+			return errLedgerEncoding
+		}
+	}
+
+	*out = legacy
+	return nil
 }
 
 var ledgerBlocks = sync.Pool{New: func() any { return new(Block) }}
@@ -231,6 +279,48 @@ func WithLedgerBlock(data []byte, fn func(*Block) error) error {
 	}
 	return fn(b)
 }
+
+// encodeLedgerBlockLegacy is intentionally restricted to compatibility
+// verification for historical HBB2 records written before the canonical
+// MembershipStateRoot field was added. New ledger writes MUST continue to
+// use EncodeLedgerBlock and the current schema.
+func encodeLedgerBlockLegacy(dst []byte, b *Block) ([]byte, error) {
+	if b == nil {
+		return nil, errLedgerEncoding
+	}
+	e := ledgerEncoder{b: dst}
+	e.b = append(e.b, "HBB2"...)
+	e.blockLegacy(b)
+	if e.err != nil {
+		return nil, errLedgerEncoding
+	}
+	return e.b, nil
+}
+
+// decodeLedgerBlockLegacyInto decodes only the historical HBB2 schema.
+// Acceptance remains fail-closed: the caller must additionally prove a
+// byte-exact legacy re-encoding before treating the record as compatible.
+func decodeLedgerBlockLegacyInto(data []byte, out *Block) error {
+	if out == nil || len(data) < len("HBB2") ||
+		string(data[:len("HBB2")]) != "HBB2" {
+		return errLedgerEncoding
+	}
+
+	var candidate Block
+	d := ledgerDecoder{
+		b:         data[len("HBB2"):],
+		remaining: 64 << 20,
+	}
+	d.blockLegacy(&candidate)
+
+	if d.err != nil || len(d.b) != 0 {
+		return errLedgerEncoding
+	}
+
+	*out = candidate
+	return nil
+}
+
 func (e *ledgerEncoder) Block(v *Block) {
 	e.presence(v.APoW != nil)
 	if v.APoW != nil {
@@ -380,6 +470,174 @@ func (d *ledgerDecoder) Block(v *Block) {
 	v.ValidatorSetRoot = d.str()
 	v.ValidatorStateRoot = d.str()
 	v.MembershipStateRoot = d.str()
+	v.AuthorValidatorID = d.str()
+	v.ProposerID = d.str()
+	v.ConsensusRound = uint64(d.u64())
+	v.ValidRound = int64(d.u64())
+	if d.presence() {
+		d.budget(512)
+		if d.err == nil {
+			v.ValidPrevoteCertificate = new(consensus.PrevoteCertificate)
+			d.consensusPrevoteCertificate(v.ValidPrevoteCertificate)
+		}
+	}
+	if d.presence() {
+		d.budget(512)
+		if d.err == nil {
+			v.FinalityCertificate = new(consensus.QuorumCertificate)
+			d.consensusQuorumCertificate(v.FinalityCertificate)
+		}
+	}
+}
+
+func (e *ledgerEncoder) blockLegacy(v *Block) {
+	e.presence(v.APoW != nil)
+	if v.APoW != nil {
+		e.APoWProof(v.APoW)
+	}
+	e.count(len(v.EthereumTransactions), v.EthereumTransactions == nil)
+	for _, v := range v.EthereumTransactions {
+		if e.err != nil {
+			break
+		}
+		e.bytes(v)
+	}
+	e.str(v.EVMStateRoot)
+	e.str(v.EVMReceiptsRoot)
+	e.u64(uint64(v.EVMGasUsed))
+	e.u16(uint16(v.Version))
+	e.u64(uint64(v.ProtocolChainID))
+	e.u64(uint64(v.Index))
+	e.u64(uint64(v.Timestamp.Unix()))
+	e.u32(uint32(v.Timestamp.Nanosecond()))
+	e.count(len(v.Transactions), v.Transactions == nil)
+	for _, v := range v.Transactions {
+		if e.err != nil {
+			break
+		}
+		e.presence(v != nil)
+		if v != nil {
+			e.Transaction(v)
+		}
+	}
+	e.count(len(v.TransactionsV2), v.TransactionsV2 == nil)
+	for _, v := range v.TransactionsV2 {
+		if e.err != nil {
+			break
+		}
+		e.presence(v != nil)
+		if v != nil {
+			e.protocolv2TransactionV2(v)
+		}
+	}
+	e.str(v.PrevHash)
+	e.str(v.Hash)
+	e.u64(uint64(v.ProofOfWork))
+	e.u64(uint64(v.ProofOfTime))
+	e.str(v.HBTStateRoot)
+	e.str(v.HVMStateRoot)
+	e.str(v.ReceiptsRoot)
+	e.str(v.ValidatorSetRoot)
+	e.str(v.ValidatorStateRoot)
+	e.str(v.AuthorValidatorID)
+	e.str(v.ProposerID)
+	e.u64(uint64(v.ConsensusRound))
+	e.u64(uint64(v.ValidRound))
+	e.presence(v.ValidPrevoteCertificate != nil)
+	if v.ValidPrevoteCertificate != nil {
+		e.consensusPrevoteCertificate(v.ValidPrevoteCertificate)
+	}
+	e.presence(v.FinalityCertificate != nil)
+	if v.FinalityCertificate != nil {
+		e.consensusQuorumCertificate(v.FinalityCertificate)
+	}
+}
+
+func (d *ledgerDecoder) blockLegacy(v *Block) {
+	if d.presence() {
+		d.budget(512)
+		if d.err == nil {
+			v.APoW = new(APoWProof)
+			d.APoWProof(v.APoW)
+		}
+	}
+	if n := d.count(); n >= 0 && d.err == nil {
+		d.budget(n * 512)
+		if d.err == nil {
+			v.EthereumTransactions = make([][]byte, n)
+			for i := range v.EthereumTransactions {
+				if d.err != nil {
+					break
+				}
+				v.EthereumTransactions[i] = d.bytes()
+			}
+		}
+	}
+	v.EVMStateRoot = d.str()
+	v.EVMReceiptsRoot = d.str()
+	v.EVMGasUsed = uint64(d.u64())
+	v.Version = uint16(d.u16())
+	v.ProtocolChainID = uint64(d.u64())
+	{
+		indexValue := int64(d.u64())
+		v.Index = int(indexValue)
+		if int64(v.Index) != indexValue {
+			d.fail()
+		}
+	}
+	{
+		sec := int64(d.u64())
+		ns := d.u32()
+		if ns >= 1e9 {
+			d.fail()
+		}
+		v.Timestamp = time.Unix(sec, int64(ns)).UTC()
+	}
+	if n := d.count(); n >= 0 && d.err == nil {
+		d.budget(n * 512)
+		if d.err == nil {
+			v.Transactions = make([]*Transaction, n)
+			for i := range v.Transactions {
+				if d.err != nil {
+					break
+				}
+				if d.presence() {
+					d.budget(512)
+					if d.err == nil {
+						v.Transactions[i] = new(Transaction)
+						d.Transaction(v.Transactions[i])
+					}
+				}
+			}
+		}
+	}
+	if n := d.count(); n >= 0 && d.err == nil {
+		d.budget(n * 512)
+		if d.err == nil {
+			v.TransactionsV2 = make([]*protocolv2.TransactionV2, n)
+			for i := range v.TransactionsV2 {
+				if d.err != nil {
+					break
+				}
+				if d.presence() {
+					d.budget(512)
+					if d.err == nil {
+						v.TransactionsV2[i] = new(protocolv2.TransactionV2)
+						d.protocolv2TransactionV2(v.TransactionsV2[i])
+					}
+				}
+			}
+		}
+	}
+	v.PrevHash = d.str()
+	v.Hash = d.str()
+	v.ProofOfWork = int64(d.u64())
+	v.ProofOfTime = int64(d.u64())
+	v.HBTStateRoot = d.str()
+	v.HVMStateRoot = d.str()
+	v.ReceiptsRoot = d.str()
+	v.ValidatorSetRoot = d.str()
+	v.ValidatorStateRoot = d.str()
 	v.AuthorValidatorID = d.str()
 	v.ProposerID = d.str()
 	v.ConsensusRound = uint64(d.u64())

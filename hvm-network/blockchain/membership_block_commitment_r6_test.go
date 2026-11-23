@@ -69,7 +69,7 @@ func TestR6MembershipStateRootSurvivesHBX2RoundTrip(t *testing.T) {
 		t.Fatalf("EncodeLedgerBlock: %v", err)
 	}
 
-	if len(encoded) < 4 || !bytes.Equal(encoded[:4], []byte("HBB2")) {
+	if len(encoded) < 4 || !bytes.Equal(encoded[:4], []byte("HBB3")) {
 		t.Fatalf("unexpected HBX2 prefix: %x", encoded)
 	}
 
