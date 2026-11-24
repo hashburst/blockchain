@@ -161,7 +161,7 @@ print("HB_R8U_2A_R3_SIGNED_ROLLING_RELEASE_REGRESSION_OK")
 #
 trust_call = g.index('bash "$TRUST_VERIFY"')
 release_call = g.index('bash "$RELEASE_VERIFY"')
-rolling_call = g.index('upgrade_validator "$target" "$bundle"')
+rolling_call = g.index('upgrade_validator "$CANARY_TARGET" "$bundle"')
 
 assert trust_call < rolling_call, (
     "production trust verifier is not CALLED before rolling mutation"
@@ -361,7 +361,7 @@ for required in (
 
 preflight_call = g.index("preflight_all_rollback_bundles")
 rolling_call = g.index(
-    'upgrade_validator "$target" "$bundle"'
+    'upgrade_validator "$CANARY_TARGET" "$bundle"'
 )
 
 assert preflight_call < rolling_call, (
