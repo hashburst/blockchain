@@ -93,6 +93,7 @@ jobs:
           test "$(ssh-add -l | wc -l)" = "1"
           ssh-add -l | grep -F 'SHA256:yvsyCOCv11WL/oeoxb6uo+Bb/yV46ouxhshw8ohqS1Y'
           python3 hvm-network/deploy/mainnet/test-preflight-ssh-agent-boundary.py
+          python3 hvm-network/deploy/mainnet/test-production-preflight.py
           python3 hvm-network/deploy/mainnet/preflight.py | tee mainnet-preflight.log
       - name: Benchmark gate
         if: github.event.inputs.phase == 'benchmark'
