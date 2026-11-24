@@ -666,3 +666,27 @@ assert (
 print(
     "HB_R8U_R8E_F2_ROLLBACK_REACHABILITY_REGRESSION_OK"
 )
+
+
+# R8U-C / deliberate production canary 1-of-4 boundary.
+# The production-release phase is authorized to mutate only validator-01.
+# Advancing to .154/.155/.157 requires a separate reviewed gate.
+assert 'CANARY_TARGET=77.90.188.153' in g
+assert 'upgrade_validator "$CANARY_TARGET" "$bundle"' in g
+assert 'HVM_R8U_SIGNED_RUNTIME_1OF4_OK' in g
+assert 'HVM_R8U_CANARY_MANDATORY_STOP_OK' in g
+assert 'HVM_R8U_CANARY_1OF4_COMPLETE' in g
+assert 'for target in "${VALIDATORS[@]}"; do' not in g, (
+    "production-release must not automatically roll all four validators"
+)
+assert 'HVM_R8U_SIGNED_RUNTIME_4OF4_OK' not in g, (
+    "canary phase must not claim four-of-four signed-runtime acceptance"
+)
+assert 'die "invalid HASHBURST_ORCHESTRATOR_COMMIT"' not in g
+assert 'fail "invalid HASHBURST_ORCHESTRATOR_COMMIT"' in g
+
+canary_call = g.index('upgrade_validator "$CANARY_TARGET" "$bundle"')
+canary_stop = g.index('HVM_R8U_CANARY_MANDATORY_STOP_OK')
+assert canary_call < canary_stop
+
+print("HVM_R8U_CANARY_1OF4_BOUNDARY_REGRESSION_OK")
