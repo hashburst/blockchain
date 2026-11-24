@@ -836,7 +836,7 @@ test -n "$ORCHESTRATOR_COMMIT"
 test "${#ORCHESTRATOR_COMMIT}" -eq 40
 case "$ORCHESTRATOR_COMMIT" in
     *[!0-9a-f]*)
-        die "invalid HASHBURST_ORCHESTRATOR_COMMIT"
+        fail "invalid HASHBURST_ORCHESTRATOR_COMMIT"
         ;;
 esac
 
@@ -861,37 +861,30 @@ verify_four_of_four
 verify_testnet_sentinel
 
 #
-# Upgrade exactly one validator at a time.
+# C / canary authority boundary.
+# Validate all four rollback images before the first mutation, then upgrade
+# ONLY validator-01 (.153). A separate reviewed gate is required before any
+# additional production validator may be mutated.
 #
 preflight_all_rollback_bundles
 log "HVM_R8U_ROLLBACK_PREFLIGHT_GATE_PASSED"
 
-for target in "${VALIDATORS[@]}"; do
+CANARY_TARGET=77.90.188.153
+bundle="$(find_rollback_bundle "$CANARY_TARGET")"
 
-    bundle="$(find_rollback_bundle "$target")"
+test -n "$bundle" ||
+    fail "cannot bind rollback image for $CANARY_TARGET"
 
-    test -n "$bundle" ||
-        fail "cannot bind rollback image for $target"
-
-    upgrade_validator "$target" "$bundle"
-done
+upgrade_validator "$CANARY_TARGET" "$bundle"
 
 #
-# Final validator acceptance.
+# Canary acceptance is complete only after upgrade_validator() has already
+# proved survivor liveness, target rejoin, federation 4/4 and testnet
+# preservation. Stop here deliberately: .154/.155/.157 remain untouched.
 #
-verify_four_of_four
-verify_testnet_sentinel
-
-log "HVM_R8U_SIGNED_RUNTIME_4OF4_OK sha256=$SIGNED_RUNTIME_SHA"
-
-#
-# Deliberate stop boundary.
-#
-# Observer/gateway/APoW/R9 are patched and accepted in the next gate.
-# Do not silently execute legacy bootstrap logic.
-#
-log "HVM_R8U_VALIDATOR_ROLLING_PHASE_COMPLETE"
+log "HVM_R8U_SIGNED_RUNTIME_1OF4_OK target=$CANARY_TARGET sha256=$SIGNED_RUNTIME_SHA"
+log "HVM_R8U_CANARY_MANDATORY_STOP_OK remaining=77.90.188.154,77.90.188.155,77.90.188.157"
 
 echo "============================================================"
-echo "HVM_R8U_VALIDATOR_ROLLING_ORCHESTRATOR_READY"
+echo "HVM_R8U_CANARY_1OF4_COMPLETE"
 echo "============================================================"
