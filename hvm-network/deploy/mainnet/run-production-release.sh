@@ -40,6 +40,9 @@ TRUST_PUB="$SUPPLY/trust/release-ed25519.pub.pem"
 
 LOG="${HASHBURST_RELEASE_LOG:-$REPO/mainnet-production-release.log}"
 
+RELEASE_MODE="${HASHBURST_RELEASE_MODE:-canary}"
+RECOVERY_TARGET="${HASHBURST_RECOVERY_TARGET:-}"
+
 SSH=(
     ssh
     -o UserKnownHostsFile="$KNOWN"
@@ -670,6 +673,8 @@ PYROLLBACKINDEX
 
     echo "HVM_R8U_VALIDATOR_ROLLBACK host=$host"
 
+    remote "$host" "systemctl stop '$VSERVICE'"
+
     copy "$runtime" "$host" "$remote_tmp"
 
     remote "$host" "
@@ -855,7 +860,47 @@ log "FOUNDER_PRIVATE_KEY_NOT_USED"
 log "VALIDATOR_PRIVATE_KEYS_NOT_EXPORTED"
 
 #
-# Initial federation and testnet preservation gate.
+# A3-R5 / rollback-only recovery authority boundary.
+#
+case "$RELEASE_MODE" in
+    rollback-only)
+        test "$RECOVERY_TARGET" = 77.90.188.153 ||
+            fail "rollback-only target must be 77.90.188.153"
+
+        RECOVERY_TARGET=77.90.188.153
+        bundle="$(find_rollback_bundle "$RECOVERY_TARGET")"
+
+        test -n "$bundle" ||
+            fail "cannot bind rollback image for $RECOVERY_TARGET"
+
+        preflight_all_rollback_bundles
+        log "HVM_R8U_ROLLBACK_PREFLIGHT_GATE_PASSED"
+
+        verify_testnet_sentinel
+        verify_survivor_finality "$RECOVERY_TARGET"
+
+        log "HVM_R8U_ROLLBACK_ONLY_TARGET_BOUND_OK target=$RECOVERY_TARGET"
+
+        rollback_target "$RECOVERY_TARGET" "$bundle"
+
+        verify_four_of_four
+        verify_testnet_sentinel
+
+        log "HVM_A3_R5_VALIDATOR153_RECOVERY_OK target=$RECOVERY_TARGET runtime_sha256=$EXPECTED_OLD_RUNTIME"
+        echo "HVM_R8U_ROLLBACK_ONLY_COMPLETE"
+        exit 0
+        ;;
+    canary)
+        test -z "$RECOVERY_TARGET" ||
+            fail "HASHBURST_RECOVERY_TARGET is invalid in canary mode"
+        ;;
+    *)
+        fail "invalid HASHBURST_RELEASE_MODE"
+        ;;
+esac
+
+#
+# Initial federation and testnet preservation gate for forward canary only.
 #
 verify_four_of_four
 verify_testnet_sentinel
