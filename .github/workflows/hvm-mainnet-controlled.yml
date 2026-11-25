@@ -6,7 +6,7 @@ on:
         description: Authorized phase
         required: true
         type: choice
-        options: [preflight, benchmark, diagnostics, consensus-diagnostics, evidence-recovery, production-release-boundary, identities, checkpoint, founder-checkpoint, runtime-acceptance, runtime-provision, activation-readiness, apow-production-service, production-release, deploy, acceptance]
+        options: [preflight, benchmark, diagnostics, consensus-diagnostics, evidence-recovery, production-release-boundary, identities, checkpoint, founder-checkpoint, runtime-acceptance, runtime-provision, activation-readiness, apow-production-service, production-release, production-release-recovery, deploy, acceptance]
 permissions:
   contents: read
 concurrency:
@@ -56,6 +56,7 @@ jobs:
           bash -n hvm-network/deploy/mainnet/run-production-release.sh
           echo "HVM_R8B_R9_PRODUCTION_RELEASE_BASH_SYNTAX_OK"
           python3 hvm-network/deploy/mainnet/test-production-release-upgrade.py
+          python3 hvm-network/deploy/mainnet/test-production-release-recovery-dispatch.py
       - name: Enforce coordinator identity
         shell: bash
         run: |
@@ -76,7 +77,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$AUTHORIZED_PHASE" in
-            preflight|benchmark|diagnostics|consensus-diagnostics|evidence-recovery|production-release-boundary|identities|checkpoint|founder-checkpoint|runtime-acceptance|runtime-provision|activation-readiness|apow-production-service|production-release|deploy|acceptance) ;;
+            preflight|benchmark|diagnostics|consensus-diagnostics|evidence-recovery|production-release-boundary|identities|checkpoint|founder-checkpoint|runtime-acceptance|runtime-provision|activation-readiness|apow-production-service|production-release|production-release-recovery|deploy|acceptance) ;;
             *) echo "Invalid or missing authorized phase: $AUTHORIZED_PHASE" >&2; exit 64 ;;
           esac
           echo "HVM_AUTHORIZED_PHASE=$AUTHORIZED_PHASE"
@@ -167,7 +168,7 @@ jobs:
           test -x hvm-network/deploy/mainnet/recover-freeze-evidence.sh
           hvm-network/deploy/mainnet/recover-freeze-evidence.sh
       - name: Mutation phases are fail-closed until protocol freeze
-        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'runtime-acceptance' || github.event.inputs.phase == 'runtime-provision' || github.event.inputs.phase == 'activation-readiness' || github.event.inputs.phase == 'apow-production-service' || github.event.inputs.phase == 'production-release' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
+        if: github.event.inputs.phase == 'identities' || github.event.inputs.phase == 'checkpoint' || github.event.inputs.phase == 'founder-checkpoint' || github.event.inputs.phase == 'runtime-acceptance' || github.event.inputs.phase == 'runtime-provision' || github.event.inputs.phase == 'activation-readiness' || github.event.inputs.phase == 'apow-production-service' || github.event.inputs.phase == 'production-release' || github.event.inputs.phase == 'production-release-recovery' || github.event.inputs.phase == 'deploy' || github.event.inputs.phase == 'acceptance'
         shell: bash
         env:
           SSH_AUTH_SOCK: /run/hashburst-control/ssh-agent.sock
@@ -205,6 +206,9 @@ jobs:
               ;;
             production-release)
               sudo -n /usr/local/libexec/hashburst-deployment-agent/production-release-execute
+              ;;
+            production-release-recovery)
+              sudo -n /usr/local/libexec/hashburst-deployment-agent/production-release-recovery-execute
               ;;
             deploy|acceptance)
               echo "Requested mutation phase remains fail-closed pending its dedicated reviewed gate." >&2
