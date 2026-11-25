@@ -9,8 +9,7 @@ assert "production-release|production-release-recovery|deploy|acceptance" in wor
 assert "github.event.inputs.phase == 'production-release-recovery'" in workflow
 assert "production-release-recovery)" in workflow
 
-recovery_case = workflow.split("production-release-recovery)", 1)[1]
-recovery_case = recovery_case.split("production-release-recovery)", 1)[1].split(";;", 1)[0]
+recovery_case = workflow.split("            production-release-recovery)\n", 1)[1].split("              ;;", 1)[0]
 expected = "sudo -n /usr/local/libexec/hashburst-deployment-agent/production-release-recovery-execute"
 assert expected in recovery_case
 assert "HASHBURST_RELEASE_MODE" not in recovery_case
