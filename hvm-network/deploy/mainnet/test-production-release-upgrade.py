@@ -690,3 +690,42 @@ canary_stop = g.index('HVM_R8U_CANARY_MANDATORY_STOP_OK')
 assert canary_call < canary_stop
 
 print("HVM_R8U_CANARY_1OF4_BOUNDARY_REGRESSION_OK")
+
+
+# A3-R5 / rollback-only validator-01 recovery boundary.
+assert 'RELEASE_MODE="${HASHBURST_RELEASE_MODE:-canary}"' in g
+assert 'RECOVERY_TARGET="${HASHBURST_RECOVERY_TARGET:-}"' in g
+assert 'rollback-only)' in g
+assert 'test "$RECOVERY_TARGET" = 77.90.188.153' in g
+assert 'RECOVERY_TARGET=77.90.188.153' in g
+assert 'HVM_R8U_ROLLBACK_ONLY_TARGET_BOUND_OK' in g
+assert 'HVM_A3_R5_VALIDATOR153_RECOVERY_OK' in g
+assert 'HVM_R8U_ROLLBACK_ONLY_COMPLETE' in g
+
+recovery_start = g.index('    rollback-only)')
+recovery_end = g.index('    canary)', recovery_start)
+recovery = g[recovery_start:recovery_end]
+
+assert 'upgrade_validator' not in recovery
+assert 'SIGNED_RUNTIME' not in recovery
+assert 'verify_survivor_finality "$RECOVERY_TARGET"' in recovery
+assert 'rollback_target "$RECOVERY_TARGET" "$bundle"' in recovery
+assert 'verify_four_of_four' in recovery
+assert recovery.count('verify_testnet_sentinel') >= 2
+assert 'exit 0' in recovery
+
+survivor_pos = recovery.index('verify_survivor_finality "$RECOVERY_TARGET"')
+bound_pos = recovery.index('HVM_R8U_ROLLBACK_ONLY_TARGET_BOUND_OK')
+rollback_pos = recovery.index('rollback_target "$RECOVERY_TARGET" "$bundle"')
+four_pos = recovery.index('verify_four_of_four', rollback_pos)
+assert survivor_pos < bound_pos < rollback_pos < four_pos
+
+rb_start = g.index('rollback_target() {')
+rb_end = g.index('\n}', rb_start) + 2
+rb = g[rb_start:rb_end]
+assert 'remote "$host" "systemctl stop \'$VSERVICE\'"' in rb
+assert 'copy "$runtime" "$host" "$remote_tmp"' in rb
+assert 'copy "$runtime" "$host:$remote_tmp"' not in rb
+assert rb.index('systemctl stop') < rb.index('copy "$runtime" "$host" "$remote_tmp"')
+
+print("HVM_A3_R5_ROLLBACK_ONLY_153_BOUNDARY_REGRESSION_OK")
