@@ -754,10 +754,12 @@ upgrade_validator() {
          systemctl start '$VSERVICE'"; then
 
         rollback_target "$target" "$rollback_bundle"
+        fail "candidate runtime start failed; target restored: $target"
     fi
 
     if ! wait_target_rejoin "$target" "$SIGNED_RUNTIME_SHA"; then
         rollback_target "$target" "$rollback_bundle"
+        fail "candidate runtime rejoin failed; target restored: $target"
     fi
 
     remote "$target" \
