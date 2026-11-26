@@ -112,6 +112,36 @@ func validProtocolGenesis(b *Block, cfg ProtocolV2Config) bool {
 	if cfg.GenesisImport == nil {
 		return b.Hash == expected.Hash
 	}
+
+	// Production history predates the economic-genesis representation.
+	//
+	// Compatibility is deliberately restricted to the exact deterministic
+	// historical HashBurst genesis. OpenExistingBlockchain separately binds
+	// persisted block zero and the configured checkpoint before chain
+	// verification reaches this function.
+	legacy := NewGenesisBlock()
+	if b.EffectiveVersion() < BlockVersionV2 &&
+		b.Hash == legacy.Hash &&
+		b.GenerateHash() == legacy.Hash {
+		disk := blockToOnDisk(b)
+		canonical := blockFromOnDisk(&disk)
+
+		legacyDisk := blockToOnDisk(legacy)
+		canonicalLegacy := blockFromOnDisk(&legacyDisk)
+
+		left, err := EncodeLedgerBlock(nil, canonical)
+		if err != nil {
+			return false
+		}
+		right, err := EncodeLedgerBlock(nil, canonicalLegacy)
+		if err != nil {
+			return false
+		}
+		if string(left) == string(right) {
+			return true
+		}
+	}
+
 	// Exact codec comparison rejects uncommitted/ignored genesis metadata too.
 	disk := blockToOnDisk(b)
 	canonical := blockFromOnDisk(&disk)
