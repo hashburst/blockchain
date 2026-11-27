@@ -181,7 +181,6 @@ func validAuthenticatedHistoricalGenesis(b *Block, authenticatedHash string) boo
 		b.Index != 0 ||
 		b.EffectiveVersion() >= BlockVersionV2 ||
 		b.Hash != authenticatedHash ||
-		b.GenerateHash() != b.Hash ||
 		b.ProtocolChainID != 0 ||
 		len(b.TransactionsV2) != 0 ||
 		len(b.EthereumTransactions) != 0 ||
