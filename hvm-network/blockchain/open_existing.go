@@ -87,7 +87,7 @@ func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 	if err != nil {
 		return nil, err
 	}
-	bc := &Blockchain{history: &indexedHistory{reader: reader, head: head}, MiningReward: DefaultMiningReward, storage: storage, state: NewState(), hvmEngine: hvm.NewEngine(nil, cfg.FeePolicy), validators: consensus.NewRegistry(cfg.Validator), voteJournal: vote, bftJournal: bft, receipts: make(map[string]hvm.Receipt), v2Config: cfg}
+	bc := &Blockchain{history: &indexedHistory{reader: reader, head: head}, MiningReward: DefaultMiningReward, storage: storage, state: NewState(), hvmEngine: hvm.NewEngine(nil, cfg.FeePolicy), validators: consensus.NewRegistry(cfg.Validator), voteJournal: vote, bftJournal: bft, receipts: make(map[string]hvm.Receipt), v2Config: cfg, authenticatedGenesisHash: genesis}
 	bc.checkpointStartup = useCheckpoint && os.Getenv("HVM_FULL_REPLAY") != "1"
 	if bc.checkpointStartup {
 		seed, e := bc.loadRecoveryCheckpoint()
@@ -104,7 +104,7 @@ func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 	if bc.startupSeed != nil {
 		start = bc.startupSeed.height + 1
 	}
-	if err := bc.verifyChainFrom(start, genesis); err != nil {
+	if err := bc.verifyChainFrom(start); err != nil {
 		return nil, fmt.Errorf("verify existing chain: %w", err)
 	}
 	log.Printf("HVM_CHAIN_REPLAY_BEGIN blocks=%d", count)

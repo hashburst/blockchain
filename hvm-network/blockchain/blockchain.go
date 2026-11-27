@@ -51,8 +51,9 @@ type Blockchain struct {
 	bftJournal       *consensus.BFTSignJournal
 	bftJournalErr    error
 	receipts         map[string]hvm.Receipt
-	v2Config         ProtocolV2Config
-	mempool          *Mempool
+	v2Config                   ProtocolV2Config
+	authenticatedGenesisHash   string
+	mempool                    *Mempool
 	storage          *ChainStorage
 	syncer           BlockBroadcaster
 	consensusReactor *ConsensusReactor
@@ -502,9 +503,16 @@ func isHex32(s string) bool {
 	return err == nil
 }
 
-func (bc *Blockchain) VerifyChain() error { return bc.verifyChainFrom(1, "") }
+func (bc *Blockchain) validStoredGenesis(b *Block) bool {
+	if validProtocolGenesis(b, bc.v2Config) {
+		return true
+	}
+	return validAuthenticatedHistoricalGenesis(b, bc.authenticatedGenesisHash)
+}
 
-func (bc *Blockchain) verifyChainFrom(start int, authenticatedGenesis string) error {
+func (bc *Blockchain) VerifyChain() error { return bc.verifyChainFrom(1) }
+
+func (bc *Blockchain) verifyChainFrom(start int) error {
 	if bc.blockCountLocked() == 0 {
 		return fmt.Errorf("empty chain")
 	}
@@ -512,8 +520,7 @@ func (bc *Blockchain) verifyChainFrom(start int, authenticatedGenesis string) er
 	if err != nil {
 		return err
 	}
-	if !validProtocolGenesis(genesis, bc.v2Config) &&
-		!validAuthenticatedHistoricalGenesis(genesis, authenticatedGenesis) {
+	if !bc.validStoredGenesis(genesis) {
 		return fmt.Errorf("genesis mismatch")
 	}
 	if start < 1 {
