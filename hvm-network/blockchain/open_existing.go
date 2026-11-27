@@ -104,7 +104,7 @@ func openExistingBlockchain(dir string, cfg ProtocolV2Config, genesis string, ch
 	if bc.startupSeed != nil {
 		start = bc.startupSeed.height + 1
 	}
-	if err := bc.verifyChainFrom(start); err != nil {
+	if err := bc.verifyChainFrom(start, genesis); err != nil {
 		return nil, fmt.Errorf("verify existing chain: %w", err)
 	}
 	log.Printf("HVM_CHAIN_REPLAY_BEGIN blocks=%d", count)

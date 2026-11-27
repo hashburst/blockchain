@@ -502,9 +502,9 @@ func isHex32(s string) bool {
 	return err == nil
 }
 
-func (bc *Blockchain) VerifyChain() error { return bc.verifyChainFrom(1) }
+func (bc *Blockchain) VerifyChain() error { return bc.verifyChainFrom(1, "") }
 
-func (bc *Blockchain) verifyChainFrom(start int) error {
+func (bc *Blockchain) verifyChainFrom(start int, authenticatedGenesis string) error {
 	if bc.blockCountLocked() == 0 {
 		return fmt.Errorf("empty chain")
 	}
@@ -512,7 +512,8 @@ func (bc *Blockchain) verifyChainFrom(start int) error {
 	if err != nil {
 		return err
 	}
-	if !validProtocolGenesis(genesis, bc.v2Config) {
+	if !validProtocolGenesis(genesis, bc.v2Config) &&
+		!validAuthenticatedHistoricalGenesis(genesis, authenticatedGenesis) {
 		return fmt.Errorf("genesis mismatch")
 	}
 	if start < 1 {

@@ -169,3 +169,39 @@ func MainnetEconomicGenesis(cfg ProtocolV2Config) (*Block, error) {
 	}
 	return protocolGenesis(cfg), nil
 }
+
+// validAuthenticatedHistoricalGenesis validates the canonical properties of a
+// legacy block zero after OpenExistingBlockchain has already authenticated its
+// identity against the configured genesis hash and checkpoint.
+//
+// Generic protocol verification deliberately cannot use this compatibility path.
+func validAuthenticatedHistoricalGenesis(b *Block, authenticatedHash string) bool {
+	if b == nil ||
+		authenticatedHash == "" ||
+		b.Index != 0 ||
+		b.EffectiveVersion() >= BlockVersionV2 ||
+		b.Hash != authenticatedHash ||
+		b.GenerateHash() != b.Hash ||
+		b.ProtocolChainID != 0 ||
+		len(b.TransactionsV2) != 0 ||
+		len(b.EthereumTransactions) != 0 ||
+		b.APoW != nil ||
+		b.EVMStateRoot != "" ||
+		b.EVMReceiptsRoot != "" ||
+		b.EVMGasUsed != 0 ||
+		b.HBTStateRoot != "" ||
+		b.HVMStateRoot != "" ||
+		b.ReceiptsRoot != "" ||
+		b.ValidatorSetRoot != "" ||
+		b.ValidatorStateRoot != "" ||
+		b.MembershipStateRoot != "" ||
+		b.AuthorValidatorID != "" ||
+		b.ProposerID != "" ||
+		b.ConsensusRound != 0 ||
+		b.ValidRound != 0 ||
+		b.ValidPrevoteCertificate != nil ||
+		b.FinalityCertificate != nil {
+		return false
+	}
+	return true
+}
