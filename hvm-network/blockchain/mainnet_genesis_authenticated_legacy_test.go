@@ -67,3 +67,20 @@ func TestAuthenticatedHistoricalGenesisRequiresPinnedIdentity(t *testing.T) {
 		t.Fatal("historical genesis accepted under different authenticated identity")
 	}
 }
+
+func TestAuthenticatedHistoricalGenesisUsesPreviouslyPinnedDiskIdentity(t *testing.T) {
+	historical := historicalLegacyGenesisFixture()
+	const pinned = "977b557f6be840d9e6c9fadc7e1eb0bb6e1b7a49f228bbc3d04d96cb222cd97b"
+
+	// OpenExistingBlockchain authenticates block zero against this configured
+	// identity before validAuthenticatedHistoricalGenesis is reached. The
+	// compatibility helper must not reinterpret that authenticated historical
+	// identity through the current legacy hash implementation.
+	historical.Hash = pinned
+	if historical.GenerateHash() == pinned {
+		t.Fatal("fixture unexpectedly reproduces pinned historical identity")
+	}
+	if !validAuthenticatedHistoricalGenesis(historical, pinned) {
+		t.Fatal("previously authenticated disk genesis rejected by current hash implementation")
+	}
+}
