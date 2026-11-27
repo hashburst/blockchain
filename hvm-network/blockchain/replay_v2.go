@@ -52,7 +52,7 @@ func (bc *Blockchain) computeProjectionsFrom(count int, get func(int) (*Block, e
 			return nil, nil, nil, nil, nil, nil, e
 		}
 		if n == 0 && bc.v2Config.GenesisImport != nil {
-			if !validProtocolGenesis(b, bc.v2Config) {
+			if !bc.validStoredGenesis(b) {
 				return nil, nil, nil, nil, nil, nil, fmt.Errorf("mainnet import genesis mismatch")
 			}
 			ancestors = appendAncestor(ancestors, b)
