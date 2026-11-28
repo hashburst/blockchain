@@ -46,14 +46,14 @@ func TestMainnetImportRejectsMalformedHistoricalLegacyGenesis(t *testing.T) {
 	}
 }
 
-func TestMainnetImportRejectsLegacyGenesisWithV2Metadata(t *testing.T) {
+func TestMainnetImportStrictGenesisRejectsLegacyGenesisWithV2Metadata(t *testing.T) {
 	historical := historicalLegacyGenesisFixture()
 
 	historical.ProtocolChainID = MainnetChainID
 	historical.Hash = historical.GenerateHash()
 
-	if validAuthenticatedHistoricalGenesis(historical, historical.Hash) {
-		t.Fatal("legacy genesis carrying V2 metadata accepted")
+	if validProtocolGenesis(historical, importFixtureConfig()) {
+		t.Fatal("strict protocol genesis accepted legacy block carrying V2 metadata")
 	}
 }
 
