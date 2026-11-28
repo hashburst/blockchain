@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hashburst/consensus"
 	"hashburst/hvm"
+	"strings"
 )
 
 const MainnetChainID uint64 = 4735489
