@@ -46,14 +46,14 @@ func TestMainnetImportRejectsMalformedHistoricalLegacyGenesis(t *testing.T) {
 	}
 }
 
-func TestMainnetImportRejectsLegacyGenesisWithV2Metadata(t *testing.T) {
+func TestMainnetImportStrictGenesisRejectsLegacyGenesisWithV2Metadata(t *testing.T) {
 	historical := historicalLegacyGenesisFixture()
 
 	historical.ProtocolChainID = MainnetChainID
 	historical.Hash = historical.GenerateHash()
 
-	if validAuthenticatedHistoricalGenesis(historical, historical.Hash) {
-		t.Fatal("legacy genesis carrying V2 metadata accepted")
+	if validProtocolGenesis(historical, importFixtureConfig()) {
+		t.Fatal("strict protocol genesis accepted legacy block carrying V2 metadata")
 	}
 }
 
@@ -82,5 +82,27 @@ func TestAuthenticatedHistoricalGenesisUsesPreviouslyPinnedDiskIdentity(t *testi
 	}
 	if !validAuthenticatedHistoricalGenesis(historical, pinned) {
 		t.Fatal("previously authenticated disk genesis rejected by current hash implementation")
+	}
+}
+
+
+func TestAuthenticatedHistoricalGenesisDoesNotReinterpretAuthenticatedLegacyMetadata(t *testing.T) {
+	historical := historicalLegacyGenesisFixture()
+	const pinned = "977b557f6be840d9e6c9fadc7e1eb0bb6e1b7a49f228bbc3d04d96cb222cd97b"
+
+	// Production block zero is authenticated by OpenExistingBlockchain before
+	// this helper is reached. Fields outside the historical identity must not be
+	// reclassified by assumptions introduced by the current Block structure.
+	historical.Hash = pinned
+	historical.ProtocolChainID = MainnetChainID
+	historical.HBTStateRoot = "historical-uncommitted-metadata"
+	historical.AuthorValidatorID = "historical-uncommitted-metadata"
+
+	if !validAuthenticatedHistoricalGenesis(historical, pinned) {
+		t.Fatal("authenticated historical disk genesis was reinterpreted by current metadata rules")
+	}
+
+	if validAuthenticatedHistoricalGenesis(historical, NewGenesisBlock().Hash) {
+		t.Fatal("authenticated historical disk genesis accepted under a different pinned identity")
 	}
 }
